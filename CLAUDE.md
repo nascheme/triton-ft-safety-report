@@ -159,6 +159,27 @@ The key question is not "does this file mention threads?" The key question is:
   These are not bugs by themselves. The issue is when code relies on them as an
   implicit lock protecting native shared state.
 
+## Python built-in type thread safety
+
+Free-threaded CPython protects most built-in container operations with
+per-object critical sections, but the rules are subtle and not widely
+known. **Before reporting a race on a `list`, `dict`, `set`, `bytearray`,
+`memoryview`, `collections.*`, or `queue.*` object, read
+[PYTHON_THREADSAFETY.md](PYTHON_THREADSAFETY.md)** — it summarizes what
+is and isn't safe on free-threaded CPython, with pointers to
+[https://docs.python.org/dev/library/threadsafety.html](https://docs.python.org/dev/library/threadsafety.html).
+
+Quick rules of thumb:
+- Single ops (`lst.append`, `d[k] = v`, `s.add`) on shared containers are
+  safe — don't report them as corruption.
+- Iteration under concurrent mutation is **not** safe, even for lists and
+  dicts. The interpreter doesn't crash but the observed element sequence
+  is undefined. This is the most commonly missed bug.
+- Check-then-act (`if k in d: del d[k]`) and read-modify-write
+  (`d[k] = d[k] + 1`) are never safe.
+- `collections.defaultdict` auto-vivification (`d[missing]`) is a
+  compound op and is a real race on shared defaultdicts.
+
 ## Concurrency model
 
 Think in terms of three tiers.

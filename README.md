@@ -76,4 +76,4 @@ Triton's primary concurrency exposure comes from JIT compilation and kernel disp
 
 | Component | Status | Report |
 |-----------|--------|--------|
-| (audit not yet started) | | |
+| `runtime/jit.py` | In progress | [jit/README.md](jit/README.md) |
