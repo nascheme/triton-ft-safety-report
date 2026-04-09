@@ -246,7 +246,31 @@ For each piece of mutable state you find:
    - wrong backend/driver/config selection
    - benign duplicate computation or stale read
 
-## Report format
+## Report format for component
+
+Create a file `<component>/README.md` file.  At the top of that file, create a
+table:
+
+  ```markdown
+  ## Issues
+
+  | # | Severity | Component | Issue |
+  |---|----------|-----------|-------|
+  |   |          |           |       |
+  ```
+
+After the table, create another section "## Triage notes".  The notes section
+contains a short summary of each issue found during the first pass of the
+audit.  For issues that are determined to be valid, create individual markdown
+files as `<component>/<issue-name>.md`.
+
+
+## Report format for individual issues
+
+The individual issue report files should be written to be consise.  They are
+reviewed by expert Python programmers with limited time.  Try to explain the
+issue as concisely as possible, assuming their basic Python and programming
+knowledge.
 
 ```markdown
 # Free-Threading Audit: <component>
