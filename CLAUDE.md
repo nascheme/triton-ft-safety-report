@@ -22,6 +22,7 @@ The core MLIR / LLVM compiler internals are out of scope except where they:
 
 See [OVERVIEW.md](OVERVIEW.md) for the high-level architecture.
 See [AUDIT_PLAN.md](AUDIT_PLAN.md) for scope and recommended file ordering.
+See [GLOSSARY.md](GLOSSARY.md) for a description of preferred terms.
 
 ## What to look for
 
