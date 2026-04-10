@@ -8,14 +8,11 @@ Issues in `python/triton/runtime/jit.py` affecting free-threaded Python 3.14t.
 |---|----------|-----------|-------|
 | 1 | Significant | function_registry | [`_triton_jit_function_registry` publishes partially-initialized `JITFunction`](function-registry-race.md) |
 | 2 | SEVERE | device_caches | [`JITFunction.device_caches` defaultdict auto-vivification race](device-caches-race.md) |
-| 3 | Not a bug | create_binder | `create_binder` sets instance attributes on `self` redundantly (dict ops are thread-safe in free-threaded CPython; values are always identical) |
 | 4 | Significant | kernel_cache | [`kernel_cache` / `kernel_key_cache` TOCTOU causes duplicate compilation](kernel-cache-toctou.md) |
-| 5 | Not a bug | KernelParam | `KernelParam` `@cached_property` fields — getters are pure/deterministic and `__dict__` writes are thread-safe in free-threaded CPython; worst case is benign duplicate computation |
 | 6 | Significant | used_global_vals | [`JITCallable.used_global_vals` unsynchronized read skips global-changed safety check](used-global-vals-unsynchronized-read.md) |
 | 7 | Significant | pre_run_hooks | [`JITFunction.pre_run_hooks` unsynchronized iteration during concurrent mutation](pre-run-hooks-unsynchronized-iteration.md) |
 | 8 | (covered by #4) | compute_cache_key | [`compute_cache_key` read-then-write race on `kernel_key_cache`](kernel-cache-toctou.md) |
 | 9 | Significant | async_compile | [`_do_compile` async path — `AsyncCompileMode`/`FutureKernel` races](async-compile-races.md) |
-| 10 | Not a bug | hash_placeholder | [`JITCallable.hash` placeholder visibility — no direct readers exist](hash-placeholder-not-a-bug.md) |
 | 11 | Significant | _unsafe_update_src | [`JITCallable._unsafe_update_src` unsynchronized hash invalidation](unsafe-update-src-race.md) |
 | 12 | Significant | add_stages_inspection_hook | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `run()`](add-stages-inspection-hook-toctou.md) |
 
@@ -58,11 +55,21 @@ here as a record of the original triage reasoning.
   line 594.
 - **Reader:** `run()` lines 731-732.
 - **Concern:** These are plain dicts inside the `device_caches` tuple.
-  Concurrent `dict.get()` and `dict.__setitem__()` on the same dict is the
-  classic compound race under free-threading. Also, the `finalize_compile`
-  callback (line 877) writes `kernel_cache[key]` from the async executor
-  thread. Tier 2. Written up in
+  The issue is the check-then-act TOCTOU that spans multiple dict operations,
+  not the individual dict ops (which are internally thread-safe in
+  free-threaded CPython). Also, the `finalize_compile` callback (line 877)
+  writes `kernel_cache[key]`. Tier 2. Written up in
   [kernel-cache-toctou.md](kernel-cache-toctou.md).
+
+  On the async path there is a further ordering hazard: after
+  `async_mode.submit` returns, the executor may complete the compile and
+  another thread may call `FutureKernel.result()` -> `finalize_compile`,
+  writing `kernel_cache[key] = real_kernel` **before** the submitting
+  thread's placeholder write at jit.py:882 executes. The placeholder then
+  overwrites the real kernel. Subsequent readers get a `FutureKernel` whose
+  `finalize_compile` already fired; functionally it still works (the
+  `__getattr__` -> `result()` path returns the cached kernel), but the
+  cache holds a wrapper instead of the real kernel object.
 
 ### 5. `KernelParam` `@cached_property` fields — not a bug
 
@@ -131,6 +138,14 @@ Confirmed as a Tier 3 ordering bug: Thread A's in-flight `cache_key`
 finalization can clobber Thread B's `self.hash = None` write, leaving
 `self.hash` pointing at the old-src hash after `self._src` has been
 replaced. Fix is to take `self._hash_lock` inside `_unsafe_update_src`.
+
+There is a secondary hazard: `cache_key` reads `self._src` twice -- once
+via `self.src` (line 510, for the dependencies finder) and once via
+`self.parse()` (line 511, which re-reads `self._src`). If
+`_unsafe_update_src` replaces `_src` between those two reads, the
+dependencies finder walks the new-src AST while holding the old src string.
+The resulting hash is derived from an inconsistent pair. This is a
+second-order consequence of the same missing-lock root cause.
 
 ### 12. `knobs.runtime.add_stages_inspection_hook` — TOCTOU in `run()`
 

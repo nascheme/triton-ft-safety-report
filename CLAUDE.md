@@ -265,42 +265,73 @@ table:
   |   |          |           |       |
   ```
 
-After the table, create another section "## Triage notes".  The notes section
-contains a short summary of each issue found during the first pass of the
-audit.  For issues that are determined to be valid, create individual markdown
-files as `<component>/<issue-name>.md`.
+After the table, create another section "## Triage notes".
+
+The triage notes section is the place for:
+- extra context,
+- alternative hypotheses,
+- severity reasoning,
+- examples / interleavings,
+- why a suspected issue was rejected or downgraded,
+- and any detail that would make the individual issue files too long.
+
+For issues that are determined to be valid, create one individual markdown file
+per issue as `<component>/<issue-name>.md`.
+
+Keep the individual issue files brief. Reviewers should be able to understand
+the bug, impact, and fix quickly without reading a long narrative. Put any
+supporting detail or extended discussion in `<component>/README.md` under
+"## Triage notes".
 
 
 ## Report format for individual issues
 
-The individual issue report files should be written to be consise.  They are
-reviewed by expert Python programmers with limited time.  Try to explain the
-issue as concisely as possible, assuming their basic Python and programming
-knowledge.
+Individual issue files should be **brief** and should usually describe **one
+issue only**. They are reviewed by expert Python programmers with limited time.
+
+Prefer a short, flat format like this:
 
 ```markdown
-# Free-Threading Audit: <component>
+# `<short issue title>`
 
-## Architecture Summary
-Brief description of how the component works and where it sits in Triton's flow.
+- **Status:** Open
+- **Severity:** SEVERE | Significant | Minor
+- **Component:** `<file or subsystem>`
 
-## SEVERE Issues
-Issues that can plausibly cause crashes, corruption, or wrong kernel execution.
-
-## Significant Issues
-Issues likely to cause incorrect behavior, duplicate init/compile, or broken caching.
-
-## Minor Issues
-Real issues with limited impact.
-
-For each issue:
-### Title
-- **Shared state:** what is being raced on
+- **Shared state:** what shared mutable state is being raced on
 - **Writer(s):** who writes it and when
 - **Reader(s):** who reads it and when
-- **Race scenario:** "Thread A does X while Thread B does Y -> consequence"
-- **Suggested fix:** brief
+- **Race scenario:** concise concrete interleaving: "Thread A does X while
+  Thread B does Y -> consequence"
+- **Suggested fix:** brief and concrete
 ```
+
+Guidelines:
+- Keep issue files as short as possible while still making the bug clear.
+- Prefer one screen of text if possible.
+- Do **not** repeat long architecture background, severity discussions, or
+  alternative theories in the issue file unless they are necessary to establish
+  the bug.
+- Put extra commentary, nuance, edge cases, examples, and follow-up notes in
+  `<component>/README.md` under `## Triage notes`.
+- If a component has multiple closely related races, use separate issue files
+  when reviewers would likely want to discuss or fix them independently.
+- If several smaller races are really consequences of one root design bug, keep
+  the individual issue file focused on the root issue and put the decomposition
+  into `README.md`.
+
+### Style note
+
+Use the individual issue files for the minimum needed to answer:
+
+1. What shared state is raced?
+2. How can two threads reach it concurrently?
+3. What breaks?
+4. What is the fix direction?
+
+If you find yourself adding long caveats, multiple alternative hypotheses, or
+detailed severity justification, move that material into the component
+`README.md` triage notes instead.
 
 ## Severity guide
 

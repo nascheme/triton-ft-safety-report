@@ -74,6 +74,11 @@ Triton's primary concurrency exposure comes from JIT compilation and kernel disp
 
 ## Audit Progress
 
-| Component | Status | Report |
-|-----------|--------|--------|
-| `runtime/jit.py` | In progress | [jit/README.md](jit/README.md) |
+| Component | Status | SEVERE | Significant | Minor | Total | Report |
+|-----------|--------|--------|-------------|-------|-------|--------|
+| `runtime/jit.py` | Done | 1 | 7 | 0 | 8 | [jit/README.md](jit/README.md) |
+| `runtime/autotuner.py` | Done | 1 | 5 | 1 | 7 | [autotuner/README.md](autotuner/README.md) |
+| `compiler/` | Done | 1 | 3 | 0 | 4 | [compiler/README.md](compiler/README.md) |
+| `runtime/driver.py` | Done | 0 | 3 | 0 | 3 | [runtime-driver/README.md](runtime-driver/README.md) |
+| `nvidia/backend/driver.py` | Done | 0 | 0 | 2 | 2 | [nvidia-driver/README.md](nvidia-driver/README.md) |
+| **Total** | | **3** | **18** | **3** | **24** | |

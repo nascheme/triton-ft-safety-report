@@ -44,8 +44,106 @@ lines 455 and 468 skips initialization, receives the launcher, then reads
 `self.function` (still `None`) at `runtime/jit.py:761` and passes it into
 the driver launch call. Additional hazards: guard TOCTOU at line 440
 causing duplicate `load_binary` and duplicate `kernel_load_*_hook` calls,
-and a torn tuple-unpack at line 468 that can publish `self.module` before
-`self.function`. Tier 2 SEVERE.
+and a non-atomic multi-target tuple-unpack at line 468 that can publish
+`self.module` before `self.function`. Tier 2 SEVERE.
+
+#### Detailed scenarios
+
+**Scenario A — published-but-empty launcher (SEVERE).** Two threads launch
+the same kernel for the first time:
+
+| Time | Thread A | Thread B |
+|------|----------|----------|
+| t0 | `run` property: `self._run is None` → True | |
+| t1 | enters `_init_handles`, passes guard | |
+| t2 | `self._run = launcher_cls(...)` (line 455) | |
+| t3 | scheduled out | |
+| t4 | | `run` property: `self._run is None` → **False** |
+| t5 | | returns `self._run`, reads `kernel.function` (still `None`) |
+| t6 | | launcher invoked with `function=None` |
+
+**Scenario B — guard TOCTOU, duplicate load (Significant).** Entry through
+`__getitem__` or `launch_metadata` uses the `self.module is None` guard at
+line 440. Two threads both pass the guard and run full init in parallel:
+duplicate `launcher_cls(...)`, duplicate `load_binary(...)`, duplicate hook
+invocations. Last writer wins; loser's GPU module handle is leaked.
+
+**Scenario C — non-atomic tuple-unpack (SEVERE).** The five-target
+assignment at line 468 compiles to five sequential `STORE_ATTR` opcodes.
+A reader racing via the `self.module is None` guard can observe
+`self.module` set while `self.function` is still `None`.
+
+**Scenario D — `raise_` partial poisoning.** Thread A hits the error path
+and poisons `self._run`; Thread B that already read an unpoisoned
+`self._run` via the property launches against partially-initialized state.
+Low priority (error path).
+
+#### Fix
+
+```python
+def __init__(self, ...):
+    ...
+    self._init_lock = threading.Lock()
+    self.module = None
+    self.function = None
+    self._run = None
+
+def _init_handles(self):
+    if self._run is not None:          # fast path: success or poisoned
+        return
+    with self._init_lock:
+        if self._run is not None:
+            return
+        try:
+            device = driver.active.get_current_device()
+            launcher = driver.active.launcher_cls(self.src, self.metadata)
+            max_shared = max_shared_mem(device)
+            if self.metadata.shared > max_shared:
+                raise OutOfResources(
+                    self.metadata.shared, max_shared, "shared memory")
+            if (hasattr(self.metadata, "tmem_size")
+                    and self.metadata.tmem_size is not None
+                    and self.metadata.tmem_size > 512):
+                raise OutOfResources(
+                    self.metadata.tmem_size, 512, "tensor memory")
+            if knobs.runtime.kernel_load_start_hook is not None:
+                knobs.runtime.kernel_load_start_hook(
+                    None, None, self.name, self.metadata_group, self.hash)
+            module, function, n_regs, n_spills, n_max_threads = (
+                driver.active.utils.load_binary(
+                    self.name, self.kernel, self.metadata.shared, device))
+            warp_size = driver.active.get_current_target().warp_size
+            if self.metadata.num_warps * warp_size > n_max_threads:
+                raise OutOfResources(
+                    self.metadata.num_warps * warp_size,
+                    n_max_threads, "threads")
+        except BaseException as err:
+            # Poison so future calls short-circuit and re-raise cheaply.
+            self._run = functools.partial(_raise_error, copy.deepcopy(err))
+            raise
+        # Success: assign handles first, publish self._run LAST.
+        self.n_regs = n_regs
+        self.n_spills = n_spills
+        self.n_max_threads = n_max_threads
+        self.module = module
+        self.function = function
+        self._run = launcher
+        if knobs.runtime.kernel_load_end_hook is not None:
+            knobs.runtime.kernel_load_end_hook(
+                module, function, self.name, self.metadata_group, self.hash)
+```
+
+Key properties of the fix:
+
+- `self._run` is the single publish flag for "init attempted" (success or
+  poison). The `run` property keeps its original shape.
+- Poisoning is preserved: on error, `self._run` is set to the raising partial
+  before re-raising, so future callers short-circuit.
+- No partial publication on success: `self._run = launcher` is the last
+  write; all handle fields are populated before it.
+- Hooks run exactly once inside the critical section.
+- `__getitem__` and `launch_metadata` should change their guards to use
+  `self._run` consistently (or call through the `run` property).
 
 ### 2. `knobs.runtime.add_stages_inspection_hook` TOCTOU in `compile()`
 
@@ -69,6 +167,11 @@ but independent: `compile()` is reachable from `_do_compile`,
 `warmup`, and external callers of `triton.compiler.compile`, so
 fixing only the jit.py site leaves this one racey. Tier 3
 Significant. Fix: single load into a local.
+
+Side note: `inspect_stages_hash` is assigned at line 248 but never
+read within `compile()` (unlike jit.py:729 where it is folded into
+the specialization string). That is a separate dead-store
+observation, not part of the race.
 
 ### 3. `knobs.runtime.kernel_load_start_hook` / `kernel_load_end_hook` — `HookChain` iteration race
 
@@ -108,6 +211,45 @@ on racing removes — minor relative to the iteration race.
 Tier 3 Significant. Fix: a single ~25-line copy-on-write edit in
 `HookChain` (one lock for writers, snapshot-load in `__call__`)
 repairs all four hook slots at once.
+
+#### Fix
+
+```python
+import threading
+
+class HookChain(Generic[F]):
+    def __init__(self, reversed: bool = False):
+        self._lock = threading.Lock()
+        self.calls: list[F] = []   # immutable after publish
+        self.reversed = reversed
+
+    def add(self, func: F) -> None:
+        with self._lock:
+            if func in self.calls:
+                return
+            new_calls = list(self.calls)
+            new_calls.append(func)
+            self.calls = new_calls
+
+    def remove(self, func: F) -> None:
+        with self._lock:
+            if func not in self.calls:
+                return
+            new_calls = list(self.calls)
+            new_calls.remove(func)
+            self.calls = new_calls
+
+    def __call__(self, *args, **kwargs):
+        calls = self.calls   # single load — stable snapshot
+        for call in calls if not self.reversed else reversed(calls):
+            call(*args, **kwargs)
+```
+
+The published list is never mutated again; writers copy-append-rebind
+under the lock. `__call__` snapshots `self.calls` into a local and
+iterates freely. The lock is never held across hook invocation. No
+changes required at the call sites in `compiler.py` or
+`runtime/jit.py`.
 
 ### 4. `max_shared_mem` — `functools.lru_cache` on the launch path
 
@@ -299,8 +441,9 @@ repairs all four hook slots at once.
      then immediately reads then closes — so C either sees the entire
      old content (file descriptor opened before the rename, rename
      unlinks the old inode, content still readable) or the entire new
-     content (opened after the rename). No torn file read. Cross-file
-     atomicity is again the determinism question from point 5.
+     content (opened after the rename). No mixed-content read.
+     Cross-file atomicity is again the determinism question from
+     point 5.
   7. **knobs reads inside the cache path.** `knobs.compilation.override`
      (254), `dump_ir` (255), `store_binary_only` (256), `always_compile`
      (267), `use_ir_loc` (319) are each single attribute loads into a
@@ -348,7 +491,7 @@ repairs all four hook slots at once.
      (`knobs.py:357-363`). The descriptor `__get__` path is its own
      audit target (knobs.py pass), but even under the worst-case
      assumption that `__get__` races with a concurrent `__set__` and
-     returns a stale or torn value, the consequence is contained:
+     returns a stale value, the consequence is contained:
      the local captures *some* valid value, and that value stays
      stable for the rest of the call. There is no compound
      check-then-act inside `compile()` that could be split across a
@@ -466,8 +609,8 @@ repairs all four hook slots at once.
      context)` at line 107 both open the on-disk IR file. If another
      thread or process is atomically replacing that file
      concurrently (see item #6 on `os.replace` semantics), the read
-     is either the whole old file or the whole new file — no torn
-     read. Not an IRSource-level concern.
+     is either the whole old file or the whole new file — no
+     mixed-content read. Not an IRSource-level concern.
 - **Verdict: not a bug.** No issue file created. The hypothetical
   "shared `IRSource` across threads" scenario sketched in the
   original triage is blocked at the `compile()` API boundary by the
@@ -506,6 +649,13 @@ read *after* a rebind in thread B while `used_global_vals` / cache
 key was computed against the old value, producing a stale-keyed
 compiled kernel. The same iteration site runs again per callee at
 `code_generator.py:1332`. Tier 1 Significant.
+
+Note on the closure branch: when `fn.__closure__` is not `None`,
+`get_capture_scope` returns `self.__globals__ | nonlocals`, which
+constructs a fresh merged dict — the iteration in
+`CodeGenerator.__init__` is then over a local dict and is safe.
+The no-closure branch bypasses the merge and hands the live dict
+straight to Python-level iteration, so it is the primary hazard.
 
 Fix is one line in `runtime/jit.py`: return `dict(self.__globals__)`
 on the no-closure branch so `CodeGenerator.__init__` iterates a
