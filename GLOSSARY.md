@@ -1,7 +1,9 @@
 # Threading Glossary for Free-Threaded Python Audits
 
 A terminology guide for people reviewing data-race and timing issues in
-free-threaded (nogil) Python code.  Terms are organized from foundational
+free-threaded (nogil) Python code.  It primarily targets Python and
+Python-adjacent runtime code; terms that are mainly relevant to native
+extensions are marked explicitly.  Terms are organized from foundational
 concepts through specific bug patterns to fix patterns.
 
 ---
@@ -16,9 +18,11 @@ happens-before relationship between them.
 of concurrent operations.  A data race is one cause; logic-level races (TOCTOU)
 are another.
 
-**Happens-before relationship** — A memory-ordering guarantee that one
-operation's effects are visible to a subsequent operation.  Without it, a
-reader may observe stale or partial state.
+**Happens-before relationship** — A guarantee that one operation's effects
+are visible to a subsequent operation.  Without it, a reader may observe
+stale or partial state.  In Python audits, the practical symptom is usually an
+operation observing inconsistent shared state across multiple steps, not
+hand-written atomic memory ordering.
 
 **Critical section** — A code region where only one thread executes at a time,
 typically enforced by a lock.
@@ -26,8 +30,10 @@ typically enforced by a lock.
 **Atomicity violation** — A sequence of operations that must appear indivisible
 but isn't.  An observer thread can see the intermediate state between steps.
 
-**Ordering violation** — Writes that land in an unexpected order, so a later
-write overwrites an earlier, more-correct value.
+**Ordering violation** — Correctness depends on updates becoming visible in a
+particular order, but concurrent execution exposes them in a different one.
+Example: code publishes a "ready" flag before publishing the data that the
+flag is supposed to guard.
 
 **GIL as implicit lock** — Code that relied on the GIL to serialize access to
 shared state.  Under free-threading the GIL no longer provides this
@@ -58,11 +64,12 @@ discarded.  Last-writer-wins without the loser being aware.
 visibility of a more recent write.  Ranges from benign (debug flag) to severe
 (wrong driver handle).
 
-**Stale reference** — A reference or iterator returned from a locked section
-remains in use after the lock is released.  Concurrent modification can
-invalidate the referent, making the reference dangle.  Distinct from "stale
-read" — here the *reference itself* becomes invalid, not just the value that
-was read.
+**Stale iterator / borrowed reference** *(mostly native/C-extension code)* —
+An iterator, view, or borrowed native reference is obtained while shared state
+is momentarily stable, then used after that stability is gone.  Concurrent
+mutation can invalidate the traversal or the native reference.  At pure
+Python level this is usually an iterator/view-consistency issue, not a
+literal dangling pointer.
 
 **Lock order inversion (ABBA deadlock)** — Thread A holds lock A and waits for
 lock B; thread B holds lock B and waits for lock A.  Both block forever.
@@ -86,10 +93,10 @@ object.
 not atomic as a group.  A reader between assignments sees some attributes set
 and others still `None`.
 
-**Non-atomic multi-target tuple unpack** — Python's `a, b, c = tuple` compiles
-to sequential `STORE_ATTR` opcodes.  Each store is individually safe under
-free-threading, but the group is not atomic — a reader can observe a mix of old
-and new values.
+**Non-atomic multi-target assignment** — A statement like
+`obj.a, obj.b, obj.c = values` performs multiple writes in sequence.  Each
+individual write may be safe under free-threading, but the group is not atomic
+— a reader can observe a mix of old and new values.
 
 **Double-checked locking** — A pattern to reduce lock contention on lazy init:
 check without the lock, acquire the lock, check again.  Correct in principle
@@ -99,10 +106,11 @@ but easy to get wrong if the "publish" step isn't ordered properly.
 still re-runs on every call, causing repeated initialization on an
 already-shared object.
 
-**Reference leak from concurrent initialization** — When multiple threads race
-to lazily initialize a shared slot, each creates an object but only one wins
-the store.  The losing threads' objects are silently leaked if not properly
-cleaned up.
+**Discarded initialization result** — When multiple threads race to lazily
+initialize a shared slot, each may create an object but only one wins the
+store.  In Python this is usually wasted work plus a discarded temporary
+result; in native code it can become a true refcount or ownership leak if the
+losing objects are not cleaned up correctly.
 
 ---
 
@@ -153,15 +161,16 @@ double-invoked, or invoked in an undefined order.
 for a single event because finalization itself races.  Breaks once-per-event
 contracts (counters, idempotency assumptions).
 
-**Weakref callback race** — A weak reference's destructor callback fires and
-tries to access or modify an object that is being concurrently destroyed or
-mutated by another thread.  The callback timing is non-deterministic under
-free-threading.
+**Weakref callback race** — A weakref callback fires while related shared
+state is being concurrently mutated or torn down by another thread.  The
+callback timing is non-deterministic under free-threading, so the callback may
+observe partially torn-down state or violate once-only assumptions.
 
-**Register-then-destroy** — Registering a callback (e.g., a GC callback or
-finalizer) that holds a reference to an object, then destroying the object
-while the callback can still fire.  The callback dereferences a dangling
-reference.
+**Register-then-teardown** — Registering a callback (e.g., a GC callback,
+finalizer, or native hook) whose later execution assumes an object or runtime
+state is still valid, then tearing that state down while the callback can
+still fire.  In Python this usually means the callback sees already-cleared or
+partially finalized state; in native code it can become a true lifetime bug.
 
 ---
 
@@ -228,9 +237,10 @@ Reduces contention vs. a single global lock.
 **Per-device lock** — Intermediate granularity: one lock per device, protecting
 all cache entries for that device.
 
-**Per-thread isolation / thread-local storage** — Each thread maintains its own
-copy of state (via `threading.local()` or `contextvars.ContextVar`),
-eliminating sharing entirely.  The strongest fix but not always applicable.
+**Per-thread or per-context isolation** — State is moved out of shared global
+storage and made local to a thread (`threading.local()`) or execution context
+(`contextvars.ContextVar`).  This can eliminate sharing entirely, but
+`ContextVar` is context-local rather than simply thread-local.
 
 **Deferred cleanup** — Instead of mutating shared state inside a callback or
 hot path (where locking is dangerous or expensive), queue the mutation for a
