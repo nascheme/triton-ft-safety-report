@@ -7,6 +7,19 @@ We are auditing the Python code under `python/` (both the pure-Python `triton/` 
 See [CLAUDE.md](CLAUDE.md) for the audit methodology.
 See [OVERVIEW.md](OVERVIEW.md) for an architectural overview of the Triton codebase.
 
+
+## Audit Progress
+
+| Component | Status | SEVERE | Significant | Minor | Total | Report |
+|-----------|--------|--------|-------------|-------|-------|--------|
+| `runtime/jit.py` | Ongoing | 1 | 7 | 0 | 8 | [jit/README.md](jit/README.md) |
+| `runtime/autotuner.py` | Ongoing | 1 | 5 | 1 | 7 | [autotuner/README.md](autotuner/README.md) |
+| `compiler/` | Ongoing | 1 | 3 | 0 | 4 | [compiler/README.md](compiler/README.md) |
+| `runtime/driver.py` | Ongoing | 0 | 3 | 0 | 3 | [runtime-driver/README.md](runtime-driver/README.md) |
+| `nvidia/backend/driver.py` | Ongoing | 0 | 0 | 2 | 2 | [nvidia-driver/README.md](nvidia-driver/README.md) |
+| **Total** | | **3** | **18** | **3** | **24** | |
+
+
 ## Concurrency Model
 
 Triton's primary concurrency exposure comes from JIT compilation and kernel dispatch:
@@ -71,14 +84,3 @@ Triton's primary concurrency exposure comes from JIT compilation and kernel disp
 | **passes** | `passes.cc` | MLIR transformation pass bindings. |
 | **interpreter** | `interpreter.cc` | Interpreter-mode atomic ops. Protected by `std::mutex atomic_op_guard`. |
 | **linear-layout** | `linear_layout.cc` | LinearLayout bindings. |
-
-## Audit Progress
-
-| Component | Status | SEVERE | Significant | Minor | Total | Report |
-|-----------|--------|--------|-------------|-------|-------|--------|
-| `runtime/jit.py` | Done | 1 | 7 | 0 | 8 | [jit/README.md](jit/README.md) |
-| `runtime/autotuner.py` | Done | 1 | 5 | 1 | 7 | [autotuner/README.md](autotuner/README.md) |
-| `compiler/` | Done | 1 | 3 | 0 | 4 | [compiler/README.md](compiler/README.md) |
-| `runtime/driver.py` | Done | 0 | 3 | 0 | 3 | [runtime-driver/README.md](runtime-driver/README.md) |
-| `nvidia/backend/driver.py` | Done | 0 | 0 | 2 | 2 | [nvidia-driver/README.md](nvidia-driver/README.md) |
-| **Total** | | **3** | **18** | **3** | **24** | |
