@@ -7,12 +7,12 @@ Issues in `python/triton/runtime/autotuner.py` affecting free-threaded Python 3.
 | # | Severity | Component | Issue |
 |---|----------|-----------|-------|
 | 1 | SEVERE | Autotuner.cache | [`run()` cache-miss TOCTOU enables duplicate benchmarking and cross-thread hook-state contamination](cache-toctou.md) |
-| 2 | Significant | Autotuner.nargs | `self.nargs` can be clobbered by concurrent `run()` calls, corrupting hook/pruning context |
-| 3 | Significant | Autotuner.configs_timings | `self.configs_timings` written by benchmarking, read by disk cache and print path |
-| 4 | Significant | Autotuner.restore_copies | `self.restore_copies` can restore the wrong snapshot or raise during concurrent hooks |
-| 5 | Significant | Autotuner.best_config | `self.best_config` and `self.bench_time` written per-call, readable from other threads |
-| 6 | Minor | Autotuner.do_bench | `@cached_property` `do_bench` duplicate execution on shared instance |
-| 7 | Significant | check_disk_cache | `check_disk_cache` races with concurrent `run()` on shared instance state |
+| 2 | Significant | Autotuner.nargs | [`self.nargs` clobbered by concurrent `run()` calls, corrupting hook/pruning context](nargs-clobber.md) |
+| 3 | Significant | Autotuner.configs_timings | [`self.configs_timings` clobbered across concurrent tuning keys](configs-timings-clobber.md) |
+| 4 | Significant | Autotuner.restore_copies | [`self.restore_copies` pre/post hook race restores wrong snapshot or raises](restore-copies-race.md) |
+| 5 | Minor | Autotuner.best_config | [`self.best_config` and `self.bench_time` stale across concurrent calls](best-config-stale.md) |
+| 6 | Minor | Autotuner.do_bench | [`@cached_property` `do_bench` duplicate execution on shared instance](do-bench-cached-property.md) |
+| 7 | Significant | check_disk_cache | [`check_disk_cache` compound race on shared instance state and disk](check-disk-cache-race.md) |
 
 ## Triage notes
 
@@ -110,6 +110,11 @@ Issues in `python/triton/runtime/autotuner.py` affecting free-threaded Python 3.
   then sets it for key K2. The print statement at line 247 in Thread A may
   print Thread B's config. The practical impact is limited to incorrect
   diagnostic output, but `self.bench_time` can also be stale. Tier 2.
+- **Severity downgrade:** Originally listed as Significant. On review,
+  `self.best_config` has no readers outside the diagnostic print (confirmed
+  by grep across `triton/python/triton/`). The actual kernel launch uses the
+  local `config` variable at line 242, not `self.best_config`. Downgraded to
+  Minor — wrong diagnostic output only.
 
 ### 6. `do_bench` `@cached_property` — duplicate execution (Minor)
 
@@ -135,6 +140,14 @@ Issues in `python/triton/runtime/autotuner.py` affecting free-threaded Python 3.
   two paths with different data. The disk-write path at line 203-209 reads
   `self.configs_timings` which may have been set by the other thread's
   `benchmark()` (issue #3). Tier 2.
+- **Relationship to other issues:** This is a compound issue. It requires the
+  cache-miss TOCTOU from issue #1 to allow two threads into `check_disk_cache`
+  concurrently, and the `self.configs_timings` clobber from issue #3 to
+  produce cross-key contamination. The distinct element here is that the
+  contaminated data is serialized to disk (line 203-209), making the corruption
+  persistent across process restarts. Fixing either #1 (per-key sync) or #3
+  (local `configs_timings`) would break the chain, but both are needed for a
+  complete fix.
 
 ## Near-miss notes
 
