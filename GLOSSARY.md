@@ -41,6 +41,17 @@ serialization, so previously-safe code becomes racy.  This is the root cause
 behind most free-threading bugs: not new concurrency, but removed
 serialization.
 
+**Thread state attach / detach** *(native/C-extension code)* — In
+free-threaded Python, `PyGILState_Ensure` / `PyGILState_Release` (and
+pybind11's `py::gil_scoped_acquire` / `py::gil_scoped_release`) attach or
+detach the calling thread's Python thread state.  This is required before
+calling Python C APIs, but it **does not provide mutual exclusion** — multiple
+threads can be attached simultaneously.  Prefer the terms "attach" and "detach"
+over "acquire the GIL" and "release the GIL" when describing free-threaded
+behavior, because the latter implies locking semantics that no longer exist.
+Code that relies on `PyGILState_Ensure` as a lock to protect shared native
+state is broken under free-threading and needs explicit synchronization.
+
 ---
 
 ## Classic race patterns

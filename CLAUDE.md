@@ -74,10 +74,11 @@ The key question is not "does this file mention threads?" The key question is:
    free-threading behavior of a helper is unclear, leave a note for follow-up
    rather than guessing.
 
-6. **Code running in GIL-released native regions.**
-   `python/src/llvm.cc` and `python/src/ir.cc` contain explicit GIL release
-   points. Any Python C API use inside those regions is unsafe. Any native
-   shared mutable state touched there is concurrently accessible.
+6. **Code running with detached thread state (GIL-released native regions).**
+   `python/src/llvm.cc` and `python/src/ir.cc` contain explicit thread-state
+   detach points (`py::gil_scoped_release` / `Py_BEGIN_ALLOW_THREADS`). Any
+   Python C API use inside those regions is unsafe. Any native shared mutable
+   state touched there is concurrently accessible.
 
 7. **Compiled-kernel lazy finalization / lazy runtime handle init.**
    `CompiledKernel` is created by the compiler path but lazily initializes some
@@ -93,12 +94,14 @@ The key question is not "does this file mention threads?" The key question is:
 
 9. **`py::call_guard<py::gil_scoped_release>()`.**
    When a binding is declared with `py::call_guard<py::gil_scoped_release>()`,
-   the bound function runs without the GIL for that call. Audit the whole
-   function body with that in mind.
+   the bound function runs with the thread state detached for that call.
+   Audit the whole function body with that in mind: Python C API calls are
+   forbidden, and any shared native state is concurrently accessible.
 
 10. **Stack-based `py::gil_scoped_release allow_threads`.**
-    Once constructed, the GIL is released until the scope ends. Verify that no
-    Python C API calls or unsafe shared-state access occur inside that region.
+    Once constructed, the thread state is detached until the scope ends.
+    Verify that no Python C API calls or unsafe shared-state access occur
+    inside that region.
 
 11. **Native containers storing `PyObject*` or Python-derived state.**
     Containers like `std::unordered_map<..., PyObject*>` are a double hazard:
@@ -106,7 +109,7 @@ The key question is not "does this file mention threads?" The key question is:
     ownership assumptions may also be wrong. Verify both the container race and
     the refcount/lifetime story.
 
-12. **Unsafe Python C APIs in GIL-released regions.**
+12. **Unsafe Python C APIs in thread-state-detached regions.**
     In detailed C++ passes, watch for APIs such as:
     - `PyObject_GetAttr`
     - `PyObject_Call*`
@@ -156,8 +159,10 @@ The key question is not "does this file mention threads?" The key question is:
   state coordinating the cache is raced.
 
 - **The mere presence of `PyGILState_Ensure` / `PyGILState_Release`.**
-  These are not bugs by themselves. The issue is when code relies on them as an
-  implicit lock protecting native shared state.
+  These attach/detach the calling thread's Python thread state and are required
+  before calling Python C APIs, but under free-threading they do **not** provide
+  mutual exclusion. The issue is when code relies on them as an implicit lock
+  protecting native shared state. See GLOSSARY.md "Thread state attach / detach".
 
 ## Python built-in type thread safety
 
