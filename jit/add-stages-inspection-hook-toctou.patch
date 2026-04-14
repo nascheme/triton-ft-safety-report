@@ -1,0 +1,39 @@
+From aacbefb93775438e62d35da2611c3de88bf72f6c Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 10:57:33 -0700
+Subject: [PATCH] runtime/jit: snapshot add_stages_inspection_hook before use
+
+`JITFunction.run` consults `knobs.runtime.add_stages_inspection_hook`
+twice: once for the `is not None` guard and once to call it. The slot
+is a process-global attribute with no synchronization. A concurrent
+clear between the two reads raises `TypeError` on the launch path; a
+swap produces a specialization key derived from a hook that is no
+longer installed.
+
+Load the slot into a local once.
+
+Assisted-by: claude-opus-4.6
+
+---
+ python/triton/runtime/jit.py | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/python/triton/runtime/jit.py b/python/triton/runtime/jit.py
+index ba21a58e1..abb170c99 100644
+--- a/python/triton/runtime/jit.py
++++ b/python/triton/runtime/jit.py
+@@ -724,8 +724,9 @@ class JITFunction(JITCallable, KernelInterface[T]):
+ 
+         # add a cache field to the kernel specializations for kernel specific
+         # pass pipelines
+-        if knobs.runtime.add_stages_inspection_hook is not None:
+-            inspect_stages_key, inspect_stages_hash = knobs.runtime.add_stages_inspection_hook()
++        add_stages_inspection_hook = knobs.runtime.add_stages_inspection_hook
++        if add_stages_inspection_hook is not None:
++            inspect_stages_key, inspect_stages_hash = add_stages_inspection_hook()
+             specialization.append(f'("custom_pipeline", {inspect_stages_hash})')
+ 
+         key = compute_cache_key(kernel_key_cache, specialization, options)
+-- 
+2.47.3
+

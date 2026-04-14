@@ -1,0 +1,87 @@
+From 2014a47ddd36c445f08c272db55a16cfdb9b2d2d Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 10:57:09 -0700
+Subject: [PATCH] runtime/jit: serialize JITFunction.device_caches population
+
+`JITFunction.device_caches` was a `defaultdict(self.create_binder)`
+populated lazily on first access from `run()`, `preload()`, and
+`_do_compile()`. `defaultdict.__missing__` is not atomic: factory
+call, insert, and return are separate steps. Two threads launching
+the same kernel on the same device for the first time can both invoke
+`create_binder`, producing two separate `(kernel_cache,
+kernel_key_cache, target, backend, binder)` tuples with fresh empty
+caches. One `__setitem__` overwrites the other; the losing thread
+keeps using orphaned cache dicts, so any kernels it compiles stay
+invisible to later calls and get silently recompiled.
+
+Funnel all call sites through a `_get_device_cache` helper with
+double-checked locking on a per-instance lock.
+
+Assisted-by: claude-opus-4.6
+
+---
+ python/triton/runtime/jit.py | 20 ++++++++++++++++----
+ 1 file changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/python/triton/runtime/jit.py b/python/triton/runtime/jit.py
+index ba21a58e1..85254d15a 100644
+--- a/python/triton/runtime/jit.py
++++ b/python/triton/runtime/jit.py
+@@ -681,6 +681,17 @@ class JITFunction(JITCallable, KernelInterface[T]):
+         binder = create_function_from_signature(self.signature, self.params, backend)
+         return {}, {}, target, backend, binder
+ 
++    def _get_device_cache(self, device):
++        entry = self.device_caches.get(device)
++        if entry is not None:
++            return entry
++        with self._device_caches_lock:
++            entry = self.device_caches.get(device)
++            if entry is None:
++                entry = self.create_binder()
++                self.device_caches[device] = entry
++            return entry
++
+     def _pack_args(self, backend, kwargs, bound_args, specialization, options):
+         # options
+         options = backend.parse_options(kwargs)
+@@ -717,7 +728,7 @@ class JITFunction(JITCallable, KernelInterface[T]):
+         for hook in self.pre_run_hooks:
+             hook(*args, **kwargs)
+ 
+-        kernel_cache, kernel_key_cache, target, backend, binder = self.device_caches[device]
++        kernel_cache, kernel_key_cache, target, backend, binder = self._get_device_cache(device)
+         # specialization is list[tuple[str, Any]], where first element of tuple is
+         # the type and the second parameter is the 'specialization' value.
+         bound_args, specialization, options = binder(*args, **kwargs)
+@@ -787,7 +798,8 @@ class JITFunction(JITCallable, KernelInterface[T]):
+             self.params.append(KernelParam(i, param, dns, dns_oa))
+ 
+         # cache of just-in-time compiled kernels
+-        self.device_caches = defaultdict(self.create_binder)
++        self.device_caches = {}
++        self._device_caches_lock = threading.Lock()
+ 
+         # JITFunction can be instantiated as kernel
+         # when called with a grid using __getitem__
+@@ -813,7 +825,7 @@ class JITFunction(JITCallable, KernelInterface[T]):
+                 f"Specialization data is for {deserialized_obj['name']} but trying to preload for {self._fn_name}")
+         constant_keys = map(tuple, deserialized_obj['constant_keys'])
+         constant_vals = deserialized_obj['constant_vals']
+-        _, _, target, backend, _ = self.device_caches[device]
++        _, _, target, backend, _ = self._get_device_cache(device)
+         deserialized_target = deserialized_obj['target']
+         # TODO: we could support loading a kernel signature serialized on a different target however
+         # currently options are target specific so we would need to change that.
+@@ -857,7 +869,7 @@ class JITFunction(JITCallable, KernelInterface[T]):
+         )
+ 
+     def _do_compile(self, key, signature, device, constexprs, options, attrs, warmup):
+-        kernel_cache, _, target, backend, _ = self.device_caches[device]
++        kernel_cache, _, target, backend, _ = self._get_device_cache(device)
+ 
+         if self._call_hook(knobs.runtime.jit_cache_hook, key, signature, target, device, constexprs, options, [attrs],
+                            warmup):
+-- 
+2.47.3
+

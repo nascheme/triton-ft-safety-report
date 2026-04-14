@@ -1,0 +1,48 @@
+From 2df81c5fa7c7ac77b3a5f8fde7eb2ce87de88feb Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 11:00:37 -0700
+Subject: [PATCH] runtime/jit: force cache_key early in run() to publish
+ used_global_vals
+
+`JITCallable.used_global_vals` starts empty and is rebound inside
+`cache_key` (under `_hash_lock`) to record the captured globals at
+first compilation. `run()` iterates it on every launch to detect
+mutated globals and refuse to reuse a stale compiled kernel.
+
+The `kernel_cache` write and the `used_global_vals` write happen in
+unrelated critical sections with no ordering. Thread A can publish
+the kernel to `kernel_cache` while Thread B still observes the
+initial empty `used_global_vals` dict. Thread B iterates zero
+entries and silently skips the global-changed safety check, reusing
+a kernel that may have been invalidated by a global mutation.
+
+Force `self.cache_key` at the top of `run()`, before the kernel_cache
+lookup, so `used_global_vals` is populated before any cache hit.
+
+Assisted-by: claude-opus-4.6
+
+---
+ python/triton/runtime/jit.py | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/python/triton/runtime/jit.py b/python/triton/runtime/jit.py
+index ba21a58e1..de842b4a4 100644
+--- a/python/triton/runtime/jit.py
++++ b/python/triton/runtime/jit.py
+@@ -709,6 +709,13 @@ class JITFunction(JITCallable, KernelInterface[T]):
+         kwargs["debug"] = kwargs.get("debug", self.debug) or knobs.runtime.debug
+         kwargs["instrumentation_mode"] = knobs.compilation.instrumentation_mode
+ 
++        # Force used_global_vals to be populated under _hash_lock before
++        # the kernel_cache lookup below. Otherwise a cache hit on this
++        # thread may race with another thread's first cache_key call and
++        # observe the initial empty dict, silently skipping the
++        # global-changed safety check.
++        self.cache_key
++
+         # parse options
+         device = driver.active.get_current_device()
+         stream = driver.active.get_current_stream(device)
+-- 
+2.47.3
+

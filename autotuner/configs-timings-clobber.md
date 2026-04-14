@@ -1,6 +1,10 @@
 # `self.configs_timings` clobbered across concurrent tuning keys
 
 - **Status:** Open
+- **Patch:** `cache-toctou.patch` (`benchmark()` returns `timings`;
+  `check_disk_cache` uses the returned value for the disk write instead
+  of reading `self.configs_timings`; per-key sync also prevents
+  cross-key overwrites on the attribute)
 - **Severity:** Significant
 - **Component:** `python/triton/runtime/autotuner.py`
 

@@ -1,6 +1,7 @@
 # `PyCUtensorMap` / `PyKernelArg` / `ARG_*` module globals lazy init race
 
 - **Status:** Open
+- **Patch:** `cudautils-singleton-race.patch` (resolved by the singleton fix — once `CudaUtils.__init__` runs only once, the five globals become write-once)
 - **Severity:** Minor
 - **Component:** `third_party/nvidia/backend/driver.py`
 

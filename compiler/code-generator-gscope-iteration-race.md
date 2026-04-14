@@ -1,6 +1,7 @@
 # `CodeGenerator.__init__` iterates live `fn.__globals__`
 
 - **Status:** Open
+- **Patch:** `code-generator-gscope-iteration-race.patch` (snapshot `fn.__globals__` via `dict()` in `get_capture_scope` no-closure path)
 - **Severity:** Significant
 - **Component:** `python/triton/compiler/code_generator.py`
 

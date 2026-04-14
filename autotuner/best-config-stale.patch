@@ -1,0 +1,54 @@
+From f451406ed3908adcd92b37a29c382231e1771dbd Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 10:33:37 -0700
+Subject: [PATCH] [autotuner] Print benchmark timing/config from locals
+
+Autotuner.run() prints the post-benchmark diagnostic line using
+self.bench_time and self.best_config. Both are per-call writes on an
+Autotuner instance shared across threads, so a concurrent run() for a
+different key can overwrite them before the print executes, making the
+log line attribute one thread's timing and config to another thread's
+tuning key.
+
+Read the values from locals in the print. The underlying instance-state
+races are addressed separately.
+
+Assisted-by: claude-opus-4.6
+
+---
+ python/triton/runtime/autotuner.py | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/python/triton/runtime/autotuner.py b/python/triton/runtime/autotuner.py
+index 0c4d71049..0e3ecdef9 100644
+--- a/python/triton/runtime/autotuner.py
++++ b/python/triton/runtime/autotuner.py
+@@ -223,12 +223,15 @@ class Autotuner(KernelInterface):
+             if key not in self.cache:
+                 used_cached_result = False
+                 pruned_configs = self.prune_configs(kwargs)
++                bench_time = 0.0
+ 
+                 def benchmark():
++                    nonlocal bench_time
+                     bench_start = time.time()
+                     timings = {config: self._bench(*args, config=config, **kwargs) for config in pruned_configs}
+                     bench_end = time.time()
+-                    self.bench_time = bench_end - bench_start
++                    bench_time = bench_end - bench_start
++                    self.bench_time = bench_time
+                     self.cache[key] = builtins.min(timings, key=timings.get)
+                     full_nargs = {**self.nargs, **kwargs, **self.cache[key].all_kwargs()}
+                     self.pre_hook(full_nargs, reset_only=True)
+@@ -245,7 +248,7 @@ class Autotuner(KernelInterface):
+         self.best_config = config
+         if knobs.autotuning.print and not used_cached_result:
+             print(f"Triton autotuning for function {self.base_fn.__name__},\nwith key as {key},\n"
+-                  f"finished after {self.bench_time:.2f}s,\nbest config selected: {self.best_config};")
++                  f"finished after {bench_time:.2f}s,\nbest config selected: {config};")
+         if config.pre_hook is not None:
+             full_nargs = {**self.nargs, **kwargs, **config.all_kwargs()}
+             config.pre_hook(full_nargs)
+-- 
+2.47.3
+

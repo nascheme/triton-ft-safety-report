@@ -1,0 +1,55 @@
+From 10d0d5507ee458abe06e8a03428f9a12c6ce660e Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 11:00:15 -0700
+Subject: [PATCH] runtime/jit: make pre_run_hooks mutation copy-on-write
+
+`JITFunction.pre_run_hooks` is a plain list iterated on every kernel
+launch from `run()` and mutated by `add_pre_run_hook` via
+`list.append`. Per CPython's thread-safety docs, iterating a list
+while another thread mutates it has an undefined element sequence:
+registered hooks may be skipped or visited twice on an in-flight
+`run()`.
+
+Switch to copy-on-write under a writer lock; `run()` keeps its plain
+`for hook in self.pre_run_hooks` since the attribute load captures an
+immutable snapshot.
+
+Assisted-by: claude-opus-4.6
+
+---
+ python/triton/runtime/jit.py | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/python/triton/runtime/jit.py b/python/triton/runtime/jit.py
+index ba21a58e1..0e4658466 100644
+--- a/python/triton/runtime/jit.py
++++ b/python/triton/runtime/jit.py
+@@ -666,7 +666,11 @@ class JITFunction(JITCallable, KernelInterface[T]):
+         function with args and kwargs passed into the kernel
+         '''
+         assert callable(hook)
+-        self.pre_run_hooks.append(hook)
++        # Copy-on-write so concurrent run() iterations always observe a
++        # complete snapshot. The writer lock prevents lost updates from
++        # two concurrent add_pre_run_hook callers.
++        with self._pre_run_hooks_lock:
++            self.pre_run_hooks = self.pre_run_hooks + [hook]
+ 
+     def create_binder(self):
+         """
+@@ -800,8 +804,11 @@ class JITFunction(JITCallable, KernelInterface[T]):
+         self.arg_names = [p.name for p in self.params]
+         self.constexprs = [p.num for p in self.params if p.is_constexpr]
+ 
+-        # Hooks that will be called prior to executing "run"
++        # Hooks that will be called prior to executing "run". Mutated by
++        # add_pre_run_hook via copy-on-write so run()'s iteration is safe
++        # without locking on the hot path.
+         self.pre_run_hooks = []
++        self._pre_run_hooks_lock = threading.Lock()
+ 
+     def preload(self, specialization_data):
+         import json
+-- 
+2.47.3
+

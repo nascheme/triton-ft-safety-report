@@ -1,6 +1,7 @@
 # `_triton_jit_function_registry` publishes partially-initialized `JITFunction`
 
 - **Status:** Open
+- **Patch:** `function-registry-race.patch` (move `_triton_jit_function_registry` insertion to the end of `JITFunction.__init__`)
 - **Severity:** Significant
 - **Component:** `runtime/jit.py`
 

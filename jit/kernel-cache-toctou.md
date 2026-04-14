@@ -1,6 +1,9 @@
 # `kernel_cache` / `kernel_key_cache` TOCTOU causes duplicate compilation
 
 - **Status:** Open
+- **Patch:** `kernel-cache-toctou.patch` (per-device compile lock around the
+  `kernel_cache` check-then-compile in `run()`; async path uses `setdefault`
+  to avoid clobbering an already-finalized real kernel with the placeholder)
 - **Severity:** Significant
 - **Component:** `runtime/jit.py`
 

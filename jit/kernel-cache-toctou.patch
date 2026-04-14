@@ -1,0 +1,96 @@
+From 79f8dd52c737c3d3031376f54f126d9a2276f6da Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 11:00:06 -0700
+Subject: [PATCH] runtime/jit: lock the kernel_cache check-then-compile in
+ run()
+
+Each per-device cache tuple carries a plain `kernel_cache` dict shared
+across threads. `run()` did a lock-free `kernel_cache.get(key)` /
+compile / `kernel_cache[key] = kernel` sequence, so two threads
+launching the same kernel can both miss, both enter `_do_compile`,
+and both recompile the same source. `jit_post_compile_hook` fires
+twice. On the async path there is a further hazard: `finalize_compile`
+may store the real kernel into `kernel_cache` before the submitting
+thread's placeholder write runs, leaving a stale `FutureKernel`.
+
+Serialize the miss path with a per-device compile lock
+(double-checked), and use `kernel_cache.setdefault` for the async
+placeholder write so a finalized real kernel isn't clobbered.
+
+Assisted-by: claude-opus-4.6
+
+---
+ python/triton/runtime/jit.py | 35 +++++++++++++++++++++++++++++------
+ 1 file changed, 29 insertions(+), 6 deletions(-)
+
+diff --git a/python/triton/runtime/jit.py b/python/triton/runtime/jit.py
+index ba21a58e1..d6fa071aa 100644
+--- a/python/triton/runtime/jit.py
++++ b/python/triton/runtime/jit.py
+@@ -668,6 +668,17 @@ class JITFunction(JITCallable, KernelInterface[T]):
+         assert callable(hook)
+         self.pre_run_hooks.append(hook)
+ 
++    def _get_compile_lock(self, device):
++        lock = self._compile_locks.get(device)
++        if lock is not None:
++            return lock
++        with self._compile_locks_lock:
++            lock = self._compile_locks.get(device)
++            if lock is None:
++                lock = threading.Lock()
++                self._compile_locks[device] = lock
++            return lock
++
+     def create_binder(self):
+         """
+         Precompute as much as possible.
+@@ -733,12 +744,15 @@ class JITFunction(JITCallable, KernelInterface[T]):
+ 
+         # Kernel is not cached; we have to compile.
+         if kernel is None:
+-            options, signature, constexprs, attrs = self._pack_args(backend, kwargs, bound_args, specialization,
+-                                                                    options)
++            with self._get_compile_lock(device):
++                kernel = kernel_cache.get(key, None)
++                if kernel is None:
++                    options, signature, constexprs, attrs = self._pack_args(
++                        backend, kwargs, bound_args, specialization, options)
+ 
+-            kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
+-            if kernel is None:
+-                return None
++                    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
++                    if kernel is None:
++                        return None
+ 
+         # Check that used global values have not changed.
+         not_present = object()
+@@ -788,6 +802,11 @@ class JITFunction(JITCallable, KernelInterface[T]):
+ 
+         # cache of just-in-time compiled kernels
+         self.device_caches = defaultdict(self.create_binder)
++        # Per-device locks serializing the kernel_cache check-then-compile
++        # sequence in run() so two threads launching the same kernel on the
++        # same device do not both compile and write kernel_cache[key].
++        self._compile_locks = {}
++        self._compile_locks_lock = threading.Lock()
+ 
+         # JITFunction can be instantiated as kernel
+         # when called with a grid using __getitem__
+@@ -879,7 +898,11 @@ class JITFunction(JITCallable, KernelInterface[T]):
+                                 options, [attrs], warmup)
+ 
+             kernel = async_mode.submit(cache_key, async_compile, finalize_compile)
+-            kernel_cache[key] = kernel
++            # Use setdefault: if finalize_compile already ran on another
++            # thread between submit() returning and this write, it has
++            # already stored the real kernel and we must not clobber it
++            # with the FutureKernel placeholder.
++            kernel = kernel_cache.setdefault(key, kernel)
+         else:
+             kernel = self.compile(src, target=target, options=options.__dict__)
+             kernel_cache[key] = kernel
+-- 
+2.47.3
+

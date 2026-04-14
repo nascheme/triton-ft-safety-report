@@ -1,0 +1,45 @@
+From c58781a12bc3108c65eab42b81c81ad223735142 Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 10:38:08 -0700
+Subject: [PATCH] [compiler] Load add_stages_inspection_hook once in compile()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+compile() reads knobs.runtime.add_stages_inspection_hook twice — once
+for the `is not None` check and once to invoke it. The slot lives on
+the process-global knobs.runtime object and can be cleared or swapped
+by a profiling framework at any time. A concurrent clear between the
+two reads raises `TypeError: 'NoneType' object is not callable` on the
+compile hot path; a concurrent swap folds the new hook's key into a
+SHA-256 filesystem cache directory that does not match the logically
+installed hook — persistent on-disk mis-keying.
+
+Load the hook once into a local. Independent from the jit.py launch-
+path reader with the same shape.
+
+Assisted-by: claude-opus-4.6
+
+---
+ python/triton/compiler/compiler.py | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/python/triton/compiler/compiler.py b/python/triton/compiler/compiler.py
+index d6f8dd26f..1d75671c3 100644
+--- a/python/triton/compiler/compiler.py
++++ b/python/triton/compiler/compiler.py
+@@ -244,8 +244,9 @@ def compile(src, target=None, options=None, _env_vars=None):
+     # create cache manager
+     env_vars = get_cache_invalidating_env_vars() if _env_vars is None else _env_vars
+     key = get_cache_key(src, backend, options, env_vars=env_vars)
+-    if knobs.runtime.add_stages_inspection_hook is not None:
+-        inspect_stages_key, inspect_stages_hash = knobs.runtime.add_stages_inspection_hook()
++    add_stages_inspection_hook = knobs.runtime.add_stages_inspection_hook
++    if add_stages_inspection_hook is not None:
++        inspect_stages_key, inspect_stages_hash = add_stages_inspection_hook()
+         key += inspect_stages_key
+     hash = hashlib.sha256(key.encode("utf-8")).hexdigest()
+     fn_cache_manager = get_cache_manager(hash)
+-- 
+2.47.3
+

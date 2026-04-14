@@ -1,6 +1,9 @@
 # `self.restore_copies` pre/post hook race
 
 - **Status:** Open
+- **Patch:** `cache-toctou.patch` (default pre/post hooks keep their
+  snapshots in `self._tls` — a `threading.local` — so each thread has
+  its own `restore_copies`)
 - **Severity:** Significant
 - **Component:** `python/triton/runtime/autotuner.py`
 

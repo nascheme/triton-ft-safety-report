@@ -1,0 +1,76 @@
+From 6febbb5d631d93fdde294a67efe89fae91e2a5fa Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 10:38:08 -0700
+Subject: [PATCH] [knobs] Make HookChain safe under concurrent add/remove and
+ iteration
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+HookChain backs the four process-global kernel-load / launch hook
+slots. Its __call__ iterates self.calls — a plain list — while
+Proton's profiler and tests concurrently add()/remove(). Iteration on
+a list mutated concurrently has an undefined element sequence, so a
+hook may be skipped or visited twice during a single _init_handles or
+launch. add()/remove() are also check-then-act compounds, so concurrent
+adds can install duplicates and a racing remove can raise ValueError.
+
+Use copy-on-write under a lock for writes and snapshot `self.calls`
+into a local before iterating. Fixes all four HookChain slots with one
+edit.
+
+Assisted-by: claude-opus-4.6
+
+---
+ python/triton/knobs.py | 20 +++++++++++++++-----
+ 1 file changed, 15 insertions(+), 5 deletions(-)
+
+diff --git a/python/triton/knobs.py b/python/triton/knobs.py
+index c8bf2d421..25ce39340 100644
+--- a/python/triton/knobs.py
++++ b/python/triton/knobs.py
+@@ -7,6 +7,7 @@ import re
+ import subprocess
+ import sysconfig
+ import pathlib
++import threading
+ 
+ from dataclasses import dataclass
+ from contextlib import contextmanager
+@@ -408,19 +409,28 @@ class HookChain(Generic[F]):
+     """
+ 
+     def __init__(self, reversed: bool = False):
++        # `calls` is rebound copy-on-write under `_lock`; `__call__` snapshots
++        # the binding into a local before iterating so concurrent add/remove
++        # cannot perturb the in-progress iteration.
+         self.calls: list[F] = []
+         self.reversed = reversed
++        self._lock = threading.Lock()
+ 
+     def add(self, func: F) -> None:
+-        if func not in self.calls:
+-            self.calls.append(func)
++        with self._lock:
++            if func not in self.calls:
++                self.calls = self.calls + [func]
+ 
+     def remove(self, func: F) -> None:
+-        if func in self.calls:
+-            self.calls.remove(func)
++        with self._lock:
++            if func in self.calls:
++                new_calls = list(self.calls)
++                new_calls.remove(func)
++                self.calls = new_calls
+ 
+     def __call__(self, *args, **kwargs):
+-        for call in self.calls if not self.reversed else reversed(self.calls):
++        calls = self.calls
++        for call in calls if not self.reversed else reversed(calls):
+             call(*args, **kwargs)
+ 
+ 
+-- 
+2.47.3
+

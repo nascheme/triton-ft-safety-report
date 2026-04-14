@@ -1,0 +1,79 @@
+From f9ed4051582b559df636434a8d035e37f6b1e206 Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 11:02:20 -0700
+Subject: [PATCH] nvidia/driver: make CudaUtils a properly-locked singleton
+
+`CudaUtils` was written as a singleton with two defects:
+
+1. `__new__` does `if not hasattr(cls, "instance"): cls.instance = ...`
+   — two concurrent callers both construct a new instance, overwriting
+   `cls.instance`.
+
+2. `type.__call__` runs `__init__` on every `CudaUtils()` call, even
+   when `__new__` returns the cached instance. So `__init__`'s
+   `compile_module_from_src` / `dlopen` body re-runs every call and
+   rebinds instance attributes, letting concurrent callers observe
+   `utils.launch` and friends transiently torn mid-reassignment.
+
+Under free-threading two `CudaDriver()` calls can reach this path
+concurrently. Consequences are bounded (rebuilt module is
+functionally equivalent) but the duplicate work and torn state are
+real.
+
+Use a standard double-checked singleton: class-level `_init_lock`,
+all init in `_init()`, publish `cls._instance` last, `__init__` no-op.
+
+Assisted-by: claude-opus-4.6
+
+---
+ third_party/nvidia/backend/driver.py | 24 +++++++++++++++++++++---
+ 1 file changed, 21 insertions(+), 3 deletions(-)
+
+diff --git a/third_party/nvidia/backend/driver.py b/third_party/nvidia/backend/driver.py
+index 21e9045b2..87e7fba79 100644
+--- a/third_party/nvidia/backend/driver.py
++++ b/third_party/nvidia/backend/driver.py
+@@ -1,6 +1,7 @@
+ import functools
+ import os
+ import subprocess
++import threading
+ import triton
+ import re
+ from pathlib import Path
+@@ -57,12 +58,29 @@ def library_dirs():
+ 
+ class CudaUtils(object):
+ 
++    _instance = None
++    _init_lock = threading.Lock()
++
+     def __new__(cls):
+-        if not hasattr(cls, "instance"):
+-            cls.instance = super(CudaUtils, cls).__new__(cls)
+-        return cls.instance
++        instance = cls._instance
++        if instance is not None:
++            return instance
++        with cls._init_lock:
++            instance = cls._instance
++            if instance is not None:
++                return instance
++            instance = super(CudaUtils, cls).__new__(cls)
++            instance._init()
++            cls._instance = instance
++            return instance
+ 
+     def __init__(self):
++        # All initialization happens in _init() under the class lock so the
++        # singleton is built exactly once. type.__call__ still invokes
++        # __init__ on every CudaUtils() call, so keep this a no-op.
++        pass
++
++    def _init(self):
+         mod = compile_module_from_src(
+             src=Path(os.path.join(dirname, "driver.c")).read_text(),
+             name="cuda_utils",
+-- 
+2.47.3
+

@@ -1,0 +1,97 @@
+From 6a992818afc5550afc38b616157bbc445e398274 Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 10:42:53 -0700
+Subject: [PATCH] [compiler,jit] Snapshot driver.active across multi-read hot
+ paths
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+driver.active is a swappable slot on the process-global DriverConfig:
+set_active() / reset_active() are legitimate runtime APIs. Even with
+DriverConfig's own init serialized, two reads of driver.active in the
+same function can return different DriverBase instances if set_active()
+fires between them. Hot paths that assume the reads agree:
+
+- CompiledKernel._init_handles reads it four times (device,
+  launcher_cls, load_binary, warp_size). A mid-function swap can build
+  self._run from D1.launcher_cls but self.module/self.function from
+  D2.utils.load_binary — launch hands a D2 handle to a D1 launcher.
+- CompiledKernel.__getitem__'s runner reads it for get_current_device
+  then get_current_stream — stream from a different driver than the
+  device.
+- JITFunction.run does the same device/stream pair.
+
+Snapshot driver.active into a local at the top of each function.
+
+Assisted-by: claude-opus-4.6
+
+---
+ python/triton/compiler/compiler.py | 16 ++++++++++------
+ python/triton/runtime/jit.py       |  7 +++++--
+ 2 files changed, 15 insertions(+), 8 deletions(-)
+
+diff --git a/python/triton/compiler/compiler.py b/python/triton/compiler/compiler.py
+index d6f8dd26f..56fc1f310 100644
+--- a/python/triton/compiler/compiler.py
++++ b/python/triton/compiler/compiler.py
+@@ -450,9 +450,12 @@ class CompiledKernel:
+             self._run = functools.partial(_raise_error, cloned_err)
+             raise err
+ 
+-        device = driver.active.get_current_device()
++        # Snapshot driver.active so that all reads in this function see the
++        # same DriverBase instance even if another thread calls set_active().
++        drv = driver.active
++        device = drv.get_current_device()
+         # create launcher
+-        self._run = driver.active.launcher_cls(self.src, self.metadata)
++        self._run = drv.launcher_cls(self.src, self.metadata)
+         # not enough shared memory to run the kernel
+         max_shared = max_shared_mem(device)
+         if self.metadata.shared > max_shared:
+@@ -465,9 +468,9 @@ class CompiledKernel:
+         if knobs.runtime.kernel_load_start_hook is not None:
+             knobs.runtime.kernel_load_start_hook(self.module, self.function, self.name, self.metadata_group, self.hash)
+         # TODO: n_regs, n_spills should be metadata generated when calling `ptxas`
+-        self.module, self.function, self.n_regs, self.n_spills, self.n_max_threads = driver.active.utils.load_binary(
++        self.module, self.function, self.n_regs, self.n_spills, self.n_max_threads = drv.utils.load_binary(
+             self.name, self.kernel, self.metadata.shared, device)
+-        warp_size = driver.active.get_current_target().warp_size
++        warp_size = drv.get_current_target().warp_size
+         if self.metadata.num_warps * warp_size > self.n_max_threads:
+             raise_(OutOfResources(self.metadata.num_warps * warp_size, self.n_max_threads, "threads"))
+         if knobs.runtime.kernel_load_end_hook is not None:
+@@ -495,8 +498,9 @@ class CompiledKernel:
+ 
+         def runner(*args, stream=None):
+             if stream is None:
+-                device = driver.active.get_current_device()
+-                stream = driver.active.get_current_stream(device)
++                drv = driver.active
++                device = drv.get_current_device()
++                stream = drv.get_current_stream(device)
+             launch_metadata = self.launch_metadata(grid, stream, *args)
+             self.run(grid[0], grid[1], grid[2], stream, self.function, self.packed_metadata, launch_metadata,
+                      knobs.runtime.launch_enter_hook, knobs.runtime.launch_exit_hook, *args)
+diff --git a/python/triton/runtime/jit.py b/python/triton/runtime/jit.py
+index ba21a58e1..69971d753 100644
+--- a/python/triton/runtime/jit.py
++++ b/python/triton/runtime/jit.py
+@@ -710,8 +710,11 @@ class JITFunction(JITCallable, KernelInterface[T]):
+         kwargs["instrumentation_mode"] = knobs.compilation.instrumentation_mode
+ 
+         # parse options
+-        device = driver.active.get_current_device()
+-        stream = driver.active.get_current_stream(device)
++        # Snapshot driver.active so device and stream come from the same
++        # DriverBase instance even if another thread calls set_active().
++        drv = driver.active
++        device = drv.get_current_device()
++        stream = drv.get_current_stream(device)
+ 
+         # Execute pre run hooks with args and kwargs
+         for hook in self.pre_run_hooks:
+-- 
+2.47.3
+

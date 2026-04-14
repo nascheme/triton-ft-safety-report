@@ -1,0 +1,71 @@
+From e32e6d139ff03924a8b8c68987434b07a5a0b052 Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 10:33:37 -0700
+Subject: [PATCH] [autotuner] Lock do_bench lazy init instead of relying on
+ cached_property
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Autotuner.do_bench is declared with functools.cached_property, which
+lost its internal lock in CPython 3.12. On an Autotuner shared across
+threads, two concurrent first-time accesses can both run the getter and
+both write self.__dict__["do_bench"]. The resulting value is benign
+here (the getter is pure), but cached_property is no longer a correct
+lazy-init primitive under free-threading and relying on it obscures
+that fact.
+
+Replace with a @property using an explicit double-checked lock.
+
+Assisted-by: claude-opus-4.6
+
+---
+ python/triton/runtime/autotuner.py | 17 +++++++++++++----
+ 1 file changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/python/triton/runtime/autotuner.py b/python/triton/runtime/autotuner.py
+index 0c4d71049..42723eb3e 100644
+--- a/python/triton/runtime/autotuner.py
++++ b/python/triton/runtime/autotuner.py
+@@ -5,6 +5,7 @@ import time
+ import inspect
+ import hashlib
+ import json
++import threading
+ from functools import cached_property
+ from typing import Dict, Tuple, List, Optional
+ 
+@@ -35,6 +36,7 @@ class Autotuner(KernelInterface):
+             self.configs = configs
+         self.keys = key
+         self.cache: Dict[Tuple, Config] = {}
++        self._do_bench_lock = threading.Lock()
+         self.arg_names = arg_names
+         self.cache_results = (cache_results or knobs.autotuning.cache) and not knobs.runtime.interpret
+ 
+@@ -119,11 +121,18 @@ class Autotuner(KernelInterface):
+             )
+             return
+ 
+-    @cached_property
++    @property
+     def do_bench(self):
+-        if self._do_bench is None:
+-            return driver.active.get_benchmarker()
+-        return self._do_bench
++        # Lazy init protected by a lock instead of @cached_property, which
++        # lost its internal lock in CPython 3.12 and is racy under
++        # free-threading.
++        bench = self._do_bench
++        if bench is not None:
++            return bench
++        with self._do_bench_lock:
++            if self._do_bench is None:
++                self._do_bench = driver.active.get_benchmarker()
++            return self._do_bench
+ 
+     def _bench(self, *args, config, **meta):
+         from ..compiler.errors import CompileTimeAssertionFailure
+-- 
+2.47.3
+

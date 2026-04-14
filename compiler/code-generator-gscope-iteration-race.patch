@@ -1,0 +1,44 @@
+From 013ab78232c3fc5fd8ca9d7f6c2ae2907f575f79 Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 10:38:08 -0700
+Subject: [PATCH] [jit] Snapshot fn.__globals__ in
+ JITFunction.get_capture_scope
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+JITFunction.get_capture_scope() returns fn.__globals__ by identity in
+the no-closure case. CodeGenerator.__init__ then iterates that dict
+during ast_to_ttir on the compile hot path. Because it *is* the
+defining module's __dict__, any concurrent module-level assignment
+mutates the dict mid-iteration. Per free-threaded CPython rules, dict
+iteration under concurrent mutation has an undefined element sequence:
+a legitimate global can be skipped (spurious NameError), or a
+constexpr global can be observed post-rebind after the specialization
+key was already computed against its old value (stale-keyed kernel).
+
+Return dict(self.__globals__) — PyDict_Copy takes a critical section
+and produces a stable snapshot.
+
+Assisted-by: claude-opus-4.6
+
+---
+ python/triton/runtime/jit.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/python/triton/runtime/jit.py b/python/triton/runtime/jit.py
+index ba21a58e1..74060c8fb 100644
+--- a/python/triton/runtime/jit.py
++++ b/python/triton/runtime/jit.py
+@@ -492,7 +492,7 @@ class JITCallable:
+     def get_capture_scope(self):
+         fn = self.fn
+         if fn.__closure__ is None:
+-            return self.__globals__
++            return dict(self.__globals__)
+         nonlocals = {name: cell.cell_contents for name, cell in zip(fn.__code__.co_freevars, fn.__closure__)}
+         return self.__globals__ | nonlocals
+ 
+-- 
+2.47.3
+

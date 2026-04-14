@@ -1,6 +1,7 @@
 # `CudaUtils` broken singleton pattern
 
 - **Status:** Open
+- **Patch:** `cudautils-singleton-race.patch` (replace broken singleton with double-checked locking under a class-level `threading.Lock`; move init body into `_init()` and make `__init__` a no-op)
 - **Severity:** Minor
 - **Component:** `third_party/nvidia/backend/driver.py`
 

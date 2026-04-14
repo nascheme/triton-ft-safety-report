@@ -1,6 +1,9 @@
 # `JITCallable.used_global_vals` unsynchronized read skips global-changed safety check
 
 - **Status:** Open
+- **Patch:** `used-global-vals-unsynchronized-read.patch` (force `self.cache_key`
+  at the top of `run()` so `used_global_vals` is populated under `_hash_lock`
+  before the kernel_cache lookup; uncontended after the first call)
 - **Severity:** Significant
 - **Component:** `runtime/jit.py`
 

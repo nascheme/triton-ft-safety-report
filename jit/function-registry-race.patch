@@ -1,0 +1,49 @@
+From 845492fcca91653aef3d9a679998105b001b23cf Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 10:56:58 -0700
+Subject: [PATCH] runtime/jit: register JITFunction in the global registry last
+
+`_triton_jit_function_registry` is a process-global dict from which
+`JITFunction.preload` resolves instances via `_decode_constant`.
+`JITFunction.__init__` inserted `self` into the registry before
+populating `params`, `device_caches`, `kernel`, etc. Any other thread
+that looks the instance up through the registry in that window
+observes a partially-initialized object and raises `AttributeError`
+on first attribute touch. The window exists under the GIL but is
+widened under free-threading.
+
+Publish to the registry at the end of __init__.
+
+Assisted-by: claude-opus-4.6
+
+---
+ python/triton/runtime/jit.py | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/python/triton/runtime/jit.py b/python/triton/runtime/jit.py
+index ba21a58e1..1d7642227 100644
+--- a/python/triton/runtime/jit.py
++++ b/python/triton/runtime/jit.py
+@@ -777,8 +777,6 @@ class JITFunction(JITCallable, KernelInterface[T]):
+         self.do_not_specialize_on_alignment = do_not_specialize_on_alignment
+         self._repr = repr
+         self.launch_metadata = launch_metadata
+-        # Register for simple deserialization of JITFunction constants
+-        _triton_jit_function_registry[f"{self.module}:{self.fn.__qualname__}"] = self
+ 
+         self.params = []
+         for i, param in enumerate(self.signature.parameters.values()):
+@@ -803,6 +801,10 @@ class JITFunction(JITCallable, KernelInterface[T]):
+         # Hooks that will be called prior to executing "run"
+         self.pre_run_hooks = []
+ 
++        # Register for simple deserialization of JITFunction constants.
++        # Done last so other threads never see a partially-initialized instance.
++        _triton_jit_function_registry[f"{self.module}:{self.fn.__qualname__}"] = self
++
+     def preload(self, specialization_data):
+         import json
+         import triton.language as tl
+-- 
+2.47.3
+

@@ -1,6 +1,9 @@
 # `JITFunction.pre_run_hooks` unsynchronized iteration during concurrent mutation
 
 - **Status:** Open
+- **Patch:** `pre-run-hooks-unsynchronized-iteration.patch` (copy-on-write
+  rebind of `self.pre_run_hooks` under a writer lock; `run()` iterates the
+  snapshot it loaded with no hot-path locking)
 - **Severity:** Significant
 - **Component:** `runtime/jit.py`
 

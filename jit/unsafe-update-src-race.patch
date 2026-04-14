@@ -1,0 +1,48 @@
+From 81a0b9c0756455bfb058df2ed297e7359d42a70e Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Tue, 14 Apr 2026 11:00:26 -0700
+Subject: [PATCH] runtime/jit: take _hash_lock in _unsafe_update_src
+
+`JITCallable._src` and `JITCallable.hash` must stay in sync: `hash`
+is derived from `_src`. Every path that computes or invalidates the
+hash already holds `_hash_lock` — except `_unsafe_update_src`, which
+writes `hash = None` and `_src = new_src` with no lock.
+
+Lost-update race: Thread A enters `cache_key` under `_hash_lock`,
+reads the old `_src`, and is computing the hash. Thread B calls
+`_unsafe_update_src`, invalidates, and replaces `_src`. Thread A
+finishes and assigns `self.hash = <old-src hash>`, clobbering the
+invalidation. The instance now has new `_src` but old `hash`, so
+subsequent compiles reuse the old source's cache entry.
+
+Take `_hash_lock` around the invalidate-and-replace pair.
+
+Assisted-by: claude-opus-4.6
+
+---
+ python/triton/runtime/jit.py | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/python/triton/runtime/jit.py b/python/triton/runtime/jit.py
+index ba21a58e1..84764b414 100644
+--- a/python/triton/runtime/jit.py
++++ b/python/triton/runtime/jit.py
+@@ -547,8 +547,13 @@ class JITCallable:
+ 
+         Note that it is the callers responsibility to make sure any triton functions that call this function have the `.hash` value reset to None.
+         """
+-        self.hash = None
+-        self._src = new_src
++        # Take _hash_lock so the src replacement and hash invalidation
++        # cannot overlap with an in-flight cache_key computation, which
++        # would otherwise clobber our hash=None write with a stale-src
++        # hash.
++        with self._hash_lock:
++            self.hash = None
++            self._src = new_src
+ 
+     def _set_src(self):
+         raise AttributeError("Cannot set attribute 'src' directly. "
+-- 
+2.47.3
+

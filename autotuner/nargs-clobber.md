@@ -1,6 +1,8 @@
 # `self.nargs` clobbered by concurrent `run()` calls
 
 - **Status:** Open
+- **Patch:** `cache-toctou.patch` (nargs is threaded as a local through
+  `run()`, `_bench()`, `prune_configs()`, and `warmup()`)
 - **Severity:** Significant
 - **Component:** `python/triton/runtime/autotuner.py`
 

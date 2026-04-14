@@ -1,6 +1,10 @@
 # `check_disk_cache` compound race on shared instance state and disk
 
 - **Status:** Open
+- **Patch:** `cache-toctou.patch` (per-key `Event` synchronization
+  ensures only one thread populates a given tuning key, and
+  `check_disk_cache` uses the timings returned from `bench_fn()` for
+  the disk write instead of `self.configs_timings`)
 - **Severity:** Significant
 - **Component:** `python/triton/runtime/autotuner.py`
 

@@ -1,6 +1,7 @@
 # `DriverConfig.active` lazy init / `set_active` ordering race
 
 - **Status:** Open
+- **Patch:** `driver-default-lazy-init-race.patch` (resolved by the same `DriverConfig` lock that fixes the `default` lazy init race)
 - **Severity:** Significant
 - **Component:** `runtime/driver.py:36-46`
 
