@@ -6,6 +6,7 @@
   `threading.Lock`)
 - **Severity:** Minor
 - **Component:** `python/triton/runtime/autotuner.py`
+- **Tier:** 2
 
 - **Shared state:** `self.do_bench` backed by `@cached_property` (line 122),
   stored in `self.__dict__`.

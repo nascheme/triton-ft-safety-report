@@ -5,6 +5,7 @@
   `run()`, `_bench()`, `prune_configs()`, and `warmup()`)
 - **Severity:** Significant
 - **Component:** `python/triton/runtime/autotuner.py`
+- **Tier:** 2
 
 - **Shared state:** `self.nargs` — a `dict` set on the shared `Autotuner`
   instance at the start of every `run()` (line 213) and `warmup()` (line 288),

@@ -3,6 +3,7 @@
 - **Status:** Open
 - **Severity:** Minor
 - **Component:** `python/triton/runtime/autotuner.py`
+- **Tier:** 2
 
 - **Shared state:** `self.best_config` (line 245) and `self.bench_time`
   (line 231) — written per-call on the shared `Autotuner` instance.

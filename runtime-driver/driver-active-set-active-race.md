@@ -4,6 +4,7 @@
 - **Patch:** `driver-default-lazy-init-race.patch` (resolved by the same `DriverConfig` lock that fixes the `default` lazy init race)
 - **Severity:** Significant
 - **Component:** `runtime/driver.py:36-46`
+- **Tier:** 3
 
 - **Shared state:** `DriverConfig._active` on the module-level singleton.
   Read by `driver.active` on every hot path.

@@ -5,6 +5,7 @@
 - **Severity:** Significant
 - **Component:** `python/triton/knobs.py` (`HookChain`),
   `python/triton/compiler/compiler.py`
+- **Tier:** 3
 
 - **Shared state:** `HookChain.calls: list[F]` on the process-global
   `kernel_load_start_hook` / `kernel_load_end_hook` instances

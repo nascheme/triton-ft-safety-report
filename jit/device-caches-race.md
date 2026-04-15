@@ -4,6 +4,7 @@
 - **Patch:** `device-caches-race.patch` (replace `defaultdict` with plain dict + `_device_caches_lock`; add double-checked `_get_device_cache` helper used by `run`/`preload`/`_do_compile`)
 - **Severity:** SEVERE
 - **Component:** `runtime/jit.py`
+- **Tier:** 2
 
 - **Shared state:** `self.device_caches` -- a `defaultdict(self.create_binder)`
   on a shared `JITFunction` instance (line 790)

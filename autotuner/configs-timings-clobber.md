@@ -7,6 +7,7 @@
   cross-key overwrites on the attribute)
 - **Severity:** Significant
 - **Component:** `python/triton/runtime/autotuner.py`
+- **Tier:** 2
 
 - **Shared state:** `self.configs_timings` — a `dict` mapping `Config` objects
   to benchmark timings, stored on the shared `Autotuner` instance.

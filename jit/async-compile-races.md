@@ -4,6 +4,7 @@
 - **Patch:** `async-compile-races.patch` (lock around `AsyncCompileMode.submit` get/submit/store, and `FutureKernel._lock` making `finalize_compile` idempotent)
 - **Severity:** Significant
 - **Component:** `runtime/_async_compile.py`
+- **Tier:** 2
 
 Two threads can reach the same `FutureKernel` concurrently: one via the
 `AsyncCompileMode.__exit__` `as_completed` loop, another via

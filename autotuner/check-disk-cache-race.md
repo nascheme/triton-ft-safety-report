@@ -7,6 +7,7 @@
   the disk write instead of `self.configs_timings`)
 - **Severity:** Significant
 - **Component:** `python/triton/runtime/autotuner.py`
+- **Tier:** 2
 
 - **Shared state:** `self.cache[tuning_key]` (line 198),
   `self.configs_timings` (line 199/208), and the on-disk cache file.

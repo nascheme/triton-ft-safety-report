@@ -6,6 +6,7 @@
   before the kernel_cache lookup; uncontended after the first call)
 - **Severity:** Significant
 - **Component:** `runtime/jit.py`
+- **Tier:** 2
 
 - **Shared state:** `JITCallable.used_global_vals` -- a dict recording captured
   global variables and their values at first compilation. Initialized to `{}`

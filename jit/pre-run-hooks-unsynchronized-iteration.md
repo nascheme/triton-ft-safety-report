@@ -6,6 +6,7 @@
   snapshot it loaded with no hot-path locking)
 - **Severity:** Significant
 - **Component:** `runtime/jit.py`
+- **Tier:** 3
 
 - **Shared state:** `self.pre_run_hooks` -- a plain `list` of user-supplied
   callables, initialized at jit.py:804, never rebound

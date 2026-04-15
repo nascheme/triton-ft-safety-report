@@ -3,6 +3,7 @@
 - **Status:** Open
 - **Severity:** SEVERE
 - **Component:** `python/triton/runtime/autotuner.py`
+- **Tier:** 2
 
 - **Shared state:** `self.cache`, plus per-call benchmark scratch state stored
   on the shared `Autotuner` instance: `self.nargs`, `self.restore_copies`,

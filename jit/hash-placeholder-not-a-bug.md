@@ -3,6 +3,7 @@
 - **Status:** Not a bug
 - **Severity:** None
 - **Component:** `runtime/jit.py`
+- **Tier:** 2
 
 The `cache_key` property sets a placeholder `self.hash = f"recursion:{self._fn_name}"`
 (line 507) inside `_hash_lock` before computing the real hash. The concern was

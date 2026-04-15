@@ -5,6 +5,7 @@
 - **Severity:** Significant
 - **Component:** `compiler/compiler.py:453-470`,
   `runtime/jit.py:713-714,809`, `runtime/autotuner.py:125,185`
+- **Tier:** 3
 
 - **Shared state:** `DriverConfig._active`, swappable at runtime via
   `set_active()` / `reset_active()`.

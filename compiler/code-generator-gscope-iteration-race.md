@@ -4,6 +4,7 @@
 - **Patch:** `code-generator-gscope-iteration-race.patch` (snapshot `fn.__globals__` via `dict()` in `get_capture_scope` no-closure path)
 - **Severity:** Significant
 - **Component:** `python/triton/compiler/code_generator.py`
+- **Tier:** 1
 
 - **Shared state:** The defining module's `__dict__`, reached as
   `fn.__globals__` via `JITFunction.get_capture_scope()`
