@@ -3,6 +3,7 @@
 **Upstream link:** [triton-lang/triton#6721](https://github.com/triton-lang/triton/issues/6721)
 
 - **Patch:** No standalone patch. The two in-scope contributing races are addressed by `driver-default-lazy-init-race.patch` (DriverConfig lazy-init lock) and `../nvidia-driver/cudautils-singleton-race.patch` (CudaUtils locked init-once). The single-thread native-extension hypotheses described below remain follow-ups outside `runtime/driver.py`.
+- **Severity:** SEVERE
 - **Tier:** 1
 
 ## Summary

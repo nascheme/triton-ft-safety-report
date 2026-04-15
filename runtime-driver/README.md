@@ -16,10 +16,10 @@ File in scope:
 | 1 | Significant | DriverConfig.default | 1 | [`DriverConfig.default` lazy init race creates duplicate driver instances](driver-default-lazy-init-race.md) |
 | 2 | Significant | DriverConfig.active  | 3 | [`DriverConfig.active` lazy init / `set_active` ordering race](driver-active-set-active-race.md) |
 | 3 | Significant | hot-path callers     | 3 | [Hot-path callers re-read `driver.active` across multiple statements](driver-active-caller-reread.md) |
+| 4 | SEVERE      | upstream import      | 1 | [Upstream segfault on Python 3.13t during Triton import](seg-fault-gh-6721.md) |
 
-See also: [seg-fault-gh-6721.md](seg-fault-gh-6721.md) — upstream segfault
-report under Python 3.13t that is a plausible downstream consequence of
-issue #1.
+Issue #4 is an upstream segfault report under Python 3.13t that is a
+plausible downstream consequence of issue #1.
 
 ## Triage notes
 

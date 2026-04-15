@@ -19,3 +19,10 @@
   selection or execution.
 - **Suggested fix:** Use local variables for the print statement instead of
   reading back from `self`.
+- **Note:** `self.bench_time` and `self.best_config` are retained on the
+  assumption that they are part of the public `Autotuner` API and cannot be
+  removed. Nothing in the Triton codebase reads `self.bench_time`;
+  `self.best_config` is read by example scripts
+  (`python/examples/gluon/03-matmul-multicta.py`,
+  `python/examples/gluon/04-2cta-block-scale-matmul.py`), confirming it is
+  observable by user code.

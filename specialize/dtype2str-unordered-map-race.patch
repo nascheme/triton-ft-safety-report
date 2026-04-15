@@ -1,0 +1,68 @@
+From ca0495fc2db92950bffa80daab91b6fbd0c519bb Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Wed, 15 Apr 2026 00:26:09 -0700
+Subject: [PATCH] [specialize] Lock dtype2str cache in specialize_tensordesc()
+
+specialize_tensordesc() is on the per-argument specialization hot path for tensordesc and Gluon descriptor arguments and mutates a process-global std::unordered_map with no synchronization. Under free-threaded CPython, concurrent kernel launches can race insert/find or insert/insert on the map and corrupt the container.
+
+Guard the cache with a mutex, but keep the Python canonicalize_dtype() call outside the critical section so the native lock is only held while checking or publishing the shared map entry.
+
+Assisted-by: claude-opus-4.6
+---
+ python/src/specialize.cc | 22 ++++++++++++++++------
+ 1 file changed, 16 insertions(+), 6 deletions(-)
+
+diff --git a/python/src/specialize.cc b/python/src/specialize.cc
+index c4bab9fb2..9e01143e6 100644
+--- a/python/src/specialize.cc
++++ b/python/src/specialize.cc
+@@ -4,6 +4,7 @@
+ #include <cstdlib>
+ #include <cstring>
+ #include <functional>
++#include <mutex>
+ #include <pybind11/pybind11.h>
+ #include <string>
+ #include <string_view>
+@@ -72,6 +73,7 @@ static PyObject *align_kwarg = nullptr;
+ 
+ static DtypePtr2Str dtype_ptr2str;
+ static Dtype2Str dtype2str;
++static std::mutex dtype2str_mutex;
+ static TypeHandlerCache type_handler_cache;
+ 
+ // Wrappers to make steal and borrow slightly simpler. We use raw CPython API
+@@ -177,16 +179,24 @@ std::pair<py::object, py::object> specialize_tensordesc(PyObject *arg,
+   if (dtype_hash == -1)
+     return {};
+   DTypeKey dsk{dtype_hash};
+-  auto it = dtype2str.find(dsk);
+-  if (it != dtype2str.end()) {
+-    type_str = it->second;
+-  } else {
++  {
++    std::lock_guard<std::mutex> lock(dtype2str_mutex);
++    auto it = dtype2str.find(dsk);
++    if (it != dtype2str.end()) {
++      type_str = it->second;
++    }
++  }
++  if (!type_str) {
+     auto res = from_new_ref(PyObject_CallFunctionObjArgs(canonicalize_dtype_fn,
+                                                          dtype.ptr(), nullptr));
+     if (!res)
+       return {};
+-    dtype2str[dsk] = res.ptr();
+-    type_str = res.release().ptr();
++    std::lock_guard<std::mutex> lock(dtype2str_mutex);
++    auto [it, inserted] = dtype2str.emplace(dsk, res.ptr());
++    type_str = it->second;
++    if (inserted) {
++      res.release();
++    }
+   }
+ 
+   std::string desc_cstr;
+-- 
+2.47.3
+

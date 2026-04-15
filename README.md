@@ -12,12 +12,13 @@ See [OVERVIEW.md](OVERVIEW.md) for an architectural overview of the Triton codeb
 
 | Component | Status | SEVERE | Significant | Minor | Total | Report |
 |-----------|--------|--------|-------------|-------|-------|--------|
-| `runtime/jit.py` | Ongoing | 1 | 7 | 0 | 8 | [jit/README.md](jit/README.md) |
-| `runtime/autotuner.py` | Ongoing | 1 | 4 | 2 | 7 | [autotuner/README.md](autotuner/README.md) |
-| `compiler/` | Ongoing | 1 | 3 | 0 | 4 | [compiler/README.md](compiler/README.md) |
-| `runtime/driver.py` | Ongoing | 0 | 3 | 0 | 3 | [runtime-driver/README.md](runtime-driver/README.md) |
-| `nvidia/backend/driver.py` | Ongoing | 0 | 0 | 2 | 2 | [nvidia-driver/README.md](nvidia-driver/README.md) |
-| **Total** | | **3** | **17** | **4** | **24** | |
+| `runtime/jit.py` | In-review | 1 | 7 | 0 | 8 | [jit/README.md](jit/README.md) |
+| `runtime/autotuner.py` | In-review | 1 | 4 | 2 | 7 | [autotuner/README.md](autotuner/README.md) |
+| `compiler/` | In-review | 1 | 3 | 0 | 4 | [compiler/README.md](compiler/README.md) |
+| `runtime/driver.py` | In-review | 0 | 3 | 0 | 3 | [runtime-driver/README.md](runtime-driver/README.md) |
+| `nvidia/backend/driver.py` | In-review | 0 | 0 | 2 | 2 | [nvidia-driver/README.md](nvidia-driver/README.md) |
+| `python/src/specialize.cc` | Ongoing | 4 | 1 | 1 | 6 | [specialize/README.md](specialize/README.md) |
+| **Total** | | **7** | **18** | **5** | **30** | |
 
 
 ## Concurrency Model
