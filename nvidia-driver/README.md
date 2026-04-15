@@ -18,11 +18,11 @@ Related out-of-scope file (referenced but not audited here):
 
 ## Issues
 
-| # | Severity | Component | Issue |
-|---|----------|-----------|-------|
-| 1 | Minor       | module globals         | [`PyCUtensorMap` / `PyKernelArg` / `ARG_*` module globals rewritten on every `CudaUtils()` call, but values are equivalent — benign staleness only](module-globals-lazy-init-race.md) |
-| 2 | Minor       | `CudaUtils` singleton  | [Broken singleton pattern: `__init__` re-runs on every call, causing duplicate `compile_module_from_src` and `dlopen` under concurrent driver bring-up](cudautils-singleton-race.md) |
-| 3 | Minor       | `CudaDriver.__init__`  | Every `CudaDriver()` instantiation triggers the full `CudaUtils()` bring-up via `self.utils = CudaUtils()` (line 336). Under the `DriverConfig.default` race in `runtime-driver/` issue #1, two concurrent default-driver constructions therefore double up the entire native init. No separate writeup; this is covered by issues #1 and #2 above. |
+| # | Severity | Component | Tier | Issue |
+|---|----------|-----------|------|-------|
+| 1 | Minor       | module globals         | 1 | [`PyCUtensorMap` / `PyKernelArg` / `ARG_*` module globals rewritten on every `CudaUtils()` call, but values are equivalent — benign staleness only](module-globals-lazy-init-race.md) |
+| 2 | Minor       | `CudaUtils` singleton  | 1 | [Broken singleton pattern: `__init__` re-runs on every call, causing duplicate `compile_module_from_src` and `dlopen` under concurrent driver bring-up](cudautils-singleton-race.md) |
+| 3 | Minor       | `CudaDriver.__init__`  | 1 | Every `CudaDriver()` instantiation triggers the full `CudaUtils()` bring-up via `self.utils = CudaUtils()` (line 336). Under the `DriverConfig.default` race in `runtime-driver/` issue #1, two concurrent default-driver constructions therefore double up the entire native init. No separate writeup; this is covered by issues #1 and #2 above. |
 
 ## Triage notes
 
@@ -70,7 +70,7 @@ objects of interest:
   However, every `compile_module_from_src` call for the same deterministic
   inputs produces functionally equivalent results, so old and new values
   are interchangeable. The consequence is benign.
-- **Tier:** 2 (concurrent `CudaDriver` construction).
+- **Tier:** 1 (concurrent `CudaDriver` construction during import-time Triton bring-up).
 - **Triage:** Downgraded from SEVERE to Minor. The original scenario
   assumed a thread could reach `annotate_arguments` with `None` globals,
   but this is not reachable through normal code paths. The residual race
@@ -113,7 +113,7 @@ objects of interest:
   3. **Duplicate cache writes.** `compile_module_from_src` calls
      `cache.put(...)` concurrently on the same key; this is the cache
      layer's problem, but the broken singleton is the trigger.
-- **Tier:** 2 (concurrent `CudaDriver` construction).
+- **Tier:** 1 (concurrent `CudaDriver` construction during import-time Triton bring-up).
 - **Triage:** Minor — the duplicate work produces equivalent results from
   deterministic inputs, so the consequence is wasted computation, not
   corruption. Still worth fixing as it's the root cause of issue #1 and

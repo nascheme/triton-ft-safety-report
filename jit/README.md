@@ -4,17 +4,17 @@ Issues in `python/triton/runtime/jit.py` affecting free-threaded Python 3.14t.
 
 ## Issues
 
-| # | Severity | Component | Issue |
-|---|----------|-----------|-------|
-| 1 | Significant | function_registry | [`_triton_jit_function_registry` publishes partially-initialized `JITFunction`](function-registry-race.md) |
-| 2 | SEVERE | device_caches | [`JITFunction.device_caches` defaultdict auto-vivification race](device-caches-race.md) |
-| 4 | Significant | kernel_cache | [`kernel_cache` / `kernel_key_cache` TOCTOU causes duplicate compilation](kernel-cache-toctou.md) |
-| 6 | Significant | used_global_vals | [`JITCallable.used_global_vals` unsynchronized read skips global-changed safety check](used-global-vals-unsynchronized-read.md) |
-| 7 | Significant | pre_run_hooks | [`JITFunction.pre_run_hooks` unsynchronized iteration during concurrent mutation](pre-run-hooks-unsynchronized-iteration.md) |
-| 8 | (covered by #4) | compute_cache_key | [`compute_cache_key` read-then-write race on `kernel_key_cache`](kernel-cache-toctou.md) |
-| 9 | Significant | async_compile | [`_do_compile` async path — `AsyncCompileMode`/`FutureKernel` races](async-compile-races.md) |
-| 11 | Significant | _unsafe_update_src | [`JITCallable._unsafe_update_src` unsynchronized hash invalidation](unsafe-update-src-race.md) |
-| 12 | Significant | add_stages_inspection_hook | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `run()`](add-stages-inspection-hook-toctou.md) |
+| # | Severity | Component | Tier | Issue |
+|---|----------|-----------|------|-------|
+| 1 | Significant | function_registry | 1 | [`_triton_jit_function_registry` publishes partially-initialized `JITFunction`](function-registry-race.md) |
+| 2 | SEVERE | device_caches | 2 | [`JITFunction.device_caches` defaultdict auto-vivification race](device-caches-race.md) |
+| 4 | Significant | kernel_cache | 2 | [`kernel_cache` / `kernel_key_cache` TOCTOU causes duplicate compilation](kernel-cache-toctou.md) |
+| 6 | Significant | used_global_vals | 2 | [`JITCallable.used_global_vals` unsynchronized read skips global-changed safety check](used-global-vals-unsynchronized-read.md) |
+| 7 | Significant | pre_run_hooks | 3 | [`JITFunction.pre_run_hooks` unsynchronized iteration during concurrent mutation](pre-run-hooks-unsynchronized-iteration.md) |
+| 8 | (covered by #4) | compute_cache_key | 2 | [`compute_cache_key` read-then-write race on `kernel_key_cache`](kernel-cache-toctou.md) |
+| 9 | Significant | async_compile | 2 | [`_do_compile` async path — `AsyncCompileMode`/`FutureKernel` races](async-compile-races.md) |
+| 11 | Significant | _unsafe_update_src | 3 | [`JITCallable._unsafe_update_src` unsynchronized hash invalidation](unsafe-update-src-race.md) |
+| 12 | Significant | add_stages_inspection_hook | 3 | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `run()`](add-stages-inspection-hook-toctou.md) |
 
 ## Triage notes
 

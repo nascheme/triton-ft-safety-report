@@ -13,12 +13,12 @@ Files in scope (Pass 1/Pass 4 per `AUDIT_PLAN.md`):
 
 ## Issues
 
-| # | Severity | Component | Issue |
-|---|----------|-----------|-------|
-| 1 | SEVERE | CompiledKernel | [`CompiledKernel._init_handles` lazy handle initialization race](compiled-kernel-init-handles-race.md) |
-| 2 | Significant | compile() | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `compile()`](add-stages-inspection-hook-toctou.md) |
-| 3 | Significant | HookChain | [`kernel_load_start_hook` / `kernel_load_end_hook` — `HookChain` iteration race in `_init_handles`](kernel-load-hook-chain-race.md) |
-| 4 | Significant | code_generator | [`CodeGenerator.__init__` iterates live `fn.__globals__` via `get_capture_scope`](code-generator-gscope-iteration-race.md) |
+| # | Severity | Component | Tier | Issue |
+|---|----------|-----------|------|-------|
+| 1 | SEVERE | CompiledKernel | 2 | [`CompiledKernel._init_handles` lazy handle initialization race](compiled-kernel-init-handles-race.md) |
+| 2 | Significant | compile() | 3 | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `compile()`](add-stages-inspection-hook-toctou.md) |
+| 3 | Significant | HookChain | 3 | [`kernel_load_start_hook` / `kernel_load_end_hook` — `HookChain` iteration race in `_init_handles`](kernel-load-hook-chain-race.md) |
+| 4 | Significant | code_generator | 1 | [`CodeGenerator.__init__` iterates live `fn.__globals__` via `get_capture_scope`](code-generator-gscope-iteration-race.md) |
 
 ## Triage notes
 

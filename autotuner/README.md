@@ -4,15 +4,15 @@ Issues in `python/triton/runtime/autotuner.py` affecting free-threaded Python 3.
 
 ## Issues
 
-| # | Severity | Component | Issue |
-|---|----------|-----------|-------|
-| 1 | SEVERE | Autotuner.cache | [`run()` cache-miss TOCTOU enables duplicate benchmarking and cross-thread hook-state contamination](cache-toctou.md) |
-| 2 | Significant | Autotuner.nargs | [`self.nargs` clobbered by concurrent `run()` calls, corrupting hook/pruning context](nargs-clobber.md) |
-| 3 | Significant | Autotuner.configs_timings | [`self.configs_timings` clobbered across concurrent tuning keys](configs-timings-clobber.md) |
-| 4 | Significant | Autotuner.restore_copies | [`self.restore_copies` pre/post hook race restores wrong snapshot or raises](restore-copies-race.md) |
-| 5 | Minor | Autotuner.best_config | [`self.best_config` and `self.bench_time` stale across concurrent calls](best-config-stale.md) |
-| 6 | Minor | Autotuner.do_bench | [`@cached_property` `do_bench` duplicate execution on shared instance](do-bench-cached-property.md) |
-| 7 | Significant | check_disk_cache | [`check_disk_cache` compound race on shared instance state and disk](check-disk-cache-race.md) |
+| # | Severity | Component | Tier | Issue |
+|---|----------|-----------|------|-------|
+| 1 | SEVERE | Autotuner.cache | 2 | [`run()` cache-miss TOCTOU enables duplicate benchmarking and cross-thread hook-state contamination](cache-toctou.md) |
+| 2 | Significant | Autotuner.nargs | 2 | [`self.nargs` clobbered by concurrent `run()` calls, corrupting hook/pruning context](nargs-clobber.md) |
+| 3 | Significant | Autotuner.configs_timings | 2 | [`self.configs_timings` clobbered across concurrent tuning keys](configs-timings-clobber.md) |
+| 4 | Significant | Autotuner.restore_copies | 2 | [`self.restore_copies` pre/post hook race restores wrong snapshot or raises](restore-copies-race.md) |
+| 5 | Minor | Autotuner.best_config | 2 | [`self.best_config` and `self.bench_time` stale across concurrent calls](best-config-stale.md) |
+| 6 | Minor | Autotuner.do_bench | 2 | [`@cached_property` `do_bench` duplicate execution on shared instance](do-bench-cached-property.md) |
+| 7 | Significant | check_disk_cache | 2 | [`check_disk_cache` compound race on shared instance state and disk](check-disk-cache-race.md) |
 
 ## Triage notes
 
