@@ -25,8 +25,9 @@ See [OVERVIEW.md](OVERVIEW.md) for an architectural overview of the Triton codeb
 
 Triton's primary concurrency exposure comes from JIT compilation and kernel dispatch:
 
-- **Tier 1 (urgent):** A single thread compiles and launches kernels while other threads do data loading or other Python work. The main risk is races on global registries (`_triton_jit_function_registry`), lazy-init singletons (`DriverConfig`), and `@cached_property` on shared objects.
-- **Tier 2 (goal):** Multiple threads compile and launch Triton kernels concurrently, exposing races on `JITFunction.device_caches`, `Autotuner.cache`, and the global `knobs.*` singletons.
+- **Tier 1 (common near-term concern):** A single thread compiles and launches kernels while other threads do data loading or other Python work. The main risk is races on global registries (`_triton_jit_function_registry`), lazy-init singletons (`DriverConfig`), and `@cached_property` on shared objects.
+- **Tier 2 (desired support target):** Multiple threads compile and launch Triton kernels concurrently, exposing races on `JITFunction.device_caches`, `Autotuner.cache`, and shared result caches keyed by specialization or tuning inputs.
+- **Tier 3 (configuration mutation):** One thread mutates Triton configuration, hook chains, or active driver/backend selection while another thread compiles or launches, exposing races on `knobs.*` mutable objects and hook/callback lists.
 
 ## Components
 
