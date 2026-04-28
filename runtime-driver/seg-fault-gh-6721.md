@@ -111,6 +111,6 @@ first-use in production code.
 Not fixed. Tracked in this audit directory as the motivating example
 for the `runtime/driver.py` writeups. The minimum fix inside this
 directory's scope is issues (1) and (2) in
-[README.md](README.md); the downstream `CudaUtils` race and the
+[issues.md](issues.md); the downstream `CudaUtils` race and the
 native-extension free-threading declarations are follow-ups outside
 `runtime/driver.py`.

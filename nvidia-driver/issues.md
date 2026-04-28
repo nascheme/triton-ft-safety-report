@@ -4,7 +4,7 @@ Issues in `third_party/nvidia/backend/driver.py`, the
 NVIDIA backend entry point reached via
 `runtime.driver.driver.active` → `CudaDriver()` → `CudaUtils()`. This is
 the downstream half of the lazy-singleton story started in
-[`runtime-driver/`](../runtime-driver/README.md) and the proximate crash
+[`runtime-driver/`](../runtime-driver/issues.md) and the proximate crash
 site for [triton-lang/triton#6721](../runtime-driver/seg-fault-gh-6721.md).
 
 File in scope:

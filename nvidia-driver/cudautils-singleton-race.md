@@ -23,4 +23,4 @@
   init-once pattern: do all work in a `_init()` method called under a
   class-level `threading.Lock` with double-checked locking, make
   `__init__` a no-op, and publish `cls._instance` only after `_init`
-  completes.  See README.md triage notes for details.
+  completes.  See issues.md triage notes for details.

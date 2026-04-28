@@ -217,7 +217,7 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
   change the code for thread-safety. A "fix" that eagerly imports `torch` or
   mutates `type_handler_cache` later would be risky and could regress the
   no-torch dispatch behavior covered by Triton's tests. Keep this only as a
-  traceability note in this README.
+  traceability note in this file.
 - **Severity:** Minor and not worth reporting under the `CLAUDE.md`
   guidance.
 

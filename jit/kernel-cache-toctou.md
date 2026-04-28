@@ -20,7 +20,7 @@
   `kernel_cache[K]`; last writer wins. On the async path, a further ordering
   hazard exists: `finalize_compile` (line 877) can write the real kernel
   before the placeholder write at line 882 executes, leaving a stale
-  `FutureKernel` in the cache (see triage notes in README.md).
+  `FutureKernel` in the cache (see triage notes in issues.md).
 - **Suggested fix:** Guard the check-then-compile sequence with a per-device
   lock using double-checked locking. The `compute_cache_key` TOCTOU is benign
   duplicate work and does not need a separate fix.

@@ -10,15 +10,56 @@ See [OVERVIEW.md](OVERVIEW.md) for an architectural overview of the Triton codeb
 
 ## Audit Progress
 
-| Component | Status | SEVERE | Significant | Minor | Total | Report |
-|-----------|--------|--------|-------------|-------|-------|--------|
-| `runtime/jit.py` | In-review | 1 | 7 | 0 | 8 | [jit/README.md](jit/README.md) |
-| `runtime/autotuner.py` | In-review | 1 | 4 | 2 | 7 | [autotuner/README.md](autotuner/README.md) |
-| `compiler/` | In-review | 1 | 3 | 0 | 4 | [compiler/README.md](compiler/README.md) |
-| `runtime/driver.py` | In-review | 0 | 3 | 0 | 3 | [runtime-driver/README.md](runtime-driver/README.md) |
-| `nvidia/backend/driver.py` | In-review | 0 | 0 | 2 | 2 | [nvidia-driver/README.md](nvidia-driver/README.md) |
-| `python/src/specialize.cc` | Ongoing | 4 | 1 | 1 | 6 | [specialize/README.md](specialize/README.md) |
-| **Total** | | **7** | **18** | **5** | **30** | |
+| Component | Status | SEVERE | Significant | Minor | Total |
+|-----------|--------|--------|-------------|-------|-------|
+| [jit](jit/issues.md) | In-review | 1 | 7 | 0 | 8 |
+| [autotuner](autotuner/issues.md) | In-review | 1 | 4 | 2 | 7 |
+| [compiler](compiler/issues.md) | In-review | 1 | 3 | 0 | 4 |
+| [runtime-driver](runtime-driver/issues.md) | In-review | 1 | 3 | 0 | 4 |
+| [nvidia-driver](nvidia-driver/issues.md) | In-review | 0 | 0 | 2 | 2 |
+| [specialize](specialize/issues.md) | Ongoing | 4 | 1 | 1 | 6 |
+| [async-compile](async-compile/issues.md) | Ongoing | 0 | 2 | 2 | 4 |
+| [cache](cache/issues.md) | Ongoing | 0 | 0 | 4 | 4 |
+| [knobs](knobs/issues.md) | Ongoing | 1 | 4 | 3 | 8 |
+| [backends](backends/issues.md) | Ongoing | 0 | 0 | 2 | 2 |
+| [ir](ir/issues.md) | Ongoing | 4 | 3 | 1 | 8 |
+| [llvm](llvm/issues.md) | Ongoing | 2 | 5 | 1 | 8 |
+| [src-main](src-main/issues.md) | Ongoing | 0 | 0 | 1 | 1 |
+| [src-passes](src-passes/issues.md) | Ongoing | 0 | 2 | 2 | 4 |
+| [runtime-build](runtime-build/issues.md) | Ongoing | 0 | 1 | 5 | 6 |
+| [interpreter](interpreter/issues.md) | Ongoing | 2 | 2 | 3 | 7 |
+| [compiler-codegen](compiler-codegen/issues.md) | Ongoing | 0 | 0 | 0 | 0 |
+| [native-helpers](native-helpers/issues.md) | Ongoing | 1 | 3 | 1 | 5 |
+| [language](language/issues.md) | Ongoing | 0 | 0 | 6 | 6 |
+| [tools](tools/issues.md) | Ongoing | 0 | 0 | 4 | 4 |
+| [experimental](experimental/issues.md) | Ongoing | 0 | 3 | 4 | 7 |
+| **Total** | | **18** | **43** | **44** | **105** |
+
+## Components
+
+| Component | Description | Files |
+|-----------|-------------|-------|
+| jit | `@triton.jit` decorator, `JITFunction` class, kernel dispatch, specialization. Global `_triton_jit_function_registry` dict; per-instance `device_caches` defaultdict; `@cached_property` on `KernelParam`. | `runtime/jit.py` |
+| autotuner | `@autotune` decorator, config benchmarking. Per-instance `cache` and `configs_timings` dicts; disk cache read/write. | `runtime/autotuner.py` |
+| compiler | Main compilation pipeline orchestration. LRU-cached `max_shared_mem()`; `CompileTimer` accumulates timing data; `LazyDict`/`AsmDict` mutable compilation artifacts. | `compiler/compiler.py`, `compiler/code_generator.py`, `compiler/make_launcher.py` |
+| runtime-driver | `DriverConfig` singleton managing active GPU driver. Lazy-init `_default`/`_active` properties without synchronization. | `runtime/driver.py` |
+| nvidia-driver | NVIDIA backend driver implementation. | `backends/nvidia/driver.py` |
+| specialize | Kernel argument type specialization. Static global pointers (`constexpr_cls`, etc.), static `dtype_ptr2str`/`dtype2str`/`type_handler_cache` maps; one-shot `init_globals()` without locking. | `python/src/specialize.cc` |
+| async-compile | `AsyncCompileMode` context manager for background compilation via `concurrent.futures`. Uses `ContextVar` (safe), but `FutureKernel` result caching needs review. | `runtime/_async_compile.py` |
+| cache | Cache manager abstractions (`CacheManager`, `FileCacheManager`, `RemoteCacheManager`, `RedisRemoteCacheBackend`). Factory helpers and key helpers. | `runtime/cache.py` |
+| knobs | Process-global mutable configuration, hook chains, and callback slots. Module-level singletons for `build`, `cache`, `compilation`, `runtime`, `language`, `nvidia`, `amd`, `proton`. | `knobs.py` |
+| backends | Backend discovery and abstract interfaces. Global `backends` dict populated at import time. `BaseBackend`, `GPUTarget`, `DriverBase` abstractions. | `backends/__init__.py`, `backends/compiler.py`, `backends/driver.py` |
+| ir | MLIR IR construction bindings. `MLIRContext`, dialect registration, operation builders, pass manager. GIL released on long-running MLIR ops via `call_guard`. | `python/src/ir.cc` |
+| llvm | LLVM compilation bindings. Module-level optimization, assembly/object emission. Multiple `py::gil_scoped_release` points where C++ runs concurrently with Python threads. | `python/src/llvm.cc` |
+| src-main | Module entry point for `triton._C.libtriton`. Submodule wiring and initialization. | `python/src/main.cc` |
+| src-passes | MLIR pass-pipeline builder functions and analysis wrappers (`ModuleAllocation`, `ModuleMembarAnalysis`). | `python/src/passes.cc` |
+| runtime-build | Dynamic C module compilation for launcher stubs and GPU memory allocator interface. | `runtime/build.py`, `runtime/_allocation.py` |
+| interpreter | CPU interpreter fallback for Triton kernels and native interpreter helpers for atomic operations. | `runtime/interpreter.py`, `python/src/interpreter.cc` |
+| compiler-codegen | Python AST to MLIR IR translation and launcher code generation. Front-end lowering and C launcher generation. | `compiler/code_generator.py`, `compiler/make_launcher.py` |
+| native-helpers | Lower-frequency native bindings for LinearLayout utilities and Gluon IR operations. | `python/src/linear_layout.cc`, `python/src/gluon_ir.cc` |
+| language | DSL operations (`tl.load`, `tl.store`, etc.), type system, and language primitives. Constexpr and declarative operators. | `language/core.py` |
+| tools | Offline compilation, linking, and disassembly utilities. CLI entry points for Triton tooling. | `tools/compile.py`, `tools/link.py`, `tools/disasm.py` |
+| experimental | Experimental Gluon features and utilities. | `experimental/gluon/` |
 
 
 ## Concurrency Model

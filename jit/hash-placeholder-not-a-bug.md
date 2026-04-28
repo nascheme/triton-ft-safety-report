@@ -12,5 +12,5 @@ hash.
 
 **Conclusion:** Every read of `self.hash` in the codebase is inside
 `cache_key` and therefore under `_hash_lock`. No external reader exists, so
-the placeholder never escapes the locked region. See README.md triage note #10
+the placeholder never escapes the locked region. See issues.md triage note #10
 for the full investigation.

@@ -30,4 +30,4 @@
   Write `self._run` **last** on success (after module/function/etc.)
   so it serves as the publish flag. On error, poison `self._run`
   with a raising partial (preserving existing contract) before
-  re-raising. See README.md triage notes for full fix code.
+  re-raising. See issues.md triage notes for full fix code.

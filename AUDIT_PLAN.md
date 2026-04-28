@@ -282,12 +282,12 @@ A good report should usually say which tier an issue belongs to.
 When you turn a pass into a report, keep it narrowly scoped by subsystem, for
 example:
 
-- `runtime-jit.md`
-- `runtime-autotuner.md`
-- `runtime-driver-and-knobs.md`
-- `compiler-cache-and-compiledkernel.md`
-- `python-src-specialize.md`
-- `python-src-llvm-ir.md`
+- `jit/issues.md`
+- `autotuner/issues.md`
+- `driver-and-knobs/issues.md`
+- `compiler/issues.md`
+- `specialize/issues.md`
+- `llvm/issues.md`
 
 That keeps architecture summaries short and makes it easier for later review to
 confirm specific claims file by file.

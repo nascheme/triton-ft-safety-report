@@ -9,7 +9,7 @@
 Two threads can reach the same `FutureKernel` concurrently: one via the
 `AsyncCompileMode.__exit__` `as_completed` loop, another via
 `kernel_cache.get()` -> `FutureKernel.__getattr__` -> `result()` in `run()`.
-See triage notes in README.md for how threads reach these paths.
+See triage notes in issues.md for how threads reach these paths.
 
 ## Bug 1: `AsyncCompileMode.submit` TOCTOU
 
