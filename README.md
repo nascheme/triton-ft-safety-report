@@ -2,7 +2,10 @@
 
 Tracking thread-safety issues in Triton's Python layer for Python 3.14t (free-threading / nogil).
 
-We are auditing the Python code under `python/` (both the pure-Python `triton/` package and the C++ pybind11 extensions in `src/`). The C++/MLIR/LLVM core is out of scope except where it interacts with the Python layer (GIL release points, pybind11 bindings).
+We are auditing the Python code under `python/` (both the pure-Python `triton/`
+package and the C++ pybind11 extensions in `src/`). The C++/MLIR/LLVM core is
+out of scope except where it interacts with the Python layer (GIL release
+points, pybind11 bindings).
 
 See [CLAUDE.md](CLAUDE.md) for the audit methodology.
 See [OVERVIEW.md](OVERVIEW.md) for an architectural overview of the Triton codebase.
@@ -64,11 +67,91 @@ See [OVERVIEW.md](OVERVIEW.md) for an architectural overview of the Triton codeb
 
 ## Concurrency Model
 
-Triton's primary concurrency exposure comes from JIT compilation and kernel dispatch:
+Triton's primary concurrency exposure comes from JIT compilation and kernel dispatch. We classify issues by the use case they affect.
 
-- **Tier 1 (common near-term concern):** A single thread compiles and launches kernels while other threads do data loading or other Python work. The main risk is races on global registries (`_triton_jit_function_registry`), lazy-init singletons (`DriverConfig`), and `@cached_property` on shared objects.
-- **Tier 2 (desired support target):** Multiple threads compile and launch Triton kernels concurrently, exposing races on `JITFunction.device_caches`, `Autotuner.cache`, and shared result caches keyed by specialization or tuning inputs.
-- **Tier 3 (configuration mutation):** One thread mutates Triton configuration, hook chains, or active driver/backend selection while another thread compiles or launches, exposing races on `knobs.*` mutable objects and hook/callback lists.
+**This is the canonical tier definition.** Other docs in this repo refer back here.
+
+### Tier 1 — Floor: Triton can be used at all from a multi-threaded program
+
+One thread uses Triton; other threads in the same process do unrelated Python
+work (data loaders, request handlers, async dispatch loops).
+
+What must be true: concurrent first-time entry into Triton's lazy
+initialization paths is safe (no TOCTOU on driver discovery, native
+specialization helpers, or module-level caches), and Triton activity in one
+thread cannot corrupt unrelated threads.
+
+Typical risks:
+- global registries (`_triton_jit_function_registry`)
+- lazy singleton initialization (`DriverConfig`, `CudaUtils`)
+- first-use initialization of process-global C++ state (`init_globals` in `specialize.cc`)
+- native helper code that assumed the GIL serialized access
+
+This is what every nogil-aware library must ship.
+
+### Tier 2 — Concurrent dispatch to distinct streams / devices
+
+Multiple threads reuse the same compiled `JITFunction` / `Autotuner` to launch
+kernels concurrently, typically each thread owning a different CUDA stream
+and/or GPU. Multiple threads driving a single stream is **not** a goal — kernel
+ordering on one stream is the caller's problem.
+
+Typical risks:
+- per-instance caches on `JITFunction` and `Autotuner` (`device_caches`, `kernel_cache`, `Autotuner.cache`)
+- lazy finalization of `CompiledKernel` runtime handles
+- races in the C++ specialization helper (`dtype_ptr2str`, `dtype2str`, `type_handler_cache`)
+- launch-path hook chains read while being mutated
+
+### Tier 3 — Concurrent compilation and concurrent configuration mutation
+
+A strict superset of Tier 2. Multiple threads can compile different kernels
+concurrently, *and* threads can mutate Triton configuration (knobs, hooks,
+driver/backend selection) while other threads compile or launch — all without
+the caller having to know which mutations are safe in which window.
+
+Typical risks:
+- Python-level state on the compile orchestration path that the GIL was
+  implicitly serializing (`code_generator` gscope iteration, kernel-load hook
+  chains, `add_stages_inspection_hook` TOCTOU, `used_global_vals` reads).
+- `MLIRContext` sharing across threads (open question — see below).
+- Mutation of `knobs.*` flags during execution.
+- Hook chain add/remove during execution.
+- Driver / backend selection changing while another thread compiles or launches.
+
+Note on the GIL build today: the Triton maintainers report that multi-threaded
+compilation is *already used in production*, but it works only because callers
+follow rules like "don't mutate LLVM `cl::opt` per-kernel" and "don't change
+knobs while kernels are compiling/launching." Real Tier 3 support would not
+require users to know those rules — that's the difference between "works if
+you're careful" and "works."
+
+Open question to confirm with maintainers: is `MLIRContext` per-compile or
+shared across threads? Multi-threaded compile works under GIL, so either it's
+per-compile or shared use is already protected. The answer determines the size
+of the `ir/` and `native-helpers/` Tier 3 fix list.
+
+### Pre-existing rule violations (not free-threading bugs)
+
+Some issues uncovered during the audit are violations of pre-existing
+maintainer rules, independent of free-threading. They should be filed
+separately rather than as nogil bugs:
+
+- **Mutating LLVM `cl::opt` from runtime code.** The maintainers' rule is
+  "don't do that"; only debug features currently do it. Real Tier 3 support
+  implies removing this mutation, but the bug exists under the GIL build too.
+
+### Pragmatically out of scope
+
+- **Concurrent use of `TRITON_INTERPRET=1` interpreter mode.** Debug-only
+  fallback path that monkey-patches shared module state. Pragmatic fix is a
+  single process-level lock around `GridExecutor.__call__`; document as
+  single-threaded.
+
+### Tier classification when auditing
+
+When auditing, note which tier an issue falls into. Tiers are cumulative:
+shipping Tier 2 implies Tier 1 already holds, and shipping Tier 3 implies Tier
+2 already holds. An issue's tier is the lowest use case that the issue breaks.
 
 ## Components
 

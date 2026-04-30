@@ -212,8 +212,11 @@ Examples include:
 - async compilation bookkeeping in `_async_compile.py`
 - lazy runtime-handle initialization on `CompiledKernel`
 
-These matter especially for tier-2 scenarios where multiple threads call the
-same Triton kernel or autotuned wrapper concurrently.
+These matter especially for Tier 2 scenarios — multiple threads dispatching
+the same compiled `JITFunction` / `Autotuner` to distinct streams or GPUs —
+and for Tier 3, where concurrent compilation is already a production use
+case today (under GIL + `gil_scoped_release`) that must not regress under
+free-threading.
 
 ### 3. Cache managers and filesystem-backed state
 `runtime/cache.py` and `runtime/build.py` coordinate materialized artifacts,

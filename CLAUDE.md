@@ -188,38 +188,18 @@ Quick rules of thumb:
 
 ## Concurrency model
 
-Think in terms of three tiers.
+Tier definitions live in [README.md](README.md#concurrency-model). They are
+the authoritative version — do not redefine tiers in component issue files
+or in this document.
 
-### Tier 1 (common near-term concern)
-One thread is compiling or launching Triton kernels while other Python threads
-are doing unrelated work.
+When auditing, note which tier an issue falls into. For Tier 3 items, also
+say which sub-bucket: "new under nogil" (Python-level state the GIL was
+implicitly serializing) or "pre-existing rule violation, file separately"
+(e.g. `cl::opt` mutation).
 
-Typical risks:
-- global registries
-- lazy singleton initialization
-- first-use initialization on shared objects
-- native helper code that assumed the GIL serialized access
-
-### Tier 2 (desired support target)
-Multiple threads call the same Triton kernel or autotuned wrapper concurrently.
-
-Typical risks:
-- per-instance caches on `JITFunction` and `Autotuner`
-- duplicate compile/finalization
-- races in compiled-kernel lazy initialization
-- shared result caches keyed by specialization or tuning inputs
-
-### Tier 3 (configuration mutation)
-One thread mutates Triton configuration, hook chains, or active driver/backend
-selection while another thread compiles or launches.
-
-Typical risks:
-- `knobs.*` mutable objects
-- hook lists / callback slots
-- driver selection
-- backend registry or backend-derived state
-
-When auditing, note which tier an issue falls into.
+If an issue belongs to one of the out-of-scope categories listed in
+README.md (runtime knob/hook mutation, `cl::opt`, concurrent interpreter
+mode), say so explicitly rather than promoting it to a tier.
 
 ## How to audit a file
 
