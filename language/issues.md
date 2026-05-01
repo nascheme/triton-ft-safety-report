@@ -27,14 +27,14 @@ The interesting surface is narrow: a few module-level singletons, one
 
 ## Issues
 
-| # | Severity | Component | Issue |
-|---|----------|-----------|-------|
-| 1 | Minor | `language/core.py` | `tuple_type.name` uses `@cached_property` — first-use write to instance `__dict__` on potentially shared `tuple_type` instances |
-| 2 | Minor | `language/core.py` | `dtype` singletons (`int32`, `float32`, …) are instance objects with attributes set in `__init__`; verify they remain read-only after import |
-| 3 | Minor | `language/core.py` | `_tensor_member_fn` and similar decorators call `setattr(tensor, ...)` at import time — confirm no post-import mutation |
-| 4 | Minor | `language/core.py` | `_aggregate()` dynamically builds `aggregate_value` classes at decorator application time; instances have mutable `__dict__` populated in `__init__` / `_unflatten_ir` |
-| 5 | Minor | `language/target_info.py` | `current_target()` reads `driver.active` with no synchronization; overlaps with `runtime-driver` audit but worth confirming |
-| 6 | Minor | `language/extra/__init__.py` | Module-body loop appends to `_backends` list and writes to `sys.modules[module_name]` during subpackage discovery; relies on Python's import lock |
+| # | Severity | Component | Tier | Issue |
+|---|----------|-----------|------|-------|
+| 1 | Minor | `language/core.py` | 2 | `tuple_type.name` uses `@cached_property` — first-use write to instance `__dict__` on potentially shared `tuple_type` instances |
+| 2 | Minor | `language/core.py` | 1 | `dtype` singletons (`int32`, `float32`, …) are instance objects with attributes set in `__init__`; verify they remain read-only after import |
+| 3 | Minor | `language/core.py` | 1 | `_tensor_member_fn` and similar decorators call `setattr(tensor, ...)` at import time — confirm no post-import mutation |
+| 4 | Minor | `language/core.py` | 1 | `_aggregate()` dynamically builds `aggregate_value` classes at decorator application time; instances have mutable `__dict__` populated in `__init__` / `_unflatten_ir` |
+| 5 | Minor | `language/target_info.py` | 2 | `current_target()` reads `driver.active` with no synchronization; overlaps with `runtime-driver` audit but worth confirming |
+| 6 | Minor | `language/extra/__init__.py` | 1 | Module-body loop appends to `_backends` list and writes to `sys.modules[module_name]` during subpackage discovery; relies on Python's import lock |
 
 ## Triage notes
 
@@ -203,10 +203,12 @@ threads that mutate shared state before their import completes.
 
 ## Tier classification
 
-All identified items are **Tier 2** (multiple threads compiling concurrently)
-at most; none are on a hot dispatch path in a way that would make them
-Tier 1. Severity for everything flagged here is **Minor** pending deep
-investigation — the package simply doesn't have much mutable state.
+Items 2, 3, 4, and 6 are **Tier 1** (import-time or first-use initialization
+protected by Python's import lock; concerns are verifying they remain
+read-only after import). Items 1 and 5 are **Tier 2** (shared instance state
+or driver reads under concurrent compilation). Severity for everything
+flagged here is **Minor** pending deep investigation — the package simply
+doesn't have much mutable state.
 
 ## Recommended follow-up order for deep dive
 

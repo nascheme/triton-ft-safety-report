@@ -19,7 +19,7 @@ into a separate issue file.
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | Significant | code_generator | 1 | [`gscope` iteration race in `CodeGenerator.__init__` and `call_JitFunction`](#1-gscope-iteration-race-already-filed) — already filed in `compiler/`; re-listed here for component completeness |
+| 1 | Significant | code_generator | 3 | [`gscope` iteration race in `CodeGenerator.__init__` and `call_JitFunction`](#1-gscope-iteration-race-already-filed) — already filed in `compiler/`; re-listed here for component completeness |
 | 2 | Candidate | code_generator | 1/3 | [`module_map` value-module attribute reads](#2-module_map-target-module-attribute-reads-during-gscope-rewrite) |
 | 3 | Candidate | code_generator | 1 | [`inspect.signature(fn)` caching on shared user callables](#3-inspectsignaturefn-on-user-callables-during-call-lowering) |
 | 4 | Candidate | code_generator | 1 | [`warnings.warn` / `warn_explicit` filter state during compile](#4-warningswarn-warn_explicit-during-compile) |

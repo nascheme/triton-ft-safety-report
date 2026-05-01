@@ -20,12 +20,12 @@ does not appear in the issue list.
 
 ## Issues
 
-| # | Severity | Component | Issue |
-|---|----------|-----------|-------|
-| 1 | Minor | `tools/disasm.py` | Module-level `@functools.lru_cache()` on `get_sass()` is shared mutable cache reachable from the compiler runtime path |
-| 2 | Minor | `tools/compile.py` | `compile_kernel()` mutates process-global `sys.path` (`sys.path.insert(0, ...)`) and never restores it |
-| 3 | Minor | `tools/gsan.py` | `main()` writes `triton.knobs.compilation.instrumentation_mode` and mutates `sys.argv` / `sys.path` (Tier 3 config mutation) |
-| 4 | Minor | `tools/build_extern.py` | `LLVMDisassembler._ll_file` hard-codes `"/tmp/extern_lib.ll"` as a shared-path side channel |
+| # | Severity | Component | Tier | Issue |
+|---|----------|-----------|------|-------|
+| 1 | Minor | `tools/disasm.py` | 1 | Module-level `@functools.lru_cache()` on `get_sass()` is shared mutable cache reachable from the compiler runtime path |
+| 2 | Minor | `tools/compile.py` | 3 | `compile_kernel()` mutates process-global `sys.path` (`sys.path.insert(0, ...)`) and never restores it |
+| 3 | Minor | `tools/gsan.py` | 3 | `main()` writes `triton.knobs.compilation.instrumentation_mode` and mutates `sys.argv` / `sys.path` (Tier 3 config mutation) |
+| 4 | Minor | `tools/build_extern.py` | 2 | `LLVMDisassembler._ll_file` hard-codes `"/tmp/extern_lib.ll"` as a shared-path side channel |
 
 ## Triage notes
 

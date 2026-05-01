@@ -22,15 +22,15 @@ whatever the `jit` component finds. Listed here only for completeness.
 
 ## Issues
 
-| # | Severity | Component | Issue |
-|---|----------|-----------|-------|
-| 1 | Significant | `experimental/gsan/_stream_sync.py` | `_compile_without_gsan()` mutates global `knobs.compilation.instrumentation_mode` via `knobs.compilation.scope()`; concurrent compilations on other threads will observe the cleared value |
-| 2 | Significant | `experimental/gsan/symmetric_memory.py` | `rendezvous()` does check-then-act on `_RENDEZVOUS_CACHE` (WeakValueDictionary) and drives a Unix-socket FD-exchange protocol; two threads rendezvousing the same (ptr, storage, group) key can double-import peer FDs |
-| 3 | Significant | `experimental/gsan/symmetric_memory.py` | `_RUNTIME_BOOTSTRAP_CACHE[key]` returns a plain `set` that is later read-modified-written (`peer in …`, `.update(…)`) across concurrent `rendezvous()` calls |
-| 4 | Minor | `experimental/gsan/_allocator.py` | Three `@functools.lru_cache()` functions (`_load_gsan_module`, `_compile_gsan_allocator`, `get_allocator`) do lazy native-module compile + CUDA allocator init |
-| 5 | Minor | `experimental/gsan/_stream_sync.py` | `_runtime_state_layout`, `_compiled_sync_kernel` `@functools.lru_cache()` on hot sync path |
-| 6 | Minor | `experimental/gsan/symmetric_memory.py` | `_get_mem_pool` `@functools.lru_cache()` on first-`empty()` path |
-| 7 | Minor | `experimental/gsan/_utils.py` | Module-level `_DLPACK_STATE: dict[int, object]` keeps DLPack metadata alive; written from Python, popped from a C callback (deleter) |
+| # | Severity | Component | Tier | Issue |
+|---|----------|-----------|------|-------|
+| 1 | Significant | `experimental/gsan/_stream_sync.py` | 3 | `_compile_without_gsan()` mutates global `knobs.compilation.instrumentation_mode` via `knobs.compilation.scope()`; concurrent compilations on other threads will observe the cleared value |
+| 2 | Significant | `experimental/gsan/symmetric_memory.py` | 2 | `rendezvous()` does check-then-act on `_RENDEZVOUS_CACHE` (WeakValueDictionary) and drives a Unix-socket FD-exchange protocol; two threads rendezvousing the same (ptr, storage, group) key can double-import peer FDs |
+| 3 | Significant | `experimental/gsan/symmetric_memory.py` | 2 | `_RUNTIME_BOOTSTRAP_CACHE[key]` returns a plain `set` that is later read-modified-written (`peer in …`, `.update(…)`) across concurrent `rendezvous()` calls |
+| 4 | Minor | `experimental/gsan/_allocator.py` | 1 | Three `@functools.lru_cache()` functions (`_load_gsan_module`, `_compile_gsan_allocator`, `get_allocator`) do lazy native-module compile + CUDA allocator init |
+| 5 | Minor | `experimental/gsan/_stream_sync.py` | 1 | `_runtime_state_layout`, `_compiled_sync_kernel` `@functools.lru_cache()` on hot sync path |
+| 6 | Minor | `experimental/gsan/symmetric_memory.py` | 1 | `_get_mem_pool` `@functools.lru_cache()` on first-`empty()` path |
+| 7 | Minor | `experimental/gsan/_utils.py` | 2 | Module-level `_DLPACK_STATE: dict[int, object]` keeps DLPack metadata alive; written from Python, popped from a C callback (deleter) |
 
 ## Triage notes
 
