@@ -67,14 +67,38 @@ See [OVERVIEW.md](OVERVIEW.md) for an architectural overview of the Triton codeb
 
 ## Concurrency Model
 
-Triton's primary concurrency exposure comes from JIT compilation and kernel dispatch. We classify issues by the use case they affect.
+Triton's primary concurrency exposure comes from JIT compilation and kernel
+dispatch. We classify issues by the use case they affect.
 
-**This is the canonical tier definition.** Other docs in this repo refer back here.
+**This is the canonical tier definition.** Other docs in this repo refer back
+here.
+
+### Why free-threaded Triton matters
+
+PyTorch — which sits on top of Triton — has concrete free-threading use cases
+that motivate this audit. In rough order of importance:
+
+- **GPU multiplexing.** Multiple threads share one GPU, alternating CPU-bound
+  and GPU-bound work to keep the GPU busy. Reported in production workloads;
+  see [pytorch/pytorch#180550](https://github.com/pytorch/pytorch/issues/180550).
+- **One process, N GPUs, one thread per GPU.** Process-per-GPU is the more
+  common deployment today, but single-process is easier to debug and makes
+  state-sharing across GPUs trivial.
+- **One GPU-compute thread plus N data-loader threads**, where data loaders
+  may touch the GPU lightly.
+
+Research workloads exhibit more variety than production / high-effort
+training, and free-threading lowers the cost of expressing those programs in
+threads instead of processes.
 
 ### Tier 1 — Floor: Triton can be used at all from a multi-threaded program
 
-One thread uses Triton; other threads in the same process do unrelated Python
-work (data loaders, request handlers, async dispatch loops).
+Exactly one thread uses Triton; other threads in the same process do unrelated
+Python work. The canonical example is one GPU-compute thread plus N
+data-loader threads, *as long as the loader threads do not themselves call
+into Triton*. Light GPU use from a non-Triton thread (CUDA copies, non-Triton
+torch ops) is still Tier 1; the moment a second thread launches a Triton
+kernel, the program is Tier 2.
 
 What must be true: concurrent first-time entry into Triton's lazy
 initialization paths is safe (no TOCTOU on driver discovery, native
@@ -89,56 +113,72 @@ Typical risks:
 
 This is what every nogil-aware library must ship.
 
-### Tier 2 — Concurrent dispatch to distinct streams / devices
+### Tier 2 — Concurrent use of Triton from multiple threads
 
-Multiple threads reuse the same compiled `JITFunction` / `Autotuner` to launch
-kernels concurrently, typically each thread owning a different CUDA stream
-and/or GPU. Multiple threads driving a single stream is **not** a goal — kernel
-ordering on one stream is the caller's problem.
+Multiple threads in the same process use Triton concurrently. The two
+motivating use cases are GPU multiplexing on a single GPU and one-thread-per-
+GPU across N GPUs. Both compiled-kernel dispatch and first-time kernel
+compilation are in scope: multi-threaded compilation is already a production
+use case under the GIL build and must keep working under nogil.
+
+The typical pattern is one CUDA stream per thread. Multiple threads sharing a
+single stream is also correct — it just adds extra kernel-ordering
+dependencies that the caller has chosen to accept; it is not excluded.
 
 Typical risks:
-- per-instance caches on `JITFunction` and `Autotuner` (`device_caches`, `kernel_cache`, `Autotuner.cache`)
+- per-instance caches on shared wrapper objects (`JITFunction.device_caches`,
+  `JITFunction.kernel_cache`, `Autotuner.cache`)
 - lazy finalization of `CompiledKernel` runtime handles
-- races in the C++ specialization helper (`dtype_ptr2str`, `dtype2str`, `type_handler_cache`)
-- launch-path hook chains read while being mutated
-
-### Tier 3 — Concurrent compilation and concurrent configuration mutation
-
-A strict superset of Tier 2. Multiple threads can compile different kernels
-concurrently, *and* threads can mutate Triton configuration (knobs, hooks,
-driver/backend selection) while other threads compile or launch — all without
-the caller having to know which mutations are safe in which window.
-
-Typical risks:
-- Python-level state on the compile orchestration path that the GIL was
-  implicitly serializing (`code_generator` gscope iteration, kernel-load hook
-  chains, `add_stages_inspection_hook` TOCTOU, `used_global_vals` reads).
-- `MLIRContext` sharing across threads (open question — see below).
-- Mutation of `knobs.*` flags during execution.
-- Hook chain add/remove during execution.
-- Driver / backend selection changing while another thread compiles or launches.
-
-Note on the GIL build today: the Triton maintainers report that multi-threaded
-compilation is *already used in production*, but it works only because callers
-follow rules like "don't mutate LLVM `cl::opt` per-kernel" and "don't change
-knobs while kernels are compiling/launching." Real Tier 3 support would not
-require users to know those rules — that's the difference between "works if
-you're careful" and "works."
+- races in the C++ specialization helper (`dtype_ptr2str`, `dtype2str`,
+  `type_handler_cache`)
+- Python-level state on the compile path that the GIL was implicitly
+  serializing (`code_generator` gscope iteration, `JITCallable.used_global_vals`,
+  source-mutation paths consulted during compile)
+- launch-path hook chains *read* under concurrent reads
+- async-compile bookkeeping (`FutureKernel` result caching)
 
 Open question to confirm with maintainers: is `MLIRContext` per-compile or
-shared across threads? Multi-threaded compile works under GIL, so either it's
-per-compile or shared use is already protected. The answer determines the size
-of the `ir/` and `native-helpers/` Tier 3 fix list.
+shared across threads? Multi-threaded compile already works under the GIL,
+so either it is per-compile or shared use is already protected. The answer
+determines the size of the `ir/` and `native-helpers/` Tier 2 fix list.
+
+### Tier 3 — Concurrent configuration mutation (tracked, not a goal)
+
+A strict superset of Tier 2 in which threads can mutate Triton configuration
+(knobs, hook chains, driver/backend selection) while other threads compile
+or launch.
+
+**Tier 3 is tracked for audit completeness, not a current objective.** We are
+not asking Triton maintainers to make these scenarios safe under nogil. The
+underlying scenarios are already unsupported under the GIL build today:
+
+- The maintainers' rule on LLVM `cl::opt` is "don't change it per-kernel";
+  only debug features currently do it.
+- The `base_knobs.scope()` context manager is documented (and confirmed by
+  maintainers) as unsafe to use across threads even today.
+- The general expectation is that `knobs.*` and hook configuration are set
+  before kernels start compiling or launching, not mutated mid-flight.
+
+Issues tracked under Tier 3:
+- mutation of `knobs.*` attributes while kernels are compiling or launching
+- `HookChain.add` / `HookChain.remove` and hook-slot reassignment during
+  execution
+- `base_knobs.scope()` context manager
+- driver / backend selection changing while another thread compiles or
+  launches
+- any other "configuration changes mid-execution" race
 
 ### Pre-existing rule violations (not free-threading bugs)
 
-Some issues uncovered during the audit are violations of pre-existing
-maintainer rules, independent of free-threading. They should be filed
-separately rather than as nogil bugs:
+Issues uncovered during the audit that are violations of pre-existing
+maintainer rules — independent of free-threading. Filed separately rather
+than as nogil bugs:
 
 - **Mutating LLVM `cl::opt` from runtime code.** The maintainers' rule is
-  "don't do that"; only debug features currently do it. Real Tier 3 support
-  implies removing this mutation, but the bug exists under the GIL build too.
+  "don't do that"; only debug features currently do it. The bug exists
+  under the GIL build too. Tier 3 issues belong to the same family — they
+  are scenarios that are already unsupported under the GIL build, and we
+  do not propose to support them under nogil either.
 
 ### Pragmatically out of scope
 
@@ -150,8 +190,15 @@ separately rather than as nogil bugs:
 ### Tier classification when auditing
 
 When auditing, note which tier an issue falls into. Tiers are cumulative:
-shipping Tier 2 implies Tier 1 already holds, and shipping Tier 3 implies Tier
-2 already holds. An issue's tier is the lowest use case that the issue breaks.
+shipping Tier 2 implies Tier 1 already holds, and shipping Tier 3 implies
+Tier 2 already holds. An issue's tier is the lowest use case that the issue
+breaks.
+
+- If an issue only manifests when configuration is mutated concurrently with
+  execution (knobs, hook chains, driver/backend), it is **Tier 3** —
+  tracked but not a current goal.
+- If an issue manifests during concurrent compilation of different kernels
+  with no concurrent configuration mutation, it is **Tier 2**.
 
 ## Components
 

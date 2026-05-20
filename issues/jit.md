@@ -9,11 +9,11 @@ Issues in `python/triton/runtime/jit.py` affecting free-threaded Python 3.14t.
 | 1 | Significant | function_registry | 1 | [`_triton_jit_function_registry` publishes partially-initialized `JITFunction`](jit/function-registry-race.md) |
 | 2 | SEVERE | device_caches | 2 | [`JITFunction.device_caches` defaultdict auto-vivification race](jit/device-caches-race.md) |
 | 4 | Significant | kernel_cache | 2 | [`kernel_cache` / `kernel_key_cache` TOCTOU causes duplicate compilation](jit/kernel-cache-toctou.md) |
-| 6 | Significant | used_global_vals | 3 | [`JITCallable.used_global_vals` unsynchronized read skips global-changed safety check](jit/used-global-vals-unsynchronized-read.md) |
+| 6 | Significant | used_global_vals | 2 | [`JITCallable.used_global_vals` unsynchronized read skips global-changed safety check](jit/used-global-vals-unsynchronized-read.md) |
 | 7 | Significant | pre_run_hooks | 2 | [`JITFunction.pre_run_hooks` unsynchronized iteration during concurrent mutation](jit/pre-run-hooks-unsynchronized-iteration.md) |
 | 8 | (covered by #4) | compute_cache_key | 2 | [`compute_cache_key` read-then-write race on `kernel_key_cache`](jit/kernel-cache-toctou.md) |
 | 9 | Significant | async_compile | 2 | [`_do_compile` async path — `AsyncCompileMode`/`FutureKernel` races](jit/async-compile-races.md) |
-| 11 | Significant | _unsafe_update_src | 3 | [`JITCallable._unsafe_update_src` unsynchronized hash invalidation](jit/unsafe-update-src-race.md) |
+| 11 | Significant | _unsafe_update_src | 2 | [`JITCallable._unsafe_update_src` unsynchronized hash invalidation](jit/unsafe-update-src-race.md) |
 | 12 | Significant | add_stages_inspection_hook | 3 | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `run()`](jit/add-stages-inspection-hook-toctou.md) |
 
 ## Triage notes
@@ -130,7 +130,7 @@ placeholder never escapes the `_hash_lock` critical section.
 ### 11. `JITCallable._unsafe_update_src` — unsynchronized hash invalidation
 
 Written up in [unsafe-update-src-race.md](jit/unsafe-update-src-race.md).
-Confirmed as a Tier 3 ordering bug: Thread A's in-flight `cache_key`
+Confirmed as a Tier 2 ordering bug: Thread A's in-flight `cache_key`
 finalization can clobber Thread B's `self.hash = None` write, leaving
 `self.hash` pointing at the old-src hash after `self._src` has been
 replaced. Fix is to take `self._hash_lock` inside `_unsafe_update_src`.

@@ -212,10 +212,11 @@ Examples include:
 - async compilation bookkeeping in `_async_compile.py`
 - lazy runtime-handle initialization on `CompiledKernel`
 
-These matter especially for Tier 2 scenarios — multiple threads dispatching
-the same compiled `JITFunction` / `Autotuner` to distinct streams or GPUs —
-and for Tier 3, where concurrent compilation is already a production use
-case today (under GIL + `gil_scoped_release`) that must not regress under
+These matter for Tier 2 scenarios — multiple threads using Triton
+concurrently against the same process, whether sharing a GPU or running
+one-thread-per-GPU. Tier 2 covers both kernel dispatch and concurrent first-
+time compilation; concurrent compilation is already a production use case
+today (under GIL + `gil_scoped_release`) and must not regress under
 free-threading.
 
 ### 3. Cache managers and filesystem-backed state

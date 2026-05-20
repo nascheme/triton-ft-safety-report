@@ -128,7 +128,7 @@ center of dispatch themselves.
 
 Why second:
 - these files explain the global state surrounding dispatch
-- they are important for tier-1 and tier-3 issues
+- they are important for tier-1 and tier-2 issues
 - they often determine whether a race is local to one object or process-global
 
 ---
@@ -273,10 +273,11 @@ Tier definitions and out-of-scope categories live in
 [README.md](README.md#concurrency-model). Refer to that document when
 classifying an issue rather than redefining tiers here.
 
-A good report should say which tier an issue belongs to. For Tier 3 items,
-also say which sub-bucket ("new under nogil" vs "pre-existing rule
-violation, file separately"). Issues in the out-of-scope categories should
-be flagged as out of scope rather than promoted to a tier.
+A good report should say which tier an issue belongs to. Tier 3 covers
+concurrent configuration mutation (knobs / hooks / driver / backend) and is
+**tracked, not a current objective** — record these for completeness but do
+not block on them. Issues in the out-of-scope categories should be flagged
+as out of scope rather than promoted to a tier.
 
 ## Suggested output structure for later reports
 

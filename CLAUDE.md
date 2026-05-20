@@ -192,14 +192,18 @@ Tier definitions live in [README.md](README.md#concurrency-model). They are
 the authoritative version — do not redefine tiers in component issue files
 or in this document.
 
-When auditing, note which tier an issue falls into. For Tier 3 items, also
-say which sub-bucket: "new under nogil" (Python-level state the GIL was
-implicitly serializing) or "pre-existing rule violation, file separately"
-(e.g. `cl::opt` mutation).
+When auditing, note which tier an issue falls into. Concurrent compilation
+of different kernels is **Tier 2**, not Tier 3 — maintainers already use
+multi-threaded compilation in production under the GIL build.
+
+Tier 3 covers concurrent mutation of `knobs.*`, hook chains, or
+driver/backend selection while other threads compile or launch. Tier 3
+issues are **tracked for completeness, not a current goal** — the
+underlying scenarios are unsupported even under the GIL build today.
 
 If an issue belongs to one of the out-of-scope categories listed in
-README.md (runtime knob/hook mutation, `cl::opt`, concurrent interpreter
-mode), say so explicitly rather than promoting it to a tier.
+README.md (`cl::opt` mutation, concurrent interpreter mode), say so
+explicitly rather than promoting it to a tier.
 
 ## How to audit a file
 
