@@ -20,8 +20,7 @@ kernel.
 - `Fatal Python error: Segmentation fault`
 - Core dumped during module import.
 - Stack trace originates inside
-  `triton/backends/nvidia/driver.py` at line 71, in
-  `compile_module_from_src`.
+  `triton/backends/nvidia/driver.py`, in `compile_module_from_src`.
 - The crash propagates up through an `@autotune` decorator applied at
   import time in the user's test module.
 
@@ -48,9 +47,8 @@ A hard segfault with core dump is the unacceptable third outcome.
 
 The crash site — `compile_module_from_src` inside the NVIDIA backend
 driver — is the exact native helper invoked from
-`CudaUtils.__init__` at
-`third_party/nvidia/backend/driver.py:65-90`, which is itself reached
-via the lazy-singleton path
+`CudaUtils.__init__` in `third_party/nvidia/backend/driver.py`, which is
+itself reached via the lazy-singleton path
 `DriverConfig.default` → `_create_driver()` → `CudaDriver()` →
 `CudaUtils()`.
 
@@ -59,13 +57,12 @@ free-threading:
 
 1. **`DriverConfig.default` / `DriverConfig.active`** —
    `if self._default is None: self._default = _create_driver()` has
-   no lock (`runtime/driver.py:32-34`). Two threads reaching
-   `driver.active` concurrently can both enter `_create_driver()`.
-   Written up in
+   no lock in `runtime/driver.py`. Two threads reaching `driver.active`
+   concurrently can both enter `_create_driver()`. Written up in
    [driver-default-lazy-init-race.md](driver-default-lazy-init-race.md).
 2. **`CudaUtils.__new__`** — `if not hasattr(cls, "instance"):
-   cls.instance = super().__new__(cls)` is itself racy
-   (`third_party/nvidia/backend/driver.py:60-63`), *and*
+   cls.instance = super().__new__(cls)` in
+   `third_party/nvidia/backend/driver.py` is itself racy, *and*
    `CudaUtils.__init__` calls `compile_module_from_src` and writes
    five `global` names (`PyCUtensorMap`, `PyKernelArg`,
    `ARG_CONSTEXPR`, `ARG_KERNEL`, `ARG_TUPLE`) with no

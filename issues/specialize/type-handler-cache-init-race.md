@@ -9,19 +9,19 @@
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 1
 
-- **Shared state:** `static TypeHandlerCache type_handler_cache`
-  (`specialize.cc:75`), a process-global
+- **Shared state:** `static TypeHandlerCache type_handler_cache` in
+  `specialize.cc`, a process-global
   `std::unordered_map<PyTypeObject *, TypeHandler>` with no mutex. The map is
   populated during first-use initialization and then treated as read-only.
   `std::unordered_map` is not safe for concurrent insert/insert or
   insert/find; a rehash during another thread's access can corrupt buckets,
   lose entries, return a dangling iterator, or crash outright.
-- **Writer(s):** `init_type_handler_cache()` (`specialize.cc:467`) performs
+- **Writer(s):** `init_type_handler_cache()` performs
   `type_handler_cache[key] = fn` inserts covering `PyLong_Type`,
   `PyBool_Type`, `PyFloat_Type`, `PyTuple_Type`, and the Triton class
   pointers (`torch.Tensor`, `TensorDescriptor`, Gluon descriptors,
   `constexpr`, `JITCallable`). It is called only from `init_globals()`.
-- **Reader(s):** `specialize_arg()` (`specialize.cc:516`):
+- **Reader(s):** `specialize_arg()`:
   `auto it = type_handler_cache.find(arg_type);`. `specialize_arg()` is
   reached from `specialize_impl`, the `native_specialize_impl`
   METH_FASTCALL exposed to Python and called on the per-argument

@@ -8,14 +8,13 @@
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 2
 
-- **Shared state:** `static Dtype2Str dtype2str` (`specialize.cc:74`), a
+- **Shared state:** `static Dtype2Str dtype2str` in `specialize.cc`, a
   process-global `std::unordered_map<Py_hash_t, PyObject *>`. There is no
-  mutex or other synchronization, and free-threaded CPython no longer
-  serializes calls into this helper.
-- **Writer(s):** `specialize_tensordesc()` cache-miss path at
-  `specialize.cc:188`: `dtype2str[dsk] = res.ptr();`. Insertion may rehash,
-  invalidating buckets and iterators for any concurrent reader.
-- **Reader(s):** `specialize_tensordesc()` lookup at `specialize.cc:180`:
+  mutex or other synchronization.
+- **Writer(s):** `specialize_tensordesc()` cache-miss path:
+  `dtype2str[dsk] = res.ptr();`. Insertion may rehash, invalidating buckets
+  and iterators for any concurrent reader.
+- **Reader(s):** `specialize_tensordesc()` lookup:
   `auto it = dtype2str.find(dsk);`. `specialize_tensordesc` is invoked from
   the tensordesc handlers registered for `tensor_descriptor_cls`,
   `nvidia_tensor_descriptor_cls`,
@@ -35,7 +34,7 @@
   possible bucket corruption, lost insert, infinite loop in the hash
   table, returning a dangling `PyObject *` from a stale bucket, or a
   hard crash. A returned dangling pointer is then dereferenced via
-  `PyObject_Str(type_str)` at `specialize.cc:205` and propagates the
+  `PyObject_Str(type_str)` in `specialize_tensordesc` and propagates the
   corruption into the Python caller.
 
   Even without rehashing, the read of the `PyObject *` value via

@@ -8,12 +8,12 @@
 - **Tier:** 3
 
 - **Shared state:** `HookChain.calls: list[F]` on the process-global
-  `kernel_load_start_hook` / `kernel_load_end_hook` instances
-  (`knobs.py:470–471`).
+  `kernel_load_start_hook` / `kernel_load_end_hook` instances declared
+  on `RuntimeKnobs` in `knobs.py`.
 - **Writer(s):** `HookChain.add` / `.remove` — called by Proton
-  (`hook.py:101,126`) and tests to attach/detach profiling at runtime.
+  (`hook.py`) and tests to attach/detach profiling at runtime.
 - **Reader(s):** `HookChain.__call__` iterates `self.calls` — reached
-  from `compiler.py:466,474` in `CompiledKernel._init_handles`.
+  from `CompiledKernel._init_handles` in `compiler.py`.
 - **Race scenario:** Thread A iterates `self.calls` in `__call__`.
   Thread B calls `.add(hook)` or `.remove(hook)`, mutating the same
   list. Iteration under concurrent mutation has undefined element
@@ -28,4 +28,4 @@
 
 Same pattern as [`jit/pre-run-hooks-unsynchronized-iteration.md`](../jit/pre-run-hooks-unsynchronized-iteration.md).
 Also affected: `launch_enter_hook` / `launch_exit_hook` on the launch
-path (`compiler.py:502`, `runtime/jit.py:762`).
+path in `compiler.py` and `runtime/jit.py`.

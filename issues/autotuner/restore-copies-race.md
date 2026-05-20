@@ -10,11 +10,10 @@
 
 - **Shared state:** `self.restore_copies` — a `dict` on the shared `Autotuner`
   instance mapping tensor names to cloned snapshots. Written by the default
-  `_pre_hook` (line 63), read and cleared by the default `_post_hook`
-  (lines 73-75).
-- **Writer(s):** `_pre_hook` at line 63: `self.restore_copies = {name: kwargs[name].clone() ...}`.
-  `_post_hook` at line 75: `self.restore_copies = {}`.
-- **Reader(s):** `_post_hook` at line 74: `kwargs[name].copy_(self.restore_copies[name])`.
+  `_pre_hook`, read and cleared by the default `_post_hook`.
+- **Writer(s):** `_pre_hook`: `self.restore_copies = {name: kwargs[name].clone() ...}`.
+  `_post_hook`: `self.restore_copies = {}`.
+- **Reader(s):** `_post_hook`: `kwargs[name].copy_(self.restore_copies[name])`.
 - **Race scenario:** During benchmarking, `kernel_call()` runs `_pre_hook`
   then the kernel then `_post_hook` for each config trial. Thread A's
   `_pre_hook` saves snapshots of A's tensors. Thread B's `_pre_hook`

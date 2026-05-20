@@ -37,18 +37,18 @@ static caches, no lazy initializers owned by this file, and no
 
 Top-level entry point:
 
-- `init_triton_passes(m)` (line 145) — called exactly once from
+- `init_triton_passes(m)` — called exactly once from
   `main.cc`'s `PYBIND11_MODULE` body via
   `init_triton_passes(m.def_submodule("passes"))`. Creates the following
   submodules and wires their init functions:
-  - `passes.analysis` → `init_triton_analysis` (line 23)
-  - `passes.common` → `init_triton_passes_common` (line 31)
-  - `passes.convert` → `init_triton_passes_convert` (line 119)
-  - `passes.ttir` → `init_triton_passes_ttir` (line 42)
-  - `passes.ttgpuir` → `init_triton_passes_ttgpuir` (line 56)
-  - `passes.llvmir` → `init_triton_passes_llvmir` (line 128)
-  - `passes.gluon` → `init_gluon_passes` (line 134)
-  - `passes.plugin` → `init_plugin_passes` (line 106)
+  - `passes.analysis` → `init_triton_analysis`
+  - `passes.common` → `init_triton_passes_common`
+  - `passes.convert` → `init_triton_passes_convert`
+  - `passes.ttir` → `init_triton_passes_ttir`
+  - `passes.ttgpuir` → `init_triton_passes_ttgpuir`
+  - `passes.llvmir` → `init_triton_passes_llvmir`
+  - `passes.gluon` → `init_gluon_passes`
+  - `passes.plugin` → `init_plugin_passes`
 
 ### What each init function does
 
@@ -65,10 +65,10 @@ Top-level entry point:
   `…_llvmir`, `init_gluon_passes` — all call `ADD_PASS_WRAPPER_*` /
   `ADD_PASS_OPTION_WRAPPER_*` macros. Each macro expands to
   `m.def(name, [](mlir::PassManager &pm, …){ pm.addPass(factory(…)); })`.
-  The `m.def("add_canonicalize_llvm_ir", …)` at line 101 is the only
+  The `m.def("add_canonicalize_llvm_ir", …)` registration is the only
   hand-written lambda; it uses `pm.addNestedPass<LLVM::LLVMFuncOp>(...)`
   but is otherwise the same shape.
-- `init_plugin_passes` (line 106) — calls
+- `init_plugin_passes` — calls
   `mlir::triton::plugin::loadPlugins()` and iterates
   `plugin.listPasses()`, registering one `m.def(pass.name, …)` per pass.
   This is the file's single call into the process-wide plugin registry.
@@ -135,8 +135,7 @@ means Python C API calls in these bindings are safe for the calling thread.
 ### 2. `init_plugin_passes` → `loadPlugins()` TOCTOU (Significant, cross-reference)
 
 - **Shared state:** `static std::vector<TritonPlugin> plugins` and
-  `static bool pluginsLoaded` in `lib/Tools/PluginUtils.cpp` lines
-  147–188.
+  `static bool pluginsLoaded` in `lib/Tools/PluginUtils.cpp`'s `loadPlugins`.
 - **Writer(s):** the first caller of `loadPlugins()` after process start.
   Populates `plugins` and sets `pluginsLoaded = true`.
 - **Reader(s):** any later caller. In `passes.cc`, `init_plugin_passes` is
@@ -218,7 +217,7 @@ means Python C API calls in these bindings are safe for the calling thread.
   (`passes.h`).** All expand into `m.def(name, lambda)` calls that
   complete during module init under the import lock. The lambda bodies
   themselves are the item #3 concern above.
-- **Captured `pass` in `init_plugin_passes`'s lambda (line 111, `[pass]`).**
+- **Captured `pass` in `init_plugin_passes`'s lambda (`[pass]`).**
   The capture copies each `TritonPlugin::Pass` struct into the closure.
   If plugins keep a pointer into their own static state, that pointer is
   shared by all copies — but that is a plugin-side concern, not a

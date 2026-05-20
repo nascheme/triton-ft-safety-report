@@ -3,13 +3,14 @@
 - **Status:** Open
 - **Patch:** `driver-default-lazy-init-race.patch` (resolved by the same `DriverConfig` lock that fixes the `default` lazy init race)
 - **Severity:** Significant
-- **Component:** `runtime/driver.py:36-46`
+- **Component:** `runtime/driver.py` (`DriverConfig.active` /
+  `set_active` / `reset_active`)
 - **Tier:** 3
 
 - **Shared state:** `DriverConfig._active` on the module-level singleton.
   Read by `driver.active` on every hot path.
-- **Writer(s):** `active` getter lazy path (line 39), `set_active()`
-  (line 43), `reset_active()` (line 46).
+- **Writer(s):** `active` getter lazy path
+  (`self._active = self.default`), `set_active()`, `reset_active()`.
 - **Reader(s):** `active` getter, from every hot path (`compiler.py`,
   `jit.py`, `autotuner.py`, testing, tools).
 - **Race scenario:** Thread A enters `active`, sees `self._active is None`,

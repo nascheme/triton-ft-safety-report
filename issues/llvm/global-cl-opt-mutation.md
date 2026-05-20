@@ -15,17 +15,13 @@ type: issue
   holds (e.g. `print-after-all`, `stop-before`, `stop-after`, `start-before`,
   `enable-misched`, `enable-post-misched`, `misched-print-dags`, plus any flag
   forwarded through `DISABLE_LLVM_OPT` / `flags`).
-- **Writer(s):** `setLLVMOption<bool|string>` (llvm.cc:59, 77),
-  `restoreLLVMOption<bool|string>` (llvm.cc:92, 102), and
-  `ScopedLLVMOption<T>` (llvm.cc:112). They are called from
-  `translateLLVMIRToASM` (llvm.cc:336, 340), `translateLLVMIRToMIR`
-  (llvm.cc:255, 266, 272, 276), `translateMIRToASM` (llvm.cc:420–432),
-  `dumpSchedulingDAG` (llvm.cc:163, 174, 182–184), and the `optimize_module`
-  binding lambda (llvm.cc:656, 678). All five run with the Python thread state
-  detached: `optimize_module` and `to_module` use
-  `py::call_guard<py::gil_scoped_release>()` (llvm.cc:622, 759); the others
-  open an explicit `py::gil_scoped_release allow_threads` (llvm.cc:769, 797,
-  821, 849).
+- **Writer(s):** `setLLVMOption<bool|string>`, `restoreLLVMOption<bool|string>`,
+  and `ScopedLLVMOption<T>` in `llvm.cc`. They are called from
+  `translateLLVMIRToASM`, `translateLLVMIRToMIR`, `translateMIRToASM`,
+  `dumpSchedulingDAG`, and the `optimize_module` binding lambda. All five
+  run with the Python thread state detached: `optimize_module` and
+  `to_module` use `py::call_guard<py::gil_scoped_release>()`; the others
+  open an explicit `py::gil_scoped_release allow_threads`.
 - **Reader(s):** the LLVM legacy and new pass managers themselves, which read
   these options by name during pipeline construction and execution (e.g.
   `MachineScheduler` checks `EnableMachineSched.getNumOccurrences()`,

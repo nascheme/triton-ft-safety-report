@@ -11,10 +11,10 @@
 
 - **Shared state:** `self.configs_timings` — a `dict` mapping `Config` objects
   to benchmark timings, stored on the shared `Autotuner` instance.
-- **Writer(s):** `benchmark()` inner function at line 235
-  (`self.configs_timings = timings`); `check_disk_cache()` at line 199 when
+- **Writer(s):** `benchmark()` inner function
+  (`self.configs_timings = timings`); `check_disk_cache()` when
   loading from disk (`self.configs_timings = timings`).
-- **Reader(s):** `check_disk_cache()` at line 208 reads
+- **Reader(s):** `check_disk_cache()` reads
   `self.configs_timings.items()` for disk-cache serialization.
 - **Race scenario:** Thread A benchmarks key K1, sets
   `self.configs_timings` to K1's timings. Thread B benchmarks key K2,

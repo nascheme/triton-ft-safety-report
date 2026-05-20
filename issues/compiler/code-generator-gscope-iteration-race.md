@@ -7,14 +7,14 @@
 - **Tier:** 1
 
 - **Shared state:** The defining module's `__dict__`, reached as
-  `fn.__globals__` via `JITFunction.get_capture_scope()`
-  (`runtime/jit.py:492–497`), which returns the live dict by identity
-  in the common no-closure case.
+  `fn.__globals__` via `JITFunction.get_capture_scope()` in
+  `runtime/jit.py`, which returns the live dict by identity in the
+  common no-closure case.
 - **Writer(s):** Any thread doing module-level assignment in the
   kernel's defining module.
 - **Reader(s):** `CodeGenerator.__init__` iterates `gscope.items()`
-  at `code_generator.py:309` during `ast_to_ttir` (compile hot path).
-  Repeated per callee at line 1332.
+  during `ast_to_ttir` (compile hot path). Repeated per callee in
+  `visit_Call`.
 - **Race scenario:** Thread A compiles a kernel; `gscope` is
   `fn.__globals__` by identity. Thread B assigns a module-level name
   in the same module. Iteration under concurrent mutation has undefined

@@ -55,7 +55,7 @@ them as "not worth reporting."
 
 ### 1. `backends` module-global dict
 
-- **Code (`__init__.py:66`):**
+- **Code (module-level in `backends/__init__.py`):**
   ```python
   backends: dict[str, Backend] = _discover_backends()
   ```
@@ -63,10 +63,10 @@ them as "not worth reporting."
   per-module import lock, which is preserved on free-threaded CPython.
   This is exactly the "write-once globals set during module init"
   pattern that CLAUDE.md carves out.
-- **Readers:** `compiler/compiler.py:make_backend` (iterates
-  `backends.values()` at line 367), `runtime/driver.py:_create_driver`
-  (reads `backends[selected]` at line 14 and `backends.values()` at
-  line 19). These are on the hot compile / first-launch path.
+- **Readers:** `compiler/compiler.py` `make_backend` (iterates
+  `backends.values()`), `runtime/driver.py` `_create_driver`
+  (reads `backends[selected]` and `backends.values()`). These are on the hot
+  compile / first-launch path.
 - **Grep coverage of writers:** no in-tree code writes to
   `triton.backends.backends` after import. The dict is effectively
   frozen.
@@ -76,8 +76,8 @@ them as "not worth reporting."
   `triton.backends.backends[name] = Backend(...)` after import. If one
   thread does that while another thread is iterating `backends.values()`
   in `make_backend` or `_create_driver`, the iteration is undefined per
-  `PYTHON_THREADSAFETY.md`. Also, the iteration + list-comp at
-  `compiler.py:367` and `runtime/driver.py:19` is followed by
+  `PYTHON_THREADSAFETY.md`. Also, the iteration + list-comp in
+  `make_backend` and `_create_driver` is followed by
   `len(actives)`/`len(x)` checks — a concurrent insert can split the
   iteration so that a newly-registered backend is seen twice or
   missed.
@@ -97,7 +97,7 @@ them as "not worth reporting."
 
 ### 2. `GPUDriver.__init__` — torch attribute capture
 
-- **Code (`driver.py:161-171`):**
+- **Code (`GPUDriver.__init__` in `backends/driver.py`):**
   ```python
   def __init__(self):
       import torch
@@ -132,7 +132,7 @@ them as "not worth reporting."
 
 ### `BaseBackend.supports_native_tensor_specialization` class attribute
 
-- **Code (`compiler.py:24`):** `supports_native_tensor_specialization = True`.
+- **Code (`backends/compiler.py`):** `supports_native_tensor_specialization = True`.
 - **Why not:** Grep shows no assignment to this attribute outside the
   class body anywhere in `triton/python/`. Subclasses that want to
   override set it at class-definition time, which is write-once.
@@ -140,7 +140,7 @@ them as "not worth reporting."
 
 ### `_find_concrete_subclasses` dir/getattr walk
 
-- **Code (`__init__.py:19-29`).**
+- **Code:** `_find_concrete_subclasses` in `backends/__init__.py`.
 - **Why not:** Called only from `_discover_backends()`, which runs at
   import time under the import lock. `dir()` returns a snapshot list,
   `getattr` is a single attribute load, `isinstance` / `issubclass` /
@@ -156,7 +156,7 @@ them as "not worth reporting."
 
 ### `wrap_handle_tensordesc_impl` closure capture
 
-- **Code (`driver.py:19-47`).**
+- **Code:** `wrap_handle_tensordesc_impl` in `backends/driver.py`.
 - **Why not:** Builds `relevant_paths` locally, closes over it, and
   returns an `inner` function. The dict is read-only after the
   closure is built — no post-construction writes — so concurrent
@@ -173,7 +173,7 @@ them as "not worth reporting."
 
 ### `GPUDriver.allocate_default_profile_scratch`
 
-- **Code (`driver.py:177-187`).**
+- **Code:** `GPUDriver.allocate_default_profile_scratch` in `backends/driver.py`.
 - **Why not:** Each call creates a fresh `torch.zeros` tensor and
   possibly a fresh `ExternalStream`. No shared mutable state on
   `self`. Any thread-safety concern about `torch.cuda.stream` /

@@ -24,11 +24,9 @@ here as a record of the original triage reasoning.
 
 ### 2. `JITFunction.device_caches` — defaultdict auto-vivification race
 
-- **Shared state:** `self.device_caches = defaultdict(self.create_binder)` at
-  `jit.py:790`.
+- **Shared state:** `self.device_caches = defaultdict(self.create_binder)`.
 - **Writer:** Auto-vivification on first access for each device key.
-- **Reader/Writer:** `run()` (line 720), `_do_compile()` (line 860),
-  `preload()` (line 816).
+- **Reader/Writer:** `run()`, `_do_compile()`, `preload()`.
 - **Concern:** `defaultdict.__getitem__` with a missing key calls the
   factory, creates the value, and inserts it — the sequence is not atomic.
   Two threads launching the same kernel on the same device for the first
@@ -37,8 +35,8 @@ here as a record of the original triage reasoning.
 
 ### 3. `create_binder` sets instance attributes on `self` non-atomically
 
-- **Shared state:** `self.CompiledKernel`, `self.compile`, `self.ASTSource`
-  at lines 678-679.
+- **Shared state:** `self.CompiledKernel`, `self.compile`, `self.ASTSource`,
+  set inside `create_binder`.
 - **Concern:** Called from the `device_caches` defaultdict factory. Each
   new device triggers this, overwriting these attributes. Two threads
   adding different devices concurrently race on these `self.*` writes.
@@ -51,13 +49,12 @@ here as a record of the original triage reasoning.
 
 ### 4. `kernel_cache` and `kernel_key_cache` — unprotected dict read/write
 
-- **Writer:** `_do_compile()` lines 877, 882, 885; `compute_cache_key()`
-  line 594.
-- **Reader:** `run()` lines 731-732.
+- **Writer:** `_do_compile()`; `compute_cache_key()`.
+- **Reader:** `run()`.
 - **Concern:** These are plain dicts inside the `device_caches` tuple.
   The issue is the check-then-act TOCTOU that spans multiple dict operations,
   not the individual dict ops (which are internally thread-safe in
-  free-threaded CPython). Also, the `finalize_compile` callback (line 877)
+  free-threaded CPython). Also, the `finalize_compile` callback
   writes `kernel_cache[key]`. Tier 2. Written up in
   [kernel-cache-toctou.md](jit/kernel-cache-toctou.md).
 
@@ -65,7 +62,7 @@ here as a record of the original triage reasoning.
   `async_mode.submit` returns, the executor may complete the compile and
   another thread may call `FutureKernel.result()` -> `finalize_compile`,
   writing `kernel_cache[key] = real_kernel` **before** the submitting
-  thread's placeholder write at jit.py:882 executes. The placeholder then
+  thread's placeholder write in `_do_compile` executes. The placeholder then
   overwrites the real kernel. Subsequent readers get a `FutureKernel` whose
   `finalize_compile` already fired; functionally it still works (the
   `__getattr__` -> `result()` path returns the cached kernel), but the
@@ -74,17 +71,16 @@ here as a record of the original triage reasoning.
 ### 5. `KernelParam` `@cached_property` fields — not a bug
 
 - **Fields:** `name`, `annotation`, `annotation_type`, `is_constexpr`,
-  `is_const` at lines 309-337. `KernelParam` instances are shared via
-  `JITFunction.params` (line 783), so concurrent first-access from multiple
+  `is_const` on `KernelParam`. `KernelParam` instances are shared via
+  `JITFunction.params`, so concurrent first-access from multiple
   threads is realistic under Tier 2.
 - **Resolution:** Not a bug under free-threading.
   1. `functools.cached_property` has had no lock since CPython 3.12
      (deliberate removal, python/steering-council#172). This is unchanged
      under free-threading.
   2. All five getters are pure functions of immutable state
-     (`self._param.*`) and module-level dicts. `_normalize_ty` (line 273)
-     is also pure. Duplicate execution across threads returns identical
-     values.
+     (`self._param.*`) and module-level dicts. `_normalize_ty` is also pure.
+     Duplicate execution across threads returns identical values.
   3. Concurrent writes into an instance `__dict__` are internally
      thread-safe in free-threaded CPython (dict ops are safe).
 - **Worst case:** Two threads may both execute the getter and both write
@@ -101,8 +97,8 @@ Written up in [pre-run-hooks-unsynchronized-iteration.md](jit/pre-run-hooks-unsy
 
 ### 8. `compute_cache_key` — read-then-write race on `kernel_key_cache`
 
-- **Lines:** 574-595:
-  `cache_key = kernel_key_cache.get(key, None) ... kernel_key_cache[key] = cache_key`.
+- **Pattern:** `cache_key = kernel_key_cache.get(key, None) ... kernel_key_cache[key] = cache_key`
+  inside `compute_cache_key`.
 - **Concern:** Classic TOCTOU — two threads check for the same key, both
   find it missing, both compute and write. The duplicate computation is
   benign, but the concurrent `dict.__setitem__` is the real issue (same
@@ -116,8 +112,8 @@ downgraded from SEVERE to Significant: the concrete bugs are (1) a TOCTOU in
 `AsyncCompileMode.submit` causing duplicate executor submissions for the same
 `cache_key`, (2) non-atomic `FutureKernel.result` causing duplicate
 `finalize_compile` and therefore duplicate `jit_post_compile_hook`
-invocations, and (3) an ordering hazard where the placeholder write at
-jit.py:882 can overwrite an already-finalized entry. The "double-write from
+invocations, and (3) an ordering hazard where the placeholder write in
+`_do_compile` can overwrite an already-finalized entry. The "double-write from
 an executor thread" framing in the original triage note is not quite right —
 `finalize_compile` actually runs on whichever thread calls
 `FutureKernel.result()` (either `AsyncCompileMode.__exit__` or a
@@ -140,8 +136,8 @@ finalization can clobber Thread B's `self.hash = None` write, leaving
 replaced. Fix is to take `self._hash_lock` inside `_unsafe_update_src`.
 
 There is a secondary hazard: `cache_key` reads `self._src` twice -- once
-via `self.src` (line 510, for the dependencies finder) and once via
-`self.parse()` (line 511, which re-reads `self._src`). If
+via `self.src` (for the dependencies finder) and once via
+`self.parse()` (which re-reads `self._src`). If
 `_unsafe_update_src` replaces `_src` between those two reads, the
 dependencies finder walks the new-src AST while holding the old src string.
 The resulting hash is derived from an inconsistent pair. This is a
@@ -151,7 +147,7 @@ second-order consequence of the same missing-lock root cause.
 
 Written up in
 [add-stages-inspection-hook-toctou.md](jit/add-stages-inspection-hook-toctou.md).
-The `run()` launch path reads the slot twice at jit.py:727-729 — once
+The `run()` launch path reads the slot twice — once
 for `is not None` and once to call it. A concurrent clear of the slot
 between the two reads turns the second read into `None()` and raises
 `TypeError`. A concurrent swap yields a cache key derived from a hook
@@ -163,38 +159,38 @@ case. Tier 3.
 Additional candidates examined during a second pass and decided against
 reporting. Kept here so a future auditor does not have to redo the work.
 
-- **`DependenciesFinder._update_hash` multi-read on `func.used_global_vals`**
-  (jit.py:103-111). Reads `func.used_global_vals` several times before
-  calling `func.cache_key` at line 113. The attribute is only assigned
-  inside `cache_key` under `func._hash_lock`, goes atomically from `{}`
-  to a finalized dict, and `_unsafe_update_src` (issue #11) does not
-  reset it — so the pre-`cache_key` reads see either the empty dict
-  (empty intersection, no-op) or a stable populated dict. Residual
-  hazard is covered by #11's `_hash_lock` discussion.
+- **`DependenciesFinder._update_hash` multi-read on `func.used_global_vals`.**
+  Reads `func.used_global_vals` several times before calling
+  `func.cache_key`. The attribute is only assigned inside `cache_key` under
+  `func._hash_lock`, goes atomically from `{}` to a finalized dict, and
+  `_unsafe_update_src` (issue #11) does not reset it — so the pre-`cache_key`
+  reads see either the empty dict (empty intersection, no-op) or a stable
+  populated dict. Residual hazard is covered by #11's `_hash_lock`
+  discussion.
 
 - **`create_binder` writes to `self.CompiledKernel` / `self.compile` /
-  `self.ASTSource`** (jit.py:678-680) racing with reads in `_do_compile`
-  (jit.py:865, 874). Same "benign redundant write" pattern as the
-  not-a-bug entry #3 — the assigned values are module-level imports and
-  are bitwise identical regardless of which device triggered the
-  binder, so any interleaving is observationally equivalent.
+  `self.ASTSource`** racing with reads in `_do_compile`. Same "benign
+  redundant write" pattern as the not-a-bug entry #3 — the assigned values
+  are module-level imports and are bitwise identical regardless of which
+  device triggered the binder, so any interleaving is observationally
+  equivalent.
 
-- **`_triton_jit_function_registry` lookup in `preload()`**
-  (jit.py:831-832) is an `in`-then-`[]` check-then-get. Registry is
-  append-only (no deletions anywhere in the file), so the `[]` cannot
-  raise `KeyError` even if the `in` check races with an insert.
+- **`_triton_jit_function_registry` lookup in `preload()`** is an
+  `in`-then-`[]` check-then-get. Registry is append-only (no deletions
+  anywhere in the file), so the `[]` cannot raise `KeyError` even if the
+  `in` check races with an insert.
 
-- **`finalize_compile` closure writing to `kernel_cache`** (jit.py:877).
-  Same dict object stored in the `device_caches` tuple — every write
-  site is covered by the kernel-cache TOCTOU writeup (#4) and the
-  async-compile writeup (#9); this is not an additional site.
+- **`finalize_compile` closure writing to `kernel_cache`.** Same dict
+  object stored in the `device_caches` tuple — every write site is covered
+  by the kernel-cache TOCTOU writeup (#4) and the async-compile writeup
+  (#9); this is not an additional site.
 
 - **`knobs.runtime.debug` / `knobs.compilation.instrumentation_mode`
-  reads** at jit.py:709-710. Each is a single atomic attribute load
-  with no re-read, so there is no TOCTOU. Stale reads here are the
-  benign-debug-flag pattern CLAUDE.md carves out.
+  reads** in `run()`. Each is a single atomic attribute load with no
+  re-read, so there is no TOCTOU. Stale reads here are the benign-debug-flag
+  pattern CLAUDE.md carves out.
 
-- **`knobs.runtime.launch_enter_hook` / `launch_exit_hook` reads** at
-  jit.py:762. Passed directly into the native launch call as values;
-  no re-read, so no TOCTOU. Mutation of these slots is a knobs-level
-  concern, not a jit.py race.
+- **`knobs.runtime.launch_enter_hook` / `launch_exit_hook` reads** in
+  `run()`. Passed directly into the native launch call as values; no
+  re-read, so no TOCTOU. Mutation of these slots is a knobs-level concern,
+  not a jit.py race.

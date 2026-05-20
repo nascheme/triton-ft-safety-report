@@ -2,7 +2,7 @@
 
 - **Status:** Open
 - **Severity:** Significant
-- **Component:** `python/src/linear_layout.cc` (lines 177-186)
+- **Component:** `python/src/linear_layout.cc`
 
 - **Shared state:** A `LinearLayout` instance owned by a Python wrapper.
   The bindings cast away `const`:

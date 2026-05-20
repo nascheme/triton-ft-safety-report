@@ -3,8 +3,8 @@
 - **Status:** Open
 - **Patch:** `driver-active-caller-reread.patch` (snapshot `driver.active` into a local at the top of `_init_handles`, the `__getitem__` runner, and `JITFunction.run`)
 - **Severity:** Significant
-- **Component:** `compiler/compiler.py:453-470`,
-  `runtime/jit.py:713-714,809`, `runtime/autotuner.py:125,185`
+- **Component:** `compiler/compiler.py` (`_init_handles`),
+  `runtime/jit.py` (`JITFunction.run`), `runtime/autotuner.py`
 - **Tier:** 3
 
 - **Shared state:** `DriverConfig._active`, swappable at runtime via

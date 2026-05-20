@@ -38,7 +38,7 @@ The interesting surface is narrow: a few module-level singletons, one
 
 ## Triage notes
 
-### 1. `tuple_type.name` @cached_property (core.py:767)
+### 1. `tuple_type.name` @cached_property (`core.py`)
 
 ```python
 class tuple_type(base_type):
@@ -64,8 +64,8 @@ internally safe), but `functools.cached_property` calls the wrapped function
 twice in the worst case.
 
 Deep dive needed:
-- Are `tuple_type` instances interned/cached anywhere (e.g., `str_to_ty`
-  returns a fresh one each call on lines 293, 324, 326)?
+- Are `tuple_type` instances interned/cached anywhere (e.g., does `str_to_ty`
+  return a fresh one each call)?
 - Are they attached to long-lived objects that outlive a single compile?
 - Does `tuple_type.__eq__` / `__hash__` make coincidental sharing possible
   through some cache elsewhere (jit / specialize)?
@@ -74,7 +74,7 @@ If instances are per-compile and not shared across threads, this is a
 non-issue. If they are shared, it falls under Tier 2 and is at most a
 duplicate-computation minor bug.
 
-### 2. `dtype` singletons (core.py:807–825)
+### 2. `dtype` singletons (`core.py`)
 
 ```python
 void = dtype('void')
@@ -96,7 +96,7 @@ Note: `dtype.to_ir(builder)` reads `self.name` and calls `builder.get_*`
 methods. That's read-only on the dtype side. Any mutation concern would be
 on the `ir.builder`, which is a per-compile instance.
 
-### 3. Import-time class mutation via `_tensor_member_fn` (core.py:51–93)
+### 3. Import-time class mutation via `_tensor_member_fn` (`core.py`)
 
 `_tensor_member_fn(fn)` ends with:
 
@@ -113,12 +113,12 @@ via dynamic extension loading), the picture changes.
 Deep dive needed: grep for any post-import callers that add tensor members
 dynamically.
 
-### 4. `_aggregate()` dynamic class construction (core.py:1587–1679)
+### 4. `_aggregate()` dynamic class construction (`core.py`)
 
 `_aggregate(cls)` creates an `aggregate_value` class with a custom `__new__`
 and `__setattr__`. Instances of this class have mutable `__dict__` filled in
-by the user-defined `__init__` or by `_unflatten_ir` (line 1560:
-`setattr(instance, name, value)`).
+by the user-defined `__init__` or by `_unflatten_ir`
+(`setattr(instance, name, value)`).
 
 The aggregate class itself is created once per `@_aggregate` decorator
 application, at import time. Instances are created per-compile and populated
@@ -138,7 +138,7 @@ a fresh `instance`, so no shared instance write — this looks safe. Worth
 confirming in a deep dive that `_get_instance()` really returns a new
 object each call (it does: `super().__new__(this_cls)`).
 
-### 5. `current_target()` reading `driver.active` (target_info.py:7–13)
+### 5. `current_target()` reading `driver.active` (`target_info.py`)
 
 ```python
 def current_target():
@@ -159,7 +159,7 @@ invoked from `current_target()`; nothing additional to add here unless
 `active_driver.get_current_target()` itself has mutable state worth
 flagging.
 
-### 6. `extra/__init__.py` module-body discovery (lines 5–22)
+### 6. `extra/__init__.py` module-body discovery
 
 ```python
 _backends = []
@@ -192,8 +192,8 @@ threads that mutate shared state before their import completes.
 - **`TritonSemantic`**: per-compile instance, not shared.
 - **`constexpr`, `tensor`, `pointer_type`, `block_type` classes**: attribute
   writes only in `__init__`; no post-construction mutation observed.
-- **`CONSTEXPR_0 = constexpr(0)`** (core.py:356): immutable singleton.
-- **`N_ROUNDS_DEFAULT = tl.constexpr(10)`** (random.py:5): immutable singleton.
+- **`CONSTEXPR_0 = constexpr(0)`** (`core.py`): immutable singleton.
+- **`N_ROUNDS_DEFAULT = tl.constexpr(10)`** (`random.py`): immutable singleton.
 - **No `@lru_cache`, `@functools.cache`, or `ContextVar` usage** in this
   package (confirmed by grep).
 - **No module-level dicts/lists/sets are mutated after import** anywhere in

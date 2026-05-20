@@ -14,16 +14,15 @@ type: issue
 - **Shared state:** the process's `stderr` `FILE*` and file-descriptor 2.
   Both are process-global and shared with every other thread, including all
   Python code that writes to `sys.stderr`.
-- **Writer(s):** `dumpSchedulingDAG` (llvm.cc:203–231):
-  - `int saved_stderr_fd = dup(fileno(stderr));` (line 204)
-  - `FILE *redirected = freopen(dumpFilename.c_str(), "a", stderr);` (line 207)
-  - run the codegen pipeline (`pass.run(module)`, line 222) which emits the
+- **Writer(s):** `dumpSchedulingDAG` in `llvm.cc`:
+  - `int saved_stderr_fd = dup(fileno(stderr));`
+  - `FILE *redirected = freopen(dumpFilename.c_str(), "a", stderr);`
+  - run the codegen pipeline (`pass.run(module)`) which emits the
     scheduling DAG via LLVM debug printing onto `stderr`
   - `fflush(stderr); dup2(saved_stderr_fd, fileno(stderr)); close(saved_stderr_fd);`
-    (lines 226–229)
 
-  Reached from the `dump_sched_dag` pybind11 binding (llvm.cc:792), which
-  opens `py::gil_scoped_release allow_threads;` at line 797 before calling
+  Reached from the `dump_sched_dag` pybind11 binding, which opens
+  `py::gil_scoped_release allow_threads;` before calling
   `dumpSchedulingDAG` — so the body runs with the Python thread state
   detached.
 - **Reader(s):** every thread in the process that reads or writes `stderr` /
@@ -31,18 +30,18 @@ type: issue
   diagnostics from any other compile path (`llvm::errs()`), and any Python
   code touching `sys.stderr`.
 
-- **Race scenario A (interleaved redirect/restore):** Thread A executes line
-  204, capturing `saved_stderr_fd = X` (the real terminal/log fd). Thread A
-  executes line 207, pointing `stderr` at `fileA.txt` (now `fileno(stderr)`
-  is some new fd `Y`). Before A reaches line 228, Thread B enters
-  `dumpSchedulingDAG`, calls `dup(fileno(stderr))` and captures
-  `saved_stderr_fd = Y'` — i.e. a dup of A's redirected stderr, not the
-  original. B then `freopen`s onto `fileB.txt`. A reaches line 228 and
-  `dup2`s `X` back onto fd 2, restoring the real stderr while B is still
-  mid-pipeline; B's subsequent DAG output goes to the real stderr instead of
-  `fileB.txt`. When B finally restores, it `dup2`s `Y'` (a duplicate of A's
-  intermediate redirected FILE) onto fd 2, leaving the process pointed at a
-  stale dump-file fd permanently after both threads return.
+- **Race scenario A (interleaved redirect/restore):** Thread A captures
+  `saved_stderr_fd = X` (the real terminal/log fd), then `freopen`s
+  `stderr` onto `fileA.txt` (now `fileno(stderr)` is some new fd `Y`).
+  Before A restores, Thread B enters `dumpSchedulingDAG`, calls
+  `dup(fileno(stderr))` and captures `saved_stderr_fd = Y'` — i.e. a
+  dup of A's redirected stderr, not the original. B then `freopen`s
+  onto `fileB.txt`. A then `dup2`s `X` back onto fd 2, restoring the
+  real stderr while B is still mid-pipeline; B's subsequent DAG output
+  goes to the real stderr instead of `fileB.txt`. When B finally
+  restores, it `dup2`s `Y'` (a duplicate of A's intermediate redirected
+  FILE) onto fd 2, leaving the process pointed at a stale dump-file fd
+  permanently after both threads return.
 
 - **Race scenario B (collateral damage to unrelated stderr writers):** While
   Thread A holds the redirect open, any other thread — a different compile

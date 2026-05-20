@@ -9,15 +9,13 @@
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 2
 
-- **Shared state:** `static DtypePtr2Str dtype_ptr2str`
-  (`specialize.cc:73`), a process-global
+- **Shared state:** `static DtypePtr2Str dtype_ptr2str` in `specialize.cc`,
+  a process-global
   `std::unordered_map<std::pair<Py_hash_t, bool>, PyObject *, …>`. There is no
-  synchronization protecting it. Under free-threaded CPython, attached thread
-  state does not serialize callers, so concurrent specialization calls can hit
-  this map at the same time.
-- **Writer(s):** `handle_tensor()` cache-miss path at `specialize.cc:333`:
+  synchronization protecting it.
+- **Writer(s):** `handle_tensor()` cache-miss path:
   `dtype_ptr2str[dsk] = canon_res;`. Insertion may rehash the table.
-- **Reader(s):** `handle_tensor()` lookup at `specialize.cc:322`:
+- **Reader(s):** `handle_tensor()` lookup:
   `auto it = dtype_ptr2str.find(dsk);`. `handle_tensor()` is reached from
   `specialize_arg()` on the `native_specialize_impl` hot path for tensor-like
   arguments, either via the cached `torch.Tensor` type handler or via the

@@ -7,9 +7,9 @@
 - **Tier:** 2
 
 - **Shared state:** `self.device_caches` -- a `defaultdict(self.create_binder)`
-  on a shared `JITFunction` instance (line 790)
+  on a shared `JITFunction` instance
 - **Writer(s):** `defaultdict.__missing__` on first access for each device key,
-  triggered by `run()` (720), `preload()` (816), `_do_compile()` (860)
+  triggered by `run()`, `preload()`, `_do_compile()`
 - **Reader(s):** Same call sites -- the returned tuple is immediately unpacked
   and used for the rest of the call
 - **Race scenario:** Thread A and B both call `run()` with `device=0` for the

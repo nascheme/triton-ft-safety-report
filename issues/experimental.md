@@ -127,19 +127,19 @@ follow-up. `functools.lru_cache` is internally locked in free-threaded
 CPython, so the cache dict itself is fine; the concern is *duplicate work*
 under a first-call race:
 
-- `_allocator._load_gsan_module` (line 14) compiles a C++ module on first
+- `_allocator._load_gsan_module` compiles a C++ module on first
   use — two threads calling before the cache is populated could both
   invoke `compile_module_from_file`, doing duplicate subprocess compilation
   and duplicate disk writes of the `.so`.
 - `_allocator._compile_gsan_allocator` / `_allocator.get_allocator` — wrap
   the above.
-- `_stream_sync._runtime_state_layout` (line 23) — constructs a DLPack
+- `_stream_sync._runtime_state_layout` — constructs a DLPack
   torch view of the runtime-state region on first use.
-- `_stream_sync._compiled_sync_kernel` (line 44) — first call runs
+- `_stream_sync._compiled_sync_kernel` — first call runs
   `_synchronize_vector_clocks_kernel.warmup(...)` under the
   `_compile_without_gsan()` scope (see #1). Two concurrent first calls
   therefore also nest the knobs mutation.
-- `symmetric_memory._get_mem_pool` (line 42) — first call per device
+- `symmetric_memory._get_mem_pool` — first call per device
   index runs `create_mem_pool()` (which itself goes through
   `get_allocator()` in #4).
 

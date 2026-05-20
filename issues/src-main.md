@@ -27,19 +27,19 @@ The file is ~65 lines and consists of:
 
 - Preprocessor plumbing (`FOR_EACH_*`, `FOR_EACH_P`, `DECLARE_BACKEND`,
   `INIT_BACKEND`) used to expand the CMake-defined `TRITON_BACKENDS_TUPLE`
-  macro (see `triton/CMakeLists.txt` line 413-414) into one
+  macro (see `triton/CMakeLists.txt`) into one
   `init_triton_<name>(...)` declaration and one call per enabled backend.
 - Forward declarations for the submodule initializers defined in the
   sibling `.cc` files and in the `gsan_testing` / backend subtrees.
-- A single `PYBIND11_MODULE(libtriton, m)` body (lines 51–64) that:
+- A single `PYBIND11_MODULE(libtriton, m)` body that:
   1. Sets the module docstring.
   2. Calls `init_triton_stacktrace_hook(m)` — registers an LLVM signal
      handler if `TRITON_ENABLE_PYTHON_STACKTRACE` is set.
   3. Calls `init_triton_env_vars(m)` — registers env-var helper
-     bindings (implementation in `ir.cc` line 2061).
+     bindings (implementation in `ir.cc`).
   4. Calls `init_native_specialize(m)` — registers the
      `native_specialize_impl` / `make_tensordesc_args` module methods via
-     `PyModule_AddFunctions` (implementation in `specialize.cc` line 764).
+     `PyModule_AddFunctions` (implementation in `specialize.cc`).
   5. Creates the `ir`, `passes`, `interpreter`, `llvm`, `gsan_testing`,
      `linear_layout`, `gluon_ir` submodules via `m.def_submodule(...)` and
      calls the matching `init_*` for each.
@@ -58,7 +58,7 @@ scopes. Everything it does is either:
   body, which by construction runs under CPython's import lock.
 
 Under free-threading, `PYBIND11_MODULE` initialization still holds the
-import lock, so the call sequence in lines 52–63 executes single-threaded
+import lock, so the call sequence in the `PYBIND11_MODULE` body executes single-threaded
 with respect to other imports of the same module. This matches the
 "write-once globals set during module init" pattern that `CLAUDE.md`
 explicitly calls out as low-value.
@@ -68,9 +68,9 @@ each callee belongs to a separate audit report:
 
 | Callee                             | Defined in                  | Audit report              |
 |------------------------------------|-----------------------------|---------------------------|
-| `init_triton_stacktrace_hook`      | `python/src/llvm.cc:924`    | (note in this file, see triage #1) |
-| `init_triton_env_vars`             | `python/src/ir.cc:2061`     | `ir/issues.md`            |
-| `init_native_specialize`           | `python/src/specialize.cc:764` | `specialize/issues.md` |
+| `init_triton_stacktrace_hook`      | `python/src/llvm.cc`        | (note in this file, see triage #1) |
+| `init_triton_env_vars`             | `python/src/ir.cc`          | `ir/issues.md`            |
+| `init_native_specialize`           | `python/src/specialize.cc`  | `specialize/issues.md`    |
 | `init_triton_ir`                   | `python/src/ir.cc`          | `ir/issues.md`            |
 | `init_triton_passes`               | `python/src/passes.cc`      | pass 3, separate report   |
 | `init_triton_interpreter`          | `python/src/interpreter.cc` | pass 4                    |
@@ -87,10 +87,10 @@ each callee belongs to a separate audit report:
 - **Shared state:** (a) the process-wide LLVM signal-handler list that
   `llvm::sys::AddSignalHandler` appends to, and (b) the ambient
   process-signal disposition that the handler alters when it fires. The
-  handler function (`llvm.cc` lines 919–922) prints the LLVM stack trace
+  handler function (in `llvm.cc`) prints the LLVM stack trace
   and then `raise(SIGABRT)`.
 - **Writer:** `init_triton_stacktrace_hook(m)` called exactly once from the
-  `PYBIND11_MODULE` body, under the import lock (`main.cc` line 53).
+  `PYBIND11_MODULE` body, under the import lock.
 - **Reader / invoker:** LLVM's signal-handling machinery, fired from
   process signal context — not from free-threaded Python paths.
 - **Why this is only Minor:** the registration itself is write-once under

@@ -33,19 +33,18 @@ Written up in
 [compiled-kernel-init-handles-race.md](compiler/compiled-kernel-init-handles-race.md).
 
 Summary: `CompiledKernel` instances live in
-`JITFunction.device_caches[device].kernel_cache` (`runtime/jit.py:877`) and
-are shared across threads under Tier 2. `_init_handles` publishes
-`self._run = launcher_cls(...)` at `compiler.py:455` **before**
-`driver.active.utils.load_binary(...)` populates `self.module` /
-`self.function` at `compiler.py:468`. The `run` property
-(`compiler.py:476-480`) guards on `self._run is None`, not
-`self.module is None`, so a second thread arriving in the window between
-lines 455 and 468 skips initialization, receives the launcher, then reads
-`self.function` (still `None`) at `runtime/jit.py:761` and passes it into
-the driver launch call. Additional hazards: guard TOCTOU at line 440
-causing duplicate `load_binary` and duplicate `kernel_load_*_hook` calls,
-and a non-atomic multi-target tuple-unpack at line 468 that can publish
-`self.module` before `self.function`. Tier 2 SEVERE.
+`JITFunction.device_caches[device].kernel_cache` and are shared across
+threads under Tier 2. `_init_handles` publishes `self._run =
+launcher_cls(...)` **before** `driver.active.utils.load_binary(...)`
+populates `self.module` / `self.function`. The `run` property guards on
+`self._run is None`, not `self.module is None`, so a second thread
+arriving in the window between the publish and the unpack skips
+initialization, receives the launcher, then reads `self.function`
+(still `None`) in `jit.py` and passes it into the driver launch call.
+Additional hazards: the `self.module is None` guard TOCTOU on the entry
+into `_init_handles` causing duplicate `load_binary` and duplicate
+`kernel_load_*_hook` calls, and a non-atomic multi-target tuple-unpack
+that can publish `self.module` before `self.function`. Tier 2 SEVERE.
 
 #### Detailed scenarios
 
@@ -56,22 +55,23 @@ the same kernel for the first time:
 |------|----------|----------|
 | t0 | `run` property: `self._run is None` → True | |
 | t1 | enters `_init_handles`, passes guard | |
-| t2 | `self._run = launcher_cls(...)` (line 455) | |
+| t2 | `self._run = launcher_cls(...)` | |
 | t3 | scheduled out | |
 | t4 | | `run` property: `self._run is None` → **False** |
 | t5 | | returns `self._run`, reads `kernel.function` (still `None`) |
 | t6 | | launcher invoked with `function=None` |
 
 **Scenario B — guard TOCTOU, duplicate load (Significant).** Entry through
-`__getitem__` or `launch_metadata` uses the `self.module is None` guard at
-line 440. Two threads both pass the guard and run full init in parallel:
-duplicate `launcher_cls(...)`, duplicate `load_binary(...)`, duplicate hook
+`__getitem__` or `launch_metadata` uses the `self.module is None` guard.
+Two threads both pass the guard and run full init in parallel: duplicate
+`launcher_cls(...)`, duplicate `load_binary(...)`, duplicate hook
 invocations. Last writer wins; loser's GPU module handle is leaked.
 
 **Scenario C — non-atomic tuple-unpack (SEVERE).** The five-target
-assignment at line 468 compiles to five sequential `STORE_ATTR` opcodes.
-A reader racing via the `self.module is None` guard can observe
-`self.module` set while `self.function` is still `None`.
+assignment from the `load_binary` result compiles to five sequential
+`STORE_ATTR` opcodes. A reader racing via the `self.module is None`
+guard can observe `self.module` set while `self.function` is still
+`None`.
 
 **Scenario D — `raise_` partial poisoning.** Thread A hits the error path
 and poisons `self._run`; Thread B that already read an unpoisoned
@@ -150,28 +150,26 @@ Key properties of the fix:
 Written up in
 [add-stages-inspection-hook-toctou.md](compiler/add-stages-inspection-hook-toctou.md).
 
-Summary: `compiler.py:247-249` reads
-`knobs.runtime.add_stages_inspection_hook` twice — once for the `is
-not None` check and once to invoke it — so a concurrent clear raises
-`TypeError: 'NoneType' object is not callable` on the compile hot
-path, and a concurrent swap folds the *new* hook's
+Summary: `compile()` reads `knobs.runtime.add_stages_inspection_hook`
+twice — once for the `is not None` check and once to invoke it — so a
+concurrent clear raises `TypeError: 'NoneType' object is not callable`
+on the compile hot path, and a concurrent swap folds the *new* hook's
 `inspect_stages_key` into `key` even though the "installed" hook at
-entry was the old one. Because `key` feeds the SHA-256 `hash` at
-line 250 which is the filesystem cache directory key
-(`get_cache_manager(hash)` at 251), the swap case produces orphaned
-on-disk cache entries keyed under a hook that was not logically
-current — a persistent cross-process cache-behavior consequence
-rather than just in-memory staleness. Same shape as the jit.py
-writeup ([`jit/add-stages-inspection-hook-toctou.md`](jit/add-stages-inspection-hook-toctou.md))
+entry was the old one. Because `key` feeds the SHA-256 `hash` that is
+the filesystem cache directory key (`get_cache_manager(hash)`), the
+swap case produces orphaned on-disk cache entries keyed under a hook
+that was not logically current — a persistent cross-process
+cache-behavior consequence rather than just in-memory staleness. Same
+shape as the jit.py writeup ([`jit/add-stages-inspection-hook-toctou.md`](jit/add-stages-inspection-hook-toctou.md))
 but independent: `compile()` is reachable from `_do_compile`,
 `warmup`, and external callers of `triton.compiler.compile`, so
 fixing only the jit.py site leaves this one racey. Tier 3
 Significant. Fix: single load into a local.
 
-Side note: `inspect_stages_hash` is assigned at line 248 but never
-read within `compile()` (unlike jit.py:729 where it is folded into
-the specialization string). That is a separate dead-store
-observation, not part of the race.
+Side note: `inspect_stages_hash` is assigned but never read within
+`compile()` (unlike the jit.py site where it is folded into the
+specialization string). That is a separate dead-store observation,
+not part of the race.
 
 ### 3. `knobs.runtime.kernel_load_start_hook` / `kernel_load_end_hook` — `HookChain` iteration race
 
@@ -181,27 +179,24 @@ Written up in
 Summary: The initial triage framed this as the same slot-reassignment
 TOCTOU as #2, but closer reading shows the real bug is different.
 `kernel_load_start_hook` and `kernel_load_end_hook` are declared as
-`HookChain[InitHandleHook]` instances at `knobs.py:470-471`, not
-`Optional[callable]`, and are **never reassigned** anywhere in the
-tree — all callers use `.add()` / `.remove()` (Proton
-`hook.py:101,126`, `test_launch.py`). The `is not None` check at
-`compiler.py:465,473` is effectively dead and the slot-TOCTOU is
-moot in practice.
+`HookChain[InitHandleHook]` instances on `RuntimeKnobs` in `knobs.py`,
+not `Optional[callable]`, and are **never reassigned** anywhere in the
+tree — all callers use `.add()` / `.remove()` (Proton `hook.py`,
+`test_launch.py`). The `is not None` check in `_init_handles` is
+effectively dead and the slot-TOCTOU is moot in practice.
 
-The actual race is **inside `HookChain.__call__`** (`knobs.py:422-424`):
-it iterates `self.calls` — a plain `list` — while concurrent
-`.add` / `.remove` mutate that same list. Same class of bug as
-jit.py #7 (`pre_run_hooks`), same fix pattern, but worse in scope:
-`HookChain` here is process-global, so any concurrent
-`_init_handles` on *any* `CompiledKernel` collides with any
-concurrent profiler start/stop. Consequences: silently skipping or
-double-invoking a kernel-load hook, wrong/missing profiler
-attribution. Compounds with issue #1: when two threads race
-`_init_handles`, each duplicate hook invocation is independently
-vulnerable to the iteration race. The same bug also affects
-`launch_enter_hook` / `launch_exit_hook` on the launch path
-(`compiler.py:502`, `runtime/jit.py:762`), which are also
-`HookChain`s.
+The actual race is **inside `HookChain.__call__`**: it iterates
+`self.calls` — a plain `list` — while concurrent `.add` / `.remove`
+mutate that same list. Same class of bug as jit.py #7 (`pre_run_hooks`),
+same fix pattern, but worse in scope: `HookChain` here is
+process-global, so any concurrent `_init_handles` on *any*
+`CompiledKernel` collides with any concurrent profiler start/stop.
+Consequences: silently skipping or double-invoking a kernel-load hook,
+wrong/missing profiler attribution. Compounds with issue #1: when two
+threads race `_init_handles`, each duplicate hook invocation is
+independently vulnerable to the iteration race. The same bug also
+affects `launch_enter_hook` / `launch_exit_hook` on the launch path
+in `compiler.py` and `runtime/jit.py`, which are also `HookChain`s.
 
 Separately, `HookChain.add` / `.remove` have check-then-act
 compounds (dedup check followed by append; membership check
@@ -253,15 +248,15 @@ changes required at the call sites in `compiler.py` or
 
 ### 4. `max_shared_mem` — `functools.lru_cache` on the launch path
 
-- **File/lines:** `compiler.py:133-135`.
+- **File:** `compiler.py`.
   ```python
   @functools.lru_cache()
   def max_shared_mem(device):
       return driver.active.utils.get_device_properties(device)["max_shared_mem"]
   ```
-- **Call site:** `CompiledKernel._init_handles` at line 457, i.e. the Tier 2
-  hot path where two threads can concurrently first-launch the same
-  `CompiledKernel` (see issue #1).
+- **Call site:** `CompiledKernel._init_handles`, i.e. the Tier 2 hot path
+  where two threads can concurrently first-launch the same `CompiledKernel`
+  (see issue #1).
 - **Deeper analysis:**
   1. **Cache container safety.** On free-threaded CPython 3.13+, the
      `_functools` C implementation of `lru_cache` guards the underlying
@@ -286,15 +281,15 @@ changes required at the call sites in `compiler.py` or
      so unbounded growth is not a concern either.
   4. **Transitive singletons are out of scope for this item.** The body
      does touch two racy lazy singletons: `driver.active` (lazy
-     `_active is None` init at `runtime/driver.py:37-40`) and
-     `CudaUtils.__new__` / `__init__` (racy `hasattr` singleton at
-     `third_party/nvidia/backend/driver.py:60-90`, which also re-runs
+     `_active is None` init in `runtime/driver.py`) and
+     `CudaUtils.__new__` / `__init__` (racy `hasattr` singleton in
+     `third_party/nvidia/backend/driver.py`, which also re-runs
      `compile_module_from_src` and re-binds module-level globals on every
      `__init__`). Both are real races, but they are reachable from many
      other call sites — every `driver.active.*` access in `_init_handles`
      and `compile()` hits the same pattern — and they belong to the
      `runtime/driver.py` and backend audit passes, not to
-     `compiler.py:133`. `max_shared_mem` is not the site to report them.
+     `max_shared_mem`. `max_shared_mem` is not the site to report them.
   5. **Staleness.** `max_shared_mem` is a hardware constant. No scenario
      in Triton's runtime invalidates it, so the standard "cached value
      becomes wrong after a config change" concern does not apply.
@@ -307,8 +302,8 @@ changes required at the call sites in `compiler.py` or
 
 ### 5. `AsmDict.__missing__` — lazy `sass` population
 
-- **File/lines:** `compiler.py:390-400`. `CompiledKernel.asm` is built in
-  `__init__` at line 426 and is the single instance held by a
+- **File:** `compiler.py` (`AsmDict`). `CompiledKernel.asm` is built in
+  `CompiledKernel.__init__` and is the single instance held by a
   `CompiledKernel`.
   ```python
   class AsmDict(dict):
@@ -340,7 +335,7 @@ changes required at the call sites in `compiler.py` or
      store lands last. Both callers get a valid sass string from their
      own call.
   3. **`get_sass` is itself `@functools.lru_cache()`**
-     (`tools/disasm.py:66-75`), keyed by `(cubin_asm, fun)` over
+     (`tools/disasm.py`), keyed by `(cubin_asm, fun)` over
      immutable `bytes`. Same free-threading analysis as item #4: the
      cache dict is container-safe, single-evaluation is not guaranteed,
      but duplicate evaluation is idempotent. The wrapped body spawns
@@ -366,18 +361,18 @@ changes required at the call sites in `compiler.py` or
 
 ### 6. `compile()` filesystem cache coordination
 
-- **File/lines:** `compiler.py:244-356`. `fn_cache_manager.get_group`
-  (line 265), `fn_cache_manager.put` (lines 314/317/339/354),
-  `fn_cache_manager.put_group` (line 356).
+- **File:** `compiler.py` — `fn_cache_manager.get_group`,
+  `fn_cache_manager.put`, and `fn_cache_manager.put_group` calls inside
+  `compile()`.
 - **Deeper analysis:**
   1. **Per-call state is all local.** `fn_cache_manager` is a fresh
      `FileCacheManager` built by `get_cache_manager(hash)` each call
-     (no in-memory cache of managers — see `runtime/cache.py:254-256`).
+     (no in-memory cache of managers — see `runtime/cache.py`).
      `metadata_group`, `metadata`, `stages`, `context`, `codegen_fns`,
      `module_map`, and `module` are all call-local. There is no shared
      Python object coordinating the on-disk cache within `compile()`.
   2. **`FileCacheManager.put` write pattern**
-     (`runtime/cache.py:102-126`). Each `put`:
+     (`runtime/cache.py`). Each `put`:
      - creates a per-call `tmp.pid_{pid}_{uuid4}/` directory,
      - writes the payload into that temp dir,
      - `os.replace(temp_path, filepath)` — atomic on POSIX,
@@ -390,29 +385,30 @@ changes required at the call sites in `compiler.py` or
      filenames never collide — temp dirs are uuid-unique, and the
      final targets differ. No Python or container state is shared.
   3. **The `self.lock_path` attribute is a red herring.** It is
-     computed in `FileCacheManager.__init__` (line 44/54) and asserted
-     non-None in `put` (line 108), but it is **never** used as a lock —
-     there is no `fcntl.flock`, no file creation at that path, no
-     context manager. It is effectively dead except as an assertion.
-     So multi-process and multi-thread coordination relies entirely
-     on `os.replace` atomicity.
-  4. **Group-file commit semantics.** `put_group` (lines 95-100) writes
+     computed in `FileCacheManager.__init__` and asserted non-None in
+     `put`, but it is **never** used as a lock — there is no
+     `fcntl.flock`, no file creation at that path, no context manager.
+     It is effectively dead except as an assertion. So multi-process
+     and multi-thread coordination relies entirely on `os.replace`
+     atomicity.
+  4. **Group-file commit semantics.** `put_group` writes
      `__grp__{filename}` last, after all stage files are in place.
-     `get_group` (line 73) uses `has_file(grp_filename)` as its
-     presence check, so a reader only observes a "cache hit" after the
-     group file commit. Partial state is invisible to readers that go
-     through `get_group`.
+     `get_group` uses `has_file(grp_filename)` as its presence check,
+     so a reader only observes a "cache hit" after the group file
+     commit. Partial state is invisible to readers that go through
+     `get_group`.
   5. **The real semi-race: non-deterministic duplicate compile.** Two
      threads in the same process (or two processes) with the same
-     `hash` both miss at line 265, both run the full compile pipeline,
-     and both write stage files to the same on-disk paths. Because
+     `hash` both miss in `get_group`, both run the full compile
+     pipeline, and both write stage files to the same on-disk paths.
+     Because
      `os.replace` is atomic per file, each individual on-disk file is
      always self-consistent. But the **set** of stage files on disk
      can be a mix of thread A's and thread B's outputs (A wrote
      `.ttgir`, B overwrote `.cubin`, A overwrote `.ptx`, …). When
-     `CompiledKernel.__init__` at line 426 then reads those files by
-     path, it may assemble an asm dict whose stages come from two
-     different compile runs.
+     `CompiledKernel.__init__` then reads those files by path, it may
+     assemble an asm dict whose stages come from two different compile
+     runs.
 
      This is only a **semantic** hazard if Triton compilation is
      non-deterministic for fixed `(src, options, env, triton_version,
@@ -433,9 +429,9 @@ changes required at the call sites in `compiler.py` or
      A third thread C that calls `compile()` during A/B's race and
      sees a committed `__grp__` file from a *previous* successful
      build can enter the "cache hit" branch and construct a
-     `CompiledKernel` whose file reads (via `Path(p).read_bytes()` at
-     line 427) may be open-and-read against files that A or B is
-     concurrently `os.replace`-ing. POSIX `os.replace` is an atomic
+     `CompiledKernel` whose file reads (via `Path(p).read_bytes()` in
+     `CompiledKernel.__init__`) may be open-and-read against files
+     that A or B is concurrently `os.replace`-ing. POSIX `os.replace` is an atomic
      rename that unlinks the old inode while preserving readability
      for any already-open file descriptor, and `read_bytes()` opens
      then immediately reads then closes — so C either sees the entire
@@ -444,12 +440,12 @@ changes required at the call sites in `compiler.py` or
      content (opened after the rename). No mixed-content read.
      Cross-file atomicity is again the determinism question from
      point 5.
-  7. **knobs reads inside the cache path.** `knobs.compilation.override`
-     (254), `dump_ir` (255), `store_binary_only` (256), `always_compile`
-     (267), `use_ir_loc` (319) are each single attribute loads into a
-     local. Concurrent mutation is a benign stale read and does not
-     affect which on-disk files get written — the locals stay stable
-     within the call. See also triage item #7.
+  7. **knobs reads inside the cache path.** `knobs.compilation.override`,
+     `dump_ir`, `store_binary_only`, `always_compile`, and `use_ir_loc`
+     are each single attribute loads into a local. Concurrent mutation
+     is a benign stale read and does not affect which on-disk files
+     get written — the locals stay stable within the call. See also
+     triage item #7.
 - **Verdict: not a bug at the `compile()` level.** No issue file
   created. All shared-state coordination in this region is
   filesystem-level and relies on `os.replace` atomicity plus the
@@ -465,31 +461,25 @@ changes required at the call sites in `compiler.py` or
 
 ### 7. `compile()` backend selection and knobs reads
 
-- **File/lines:** `compiler.py:234` (`make_backend`), `compiler.py:254-256`
-  (`knobs.compilation.override`, `dump_ir`, `store_binary_only`),
-  `compiler.py:267` (`knobs.compilation.always_compile`),
-  `compiler.py:319` (`knobs.compilation.use_ir_loc`).
+- **File:** `compiler.py` — `make_backend` and the
+  `knobs.compilation.override` / `dump_ir` / `store_binary_only` /
+  `always_compile` / `use_ir_loc` reads in `compile()`.
 - **Deeper analysis:**
   1. **Single-load-into-local discipline.** Each of the five knobs
      reads is a single `knobs.compilation.X` attribute access stored
      straight into a function local (`enable_override`,
      `enable_ir_dump`, `store_only_binary`, `always_compile`,
-     `use_ir_loc`). Every subsequent use inside `compile()` —
-     `fn_override_manager = get_override_manager(...) if
-     enable_override else None` at 257, `fn_dump_manager = ... if
-     enable_ir_dump else None` at 258, `if not always_compile and
-     metadata_path is not None:` at 268, `if (not store_only_binary)
-     or (ext in ...)` at 338, `if ir_source and use_ir_loc:` at 320,
-     `if use_ir_loc == ext:` at 346 — reads the local, never the
-     descriptor again. So there is no TOCTOU on any of these within
-     `compile()`: whichever value was observed at the top of the call
-     is the value the rest of the call acts on. A concurrent
-     mutation by another thread becomes visible on the *next* call,
-     which is the intended behavior for these process-wide toggles.
+     `use_ir_loc`). Every subsequent use inside `compile()` reads the
+     local, never the descriptor again. So there is no TOCTOU on any
+     of these within `compile()`: whichever value was observed at the
+     top of the call is the value the rest of the call acts on. A
+     concurrent mutation by another thread becomes visible on the
+     *next* call, which is the intended behavior for these
+     process-wide toggles.
   2. **Knob descriptor safety.** Each of these knobs is an
-     `env_bool` / `env_opt_str` descriptor on `CompilationKnobs`
-     (`knobs.py:357-363`). The descriptor `__get__` path is its own
-     audit target (knobs.py pass), but even under the worst-case
+     `env_bool` / `env_opt_str` descriptor on `CompilationKnobs` in
+     `knobs.py`. The descriptor `__get__` path is its own audit
+     target (knobs.py pass), but even under the worst-case
      assumption that `__get__` races with a concurrent `__set__` and
      returns a stale value, the consequence is contained:
      the local captures *some* valid value, and that value stays
@@ -497,19 +487,17 @@ changes required at the call sites in `compiler.py` or
      check-then-act inside `compile()` that could be split across a
      descriptor race.
   3. **`make_backend(target)` global registry access.**
-     `make_backend` (`compiler.py:366-371`) does
-     `[x.compiler for x in backends.values() if
+     `make_backend` does `[x.compiler for x in backends.values() if
      x.compiler.supports_target(target)]` then calls `actives[0]
      (target)`. The `backends` dict is module-level state in
-     `python/triton/backends/__init__.py:66`, populated exactly once
-     by `_discover_backends()` at import time and **never mutated
+     `python/triton/backends/__init__.py`, populated exactly once by
+     `_discover_backends()` at import time and **never mutated
      afterwards** — a grep across `python/triton` confirms the only
-     writes are inside `_discover_backends` itself
-     (`backends/__init__.py:53,61`). Module import is serialized by
-     the CPython import lock, and the write-once-at-import pattern
-     is explicitly excluded from reporting by CLAUDE.md. Concurrent
-     `backends.values()` iteration is therefore iteration over a
-     frozen dict and is safe.
+     writes are inside `_discover_backends` itself. Module import is
+     serialized by the CPython import lock, and the write-once-at-import
+     pattern is explicitly excluded from reporting by CLAUDE.md.
+     Concurrent `backends.values()` iteration is therefore iteration
+     over a frozen dict and is safe.
   4. **Backend constructor side effects.** `actives[0](target)`
      constructs a fresh backend compiler instance per `compile()`
      call. The instance itself is call-local. Whether the
@@ -517,18 +505,18 @@ changes required at the call sites in `compiler.py` or
      reaching into `CudaUtils` or `driver.active`) is a
      backend-specific concern covered by the backend and
      `runtime/driver.py` passes, not by this file.
-  5. **`knobs.compilation.listener` at line 227.** Read once into
-     `compilation_listener` at the top of `compile()` and then reused
-     at lines 271 and 324. Same single-load-into-local discipline as
-     the other knobs. If a concurrent thread swaps the listener mid
-     call, this call continues to use the listener that was
-     installed when it entered — the intended semantics. **Note:**
+  5. **`knobs.compilation.listener`.** Read once into
+     `compilation_listener` at the top of `compile()` and reused at
+     the two listener-invocation sites. Same single-load-into-local
+     discipline as the other knobs. If a concurrent thread swaps the
+     listener mid call, this call continues to use the listener that
+     was installed when it entered — the intended semantics. **Note:**
      the listener *slot* on `CompilationKnobs` is the concern of a
      separate `knobs.py` writeup; `compile()`'s own usage is clean.
   6. **Double-read check.** The only knob in `compile()` that is
-     read twice is `knobs.runtime.add_stages_inspection_hook` at
-     lines 247-248, which is issue #2 (already written up). No
-     other `knobs.*` attribute is loaded more than once per call.
+     read twice is `knobs.runtime.add_stages_inspection_hook`, which
+     is issue #2 (already written up). No other `knobs.*` attribute
+     is loaded more than once per call.
 - **Verdict: not a bug.** No issue file created. The knobs reads
   follow a consistent single-load-into-local pattern inside
   `compile()`, so concurrent mutation of a knob by another thread
@@ -542,21 +530,22 @@ changes required at the call sites in `compiler.py` or
 
 ### 8. `IRSource.module` / `IRSource.__init__` context sharing
 
-- **File/lines:** `compiler.py:87-119`, `compiler.py:235-240`,
-  `compiler.py:299-307`. `IRSource.__init__` calls
-  `ir.load_dialects(context)`, `backend.load_dialects(context)`, and
-  `ir.parse_mlir_module(self.path, context)`, which stores a module
-  that holds a reference to that context. `make_ir` later does
-  `self.module.context = context` and returns `self.module`.
+- **File:** `compiler.py` — `IRSource.__init__` and `IRSource.make_ir`,
+  plus the `IRSource(...)` construction site inside `compile()`.
+  `IRSource.__init__` calls `ir.load_dialects(context)`,
+  `backend.load_dialects(context)`, and `ir.parse_mlir_module(self.path,
+  context)`, which stores a module that holds a reference to that
+  context. `make_ir` later does `self.module.context = context` and
+  returns `self.module`.
 - **Deeper analysis:**
   1. **IRSource construction is gated to `compile()` only.** A
-     codebase-wide grep for `IRSource(` finds three hits:
-     `compiler.py:240` (inside `compile()`), and two unit tests
-     (`test/unit/tools/test_irsource.py:44,89`). No production call
-     site outside `compile()` constructs one. The class is also not
-     re-exported at the package top level as a public API.
+     codebase-wide grep for `IRSource(` finds three hits: one inside
+     `compile()`, and two in `test/unit/tools/test_irsource.py`. No
+     production call site outside `compile()` constructs one. The
+     class is also not re-exported at the package top level as a
+     public API.
   2. **`compile()` blocks passing a pre-built `IRSource` by assert.**
-     At `compiler.py:235-240`:
+     The relevant block in `compile()` is:
      ```python
      ir_source = not isinstance(src, ASTSource)
      if ir_source:
@@ -569,20 +558,20 @@ changes required at the call sites in `compiler.py` or
      immediately. So even a user reaching for the "share an IRSource
      across threads" pattern is blocked at the API boundary — the
      only way into this code path is to hand `compile()` a string
-     path, at which point the `IRSource` is freshly constructed on
-     line 240 and never leaves the call.
+     path, at which point the `IRSource` is freshly constructed and
+     never leaves the call.
   3. **Context lifetime is call-local on both branches.** For the
-     `IRSource` branch, the fresh `context` from line 239 is the one
-     stored inside `self.module` during `parse_mlir_module` at line
-     107 and is the same object threaded back through to
-     `src.make_ir(..., context)` at line 307 (line 299-302 skips
+     `IRSource` branch, the fresh `context` created in `compile()`
+     is the one stored inside `self.module` during `parse_mlir_module`
+     and the same object threaded back through to `src.make_ir(...,
+     context)` (the `ir_source` branch of `compile()` skips
      re-creating `context` precisely *because* `IRSource.__init__`
      already used it). The `self.module.context = context`
-     reassignment at line 118 therefore reassigns to the object
-     the module was already parented to — it is a redundant
+     reassignment in `make_ir` therefore reassigns to the object the
+     module was already parented to — it is a redundant
      self-assignment on the normal path, not a rebinding across
      contexts. For the `ASTSource` branch, `context` is created
-     fresh at line 300 and used only for that call's `make_ir`.
+     fresh in `compile()` and used only for that call's `make_ir`.
      Either way, the context and the resulting `module` are locals
      of the `compile()` frame, reachable only through call-local
      references until `CompiledKernel.__init__` copies out the
@@ -605,8 +594,8 @@ changes required at the call sites in `compiler.py` or
      (`python/src/ir.cc`) topic; it is not raced by anything
      `compile()` does at the Python level.
   6. **Filesystem read during `__init__`.** `self.src =
-     path.read_text()` at line 94 and `ir.parse_mlir_module(self.path,
-     context)` at line 107 both open the on-disk IR file. If another
+     path.read_text()` and `ir.parse_mlir_module(self.path, context)`
+     in `IRSource.__init__` both open the on-disk IR file. If another
      thread or process is atomically replacing that file
      concurrently (see item #6 on `os.replace` semantics), the read
      is either the whole old file or the whole new file — no
@@ -627,28 +616,26 @@ Written up in
 [code-generator-gscope-iteration-race.md](compiler/code-generator-gscope-iteration-race.md).
 
 The initial triage focused on module-level caches and found none:
-`_condition_types = {bool, int, type(None)}` at line 108 is written once
-at import and never mutated; `CodeGenerator.builtin_namespace` at lines
-342-350 is populated at class-definition time and never mutated; there
-is no `@lru_cache`, no `@cached_property`, no `defaultdict` global;
-`ast_to_ttir` constructs a fresh `CodeGenerator` per call; `module_map`
-is read-only inside the file. Nothing to report on module-level state
-per se.
+`_condition_types = {bool, int, type(None)}` is written once at import
+and never mutated; `CodeGenerator.builtin_namespace` is populated at
+class-definition time and never mutated; there is no `@lru_cache`, no
+`@cached_property`, no `defaultdict` global; `ast_to_ttir` constructs
+a fresh `CodeGenerator` per call; `module_map` is read-only inside the
+file. Nothing to report on module-level state per se.
 
 Deeper analysis surfaced a distinct issue: `CodeGenerator.__init__`
-seeds `self.gscope` by iterating `gscope.items()` at
-`code_generator.py:309`, where `gscope` is returned by
-`JITFunction.get_capture_scope()` at `runtime/jit.py:492-497`. In the
-common no-closure case that function returns **`fn.__globals__` by
-identity** — the live module dict — not a copy. Concurrent
+seeds `self.gscope` by iterating `gscope.items()`, where `gscope` is
+returned by `JITFunction.get_capture_scope()` in `runtime/jit.py`. In
+the common no-closure case that function returns **`fn.__globals__`
+by identity** — the live module dict — not a copy. Concurrent
 module-level assignment in another thread while the compile thread is
 iterating violates the "iteration under concurrent mutation" rule
 (see `PYTHON_THREADSAFETY.md`). Undefined element sequence →
 spurious `NameError` compile failures, or a constexpr global being
 read *after* a rebind in thread B while `used_global_vals` / cache
 key was computed against the old value, producing a stale-keyed
-compiled kernel. The same iteration site runs again per callee at
-`code_generator.py:1332`. Tier 1 Significant.
+compiled kernel. The same iteration site runs again per callee in
+`visit_Call`. Tier 1 Significant.
 
 Note on the closure branch: when `fn.__closure__` is not `None`,
 `get_capture_scope` returns `self.__globals__ | nonlocals`, which
@@ -660,13 +647,13 @@ straight to Python-level iteration, so it is the primary hazard.
 Fix is one line in `runtime/jit.py`: return `dict(self.__globals__)`
 on the no-closure branch so `CodeGenerator.__init__` iterates a
 call-local snapshot. The analogous iteration in
-`JITFunction.cache_key` → `DependenciesFinder` at
-`runtime/jit.py:509` should get the same treatment independently;
-neither of the existing jit.py writeups covers it.
+`JITFunction.cache_key` → `DependenciesFinder` should get the same
+treatment independently; neither of the existing jit.py writeups
+covers it.
 
 ### 10. `ASTSource.hash()` — derived from `fn.cache_key`
 
-- **File/lines:** `compiler.py:71-76`. Reads `self.fn.cache_key`.
+- **File:** `compiler.py` — `ASTSource.hash` reads `self.fn.cache_key`.
 - **Concern:** `cache_key` on `JITFunction` is protected by `_hash_lock`
   (covered in the jit.py audit, issue #11). `ASTSource` itself is
   constructed per-call by `JITFunction._do_compile`, so there is no
@@ -674,10 +661,10 @@ neither of the existing jit.py writeups covers it.
 
 ### 11. `LazyDict` — per-call instance
 
-- **File/lines:** `compiler.py:374-387`. Constructed inside
-  `CompiledKernel.launch_metadata` at `compiler.py:486` and returned up
-  the stack to the launch hooks via the launcher C call at
-  `compiler.py:501-502`.
+- **File:** `compiler.py` (`LazyDict`). Constructed inside
+  `CompiledKernel.launch_metadata` and returned up the stack to the
+  launch hooks via the launcher C call in the `runner` closure
+  returned by `CompiledKernel.__getitem__`.
   ```python
   class LazyDict:
       def __init__(self, data):
@@ -695,15 +682,14 @@ neither of the existing jit.py writeups covers it.
   ```
 - **Deeper analysis:**
   1. **Construction site and lifetime.** `launch_metadata` is called
-     from the `runner` closure returned by `CompiledKernel.__getitem__`
-     (`compiler.py:493-504`). Each invocation of `runner(*args, ...)`
-     calls `self.launch_metadata(grid, stream, *args)` (line 500),
-     which constructs a fresh `LazyDict({"name": ..., "function": ...,
-     "stream": ...})` on line 486. The LazyDict reference is held only
-     in the `runner` frame's `launch_metadata` local until `self.run(
-     ..., launch_metadata, launch_enter_hook, launch_exit_hook, ...)`
-     returns at line 501-502. It never escapes that frame, and the
-     frame belongs to the calling thread.
+     from the `runner` closure returned by `CompiledKernel.__getitem__`.
+     Each invocation of `runner(*args, ...)` calls
+     `self.launch_metadata(grid, stream, *args)`, which constructs a
+     fresh `LazyDict({"name": ..., "function": ..., "stream": ...})`.
+     The LazyDict reference is held only in the `runner` frame's
+     `launch_metadata` local until `self.run(..., launch_metadata,
+     launch_enter_hook, launch_exit_hook, ...)` returns. It never
+     escapes that frame, and the frame belongs to the calling thread.
   2. **Tier 2 sharing check.** Two threads each calling
      `kernel[grid](...)` (or each calling a previously-captured
      `runner = kernel[grid]`) independently create their own
@@ -727,40 +713,40 @@ neither of the existing jit.py writeups covers it.
      running on the calling thread.
   4. **Proton direct-`.data` reads are safe.** Proton's
      `LaunchHook.enter` reads `metadata.data.get("name")` directly
-     at `proton/hooks/launch.py:94` before calling `metadata.get()`,
+     (in `proton/hooks/launch.py`) before calling `metadata.get()`,
      and `InstrumentationHook.enter/exit` reads `metadata.data.get(
-     "function")` and `metadata.data.get("stream")` at
-     `proton/hooks/instrumentation.py:254-255,262-263`. These bypass
-     `.get()` entirely and only touch the plain dict stored in
-     `self.data`. Because the LazyDict is thread-local to the launch
-     frame, there is no reader on another thread that can observe
-     the `self.data = self.data | ...` rebind mid-flight. The reads
-     are plain dict lookups on a dict that was either (a) the
-     original `{"name": ..., "function": ..., "stream": ...}` dict
-     constructed at line 486, or (b) the post-merge dict produced
-     by an earlier hook's `.get()` call on the same thread. Both
-     cases are deterministic on the calling thread.
+     "function")` and `metadata.data.get("stream")` (in
+     `proton/hooks/instrumentation.py`). These bypass `.get()`
+     entirely and only touch the plain dict stored in `self.data`.
+     Because the LazyDict is thread-local to the launch frame, there
+     is no reader on another thread that can observe the
+     `self.data = self.data | ...` rebind mid-flight. The reads are
+     plain dict lookups on a dict that was either (a) the original
+     `{"name": ..., "function": ..., "stream": ...}` dict constructed
+     in `launch_metadata`, or (b) the post-merge dict produced by an
+     earlier hook's `.get()` call on the same thread. Both cases are
+     deterministic on the calling thread.
   5. **`add()` contract.** `launch_metadata` calls `ret.add(
      self.src.fn.launch_metadata, (grid, self.metadata, arg_dict))`
-     exactly once at line 490 before returning, and no other caller
-     adds to this `LazyDict` after it leaves `launch_metadata`.
-     The `.append` is on a call-local list reached from a call-local
-     `LazyDict`; no concurrent add/iteration hazard.
+     exactly once before returning, and no other caller adds to this
+     `LazyDict` after it leaves `launch_metadata`. The `.append` is
+     on a call-local list reached from a call-local `LazyDict`; no
+     concurrent add/iteration hazard.
   6. **`self.function` / `self.metadata` snapshot.** The LazyDict's
      initial `data` dict captures `self.function` at construction
-     time (line 486). `_init_handles` is called at line 485 before
-     the LazyDict is built, so `self.function` is expected to be
-     populated. If `_init_handles` races per issue #1, a second
-     thread could observe `self.function is None` at line 486 — but
+     time. `_init_handles` is called immediately before the LazyDict
+     is built, so `self.function` is expected to be populated. If
+     `_init_handles` races per issue #1, a second thread could
+     observe `self.function is None` at LazyDict construction — but
      that is the #1 consequence, not a new LazyDict bug. The
-     LazyDict itself stores whatever value was visible at line 486
+     LazyDict itself stores whatever value was visible at construction
      and propagates it to hooks unchanged.
   7. **Dict merge operator under free-threading.** `self.data |
-     func(*args)` at line 382 invokes `dict.__or__`, which under
-     free-threaded CPython acquires the critical section on each
-     operand dict during the merge and returns a fresh dict. Since
-     both operands are call-local here (the left is this LazyDict's
-     own `self.data`, the right is whatever the user's
+     func(*args)` in `LazyDict.get` invokes `dict.__or__`, which
+     under free-threaded CPython acquires the critical section on
+     each operand dict during the merge and returns a fresh dict.
+     Since both operands are call-local here (the left is this
+     LazyDict's own `self.data`, the right is whatever the user's
      `launch_metadata` function returned), there is no cross-thread
      dict involved, and even the container-level guarantee is not
      load-bearing.

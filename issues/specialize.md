@@ -41,25 +41,25 @@ Entry points exposed to Python:
 Process-global mutable state at file scope (anonymous namespace):
 
 - `static bool init_called` — lazy-init guard, plain `bool`, no atomic,
-  no lock. Checked in `specialize_impl` (line 575) and set true at the
-  end of `init_globals()` (line 158).
-- `static PyObject *` class/function/interned-string globals
-  (lines 41–71): `constexpr_cls`, `jit_callable_cls`,
+  no lock. Checked in `specialize_impl` and set true at the end of
+  `init_globals()`.
+- `static PyObject *` class/function/interned-string globals:
+  `constexpr_cls`, `jit_callable_cls`,
   `tensor_descriptor_cls`, `nvidia_tensor_descriptor_cls`,
   `nvidia_tensor_descriptor_im2col_cls`, `amd_tensor_descriptor_cls`,
   `canonicalize_dtype_fn`, `canonicalize_ptr_dtype_fn`,
   `torch_tensor_cls`, the `*_str` interned strings, the `*_attr`
   interned attribute names, and `align_kwarg`.
-- `static DtypePtr2Str dtype_ptr2str` (line 73) — a
+- `static DtypePtr2Str dtype_ptr2str` — a
   `std::unordered_map<std::pair<Py_hash_t, bool>, PyObject*, …>`
-  populated lazily inside `handle_tensor` (line 333).
-- `static Dtype2Str dtype2str` (line 74) — a
+  populated lazily inside `handle_tensor`.
+- `static Dtype2Str dtype2str` — a
   `std::unordered_map<Py_hash_t, PyObject*>` populated lazily inside
-  `specialize_tensordesc` (line 188).
-- `static TypeHandlerCache type_handler_cache` (line 75) — a
+  `specialize_tensordesc`.
+- `static TypeHandlerCache type_handler_cache` — a
   `std::unordered_map<PyTypeObject*, TypeHandler>` populated during
   `init_type_handler_cache()` and read on every `specialize_arg()`
-  call (line 516).
+  call.
 
 All three maps are plain `std::unordered_map`, which is **not** thread-safe
 for concurrent insert or concurrent insert+lookup.
@@ -75,9 +75,9 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
   above, plus the `init_called` flag itself.
 - **Writer:** `init_globals()` imports Python classes/functions, interns
   strings, calls `init_type_handler_cache()`, and finally sets
-  `init_called = true` at line 158.
+  `init_called = true`.
 - **Reader:** `specialize_impl()` tests `if (!init_called) init_globals();`
-  at line 575 on every call.
+  on every call.
 - **Race scenario:** Thread A and Thread B both enter `specialize_impl`
   before any successful init. Both observe `init_called == false` and both
   call `init_globals()` concurrently. `init_globals()`:
@@ -112,11 +112,11 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
 - **Shared state:** `static DtypePtr2Str dtype_ptr2str`
   (`std::unordered_map<std::pair<Py_hash_t,bool>, PyObject*, …>`), file
   scope, never locked.
-- **Writer:** `handle_tensor()` at line 333 — on a cache miss calls
+- **Writer:** `handle_tensor()` — on a cache miss calls
   `canonicalize_ptr_dtype_fn` and stores the resulting `PyObject *` under
   a `(dtype_hash, is_const)` key. The stored value is a new reference that
   is intentionally leaked (lives for process lifetime).
-- **Reader:** `handle_tensor()` at line 322 (`dtype_ptr2str.find(dsk)`).
+- **Reader:** `handle_tensor()` (`dtype_ptr2str.find(dsk)`).
   `handle_tensor()` is reached from `specialize_arg()` on the
   `native_specialize_impl` hot path for tensor-like arguments, either via
   the cached `torch.Tensor` type handler or via the fallback `data_ptr`
@@ -144,7 +144,7 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
 
 - **Shared state:** `static Dtype2Str dtype2str`
   (`std::unordered_map<Py_hash_t, PyObject*>`), file scope, never locked.
-- **Writer/Reader:** `specialize_tensordesc()` lines 180–190.
+- **Writer/Reader:** `specialize_tensordesc()`.
 - **Race scenario:** Same as issue #2. Reached for every tensordesc
   argument during specialization.
 - **Note:** Narrower hot path than #2 (only tensordesc / Gluon descriptor
@@ -161,7 +161,7 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
   (`std::unordered_map<PyTypeObject*, TypeHandler>`).
 - **Writer:** `init_type_handler_cache()` (called only from
   `init_globals()`).
-- **Reader:** `specialize_arg()` line 516, called from `specialize_impl`
+- **Reader:** `specialize_arg()`, called from `specialize_impl`
   on every specialization.
 - **Root cause:** this is not an independent post-init cache race; it is a
   direct consequence of issue #1. The map is intended to be populated once
@@ -209,7 +209,7 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
 - **Concern:** this is **not** a real free-threading bug. If the first
   kernel specialization happens before the user imports `torch`,
   `torch.Tensor` is never added to `type_handler_cache`, and later torch
-  tensors fall through to the attribute-based fallback at line 557. That
+  tensors fall through to the attribute-based fallback. That
   fallback still specializes tensors correctly; the only effect is that the
   exact-type fast path is missed for the rest of the process.
 - **Why no separate issue file / patch:** there is no correctness failure,

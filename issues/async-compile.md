@@ -11,7 +11,7 @@ File in scope:
   `.result()`), and the module-level `active_mode: ContextVar`.
 
 This module is small (~70 lines) but sits on the async-compile hot path in
-`runtime/jit.py:_do_compile`. Two threads can reach the same
+`runtime/jit.py` `_do_compile`. Two threads can reach the same
 `AsyncCompileMode` and the same `FutureKernel` concurrently through two
 distinct call paths:
 
@@ -19,7 +19,7 @@ distinct call paths:
   thread), and
 - `run()` -> `kernel_cache.get(key)` -> `FutureKernel.__getattr__` ->
   `result()` (any thread that hits the placeholder entry that
-  `jit.py:897` wrote into `kernel_cache`).
+  `jit.py` `run()` wrote into `kernel_cache`).
 
 Most of the hazards in this file were originally triaged as part of the
 `jit.py` pass and written up under `jit/async-compile-races.md`. This
@@ -52,9 +52,9 @@ the ones to care about; #3 and #4 are minor follow-ups.
 
 ### 1. `AsyncCompileMode.submit` — get-then-set TOCTOU on `future_kernels`
 
-- **Shared state:** `AsyncCompileMode.future_kernels` dict (line 44) and
-  `raw_futures` list (line 43).
-- **Code (_async_compile.py:45-55):**
+- **Shared state:** `AsyncCompileMode.future_kernels` dict and
+  `raw_futures` list.
+- **Code (`AsyncCompileMode.submit`):**
   ```python
   def submit(self, key, compile_fn, finalize_fn):
       future = self.future_kernels.get(key)
@@ -72,7 +72,7 @@ the ones to care about; #3 and #4 are minor follow-ups.
 - **Writer:** this function; also the sole writer of `future._key` (a
   custom attribute on the `Future` object).
 - **Race:** Two threads call `submit(key, …)` with the same `key` from
-  `jit.py:896`. Both see `future_kernels.get(key) -> None`, both call
+  `jit.py` `run()`. Both see `future_kernels.get(key) -> None`, both call
   `executor.submit(compile_fn)`, both append to `raw_futures`, both
   write `future_kernels[key]`. The dict write itself is internally
   thread-safe on free-threaded CPython (last write wins), but the
@@ -91,8 +91,8 @@ the ones to care about; #3 and #4 are minor follow-ups.
 ### 2. `FutureKernel.result` — non-atomic first-use
 
 - **Shared state:** `FutureKernel.kernel` attribute (set in `__init__`
-  at line 13 to `None`, overwritten in `result()` at line 28).
-- **Code (_async_compile.py:16-29):**
+  to `None`, overwritten in `result()`).
+- **Code (`FutureKernel.result`):**
   ```python
   def result(self, ignore_errors: bool = False):
       if self.kernel is not None:
@@ -111,19 +111,19 @@ the ones to care about; #3 and #4 are minor follow-ups.
 - **Reader/Writer:** every call site: `AsyncCompileMode.__exit__` for
   the submitter, and `FutureKernel.__getattr__` for any thread that
   calls an attribute on the `FutureKernel` placeholder stored in
-  `kernel_cache` (`jit.py:897`).
+  `kernel_cache` (the `run()` placeholder write).
 - **Race:** Two threads on the same `FutureKernel` instance both observe
   `self.kernel is None`, both call `self.future.result()` (which is
   internally thread-safe and returns the same `CompiledKernel`), both
   call `self.finalize_compile(kernel)`. In the `jit.py` async path
   `finalize_compile` is a closure that writes `kernel_cache[key]` and
-  fires `jit_post_compile_hook` (jit.py:891-894) — both fire twice.
+  fires `jit_post_compile_hook` — both fire twice.
   The duplicate `kernel_cache[key]` write is benign (same kernel), but
   the duplicate hook invocation is user-observable.
 - **Ordering hazard:** separately, `result()` can complete
   `finalize_compile` **before** the submitter's
-  `kernel_cache[key] = kernel` placeholder write at `jit.py:897`
-  executes. The placeholder then overwrites the finalized real kernel
+  `kernel_cache[key] = kernel` placeholder write in `run()` executes.
+  The placeholder then overwrites the finalized real kernel
   with the `FutureKernel` wrapper. Functionally correct (the wrapper's
   `__getattr__` proxies via `result()` which returns the memoized
   `self.kernel`), but the cache entry type is wrong. This is already
@@ -136,8 +136,8 @@ the ones to care about; #3 and #4 are minor follow-ups.
 
 ### 3. `AsyncCompileMode.raw_futures` — list mutation during `as_completed`
 
-- **Shared state:** `self.raw_futures: list` (line 42).
-- **Code (_async_compile.py:63-67):**
+- **Shared state:** `self.raw_futures: list`.
+- **Code (`AsyncCompileMode.__exit__`):**
   ```python
   def __exit__(self, exc_type, exc_value, traceback):
       active_mode.set(None)
@@ -163,7 +163,7 @@ the ones to care about; #3 and #4 are minor follow-ups.
 
 ### 4. `FutureKernel.__getattr__` re-enters `result()`
 
-- **Code (_async_compile.py:31-34):**
+- **Code (`FutureKernel.__getattr__`):**
   ```python
   def __getattr__(self, name):
       return getattr(self.result(), name)
@@ -173,7 +173,7 @@ the ones to care about; #3 and #4 are minor follow-ups.
   any `hasattr` check — routes through `result()`. Under free-threading
   that means the issue #2 race is exposed to every casual attribute
   access from every thread that touches the `FutureKernel` placeholder
-  that `jit.py:897` stuffed into `kernel_cache`. It also means the
+  that the `run()` placeholder stuffed into `kernel_cache`. It also means the
   `finalize_compile` callback (which writes `kernel_cache[key]` and
   fires a user hook) can be triggered as a side effect of apparently
   read-only code elsewhere in the runtime.
@@ -183,14 +183,14 @@ the ones to care about; #3 and #4 are minor follow-ups.
   fires. Fixing #2 fixes this.
 - **Follow-up for the deep-dive agent:** enumerate the callers that
   touch a `FutureKernel` as if it were a `CompiledKernel` (e.g., in
-  `jit.py:run`, `autotuner.py`, tests) and confirm that none of them
+  `jit.py` `run`, `autotuner.py`, tests) and confirm that none of them
   rely on "read-only" attribute access being side-effect free.
 
 ## Not worth reporting (verify during deep dive)
 
 ### `active_mode: ContextVar[Optional[AsyncCompileMode]]`
 
-- **Code (_async_compile.py:6):**
+- **Code (module-level):**
   ```python
   active_mode: ContextVar[Optional[AsyncCompileMode]] = ContextVar(
       "async_compile_active_mode", default=None)
@@ -205,8 +205,8 @@ the ones to care about; #3 and #4 are minor follow-ups.
      a `Token` and calling `.reset(token)`. If a caller ever nested
      two `AsyncCompileMode` blocks (even by accident via library
      code), the inner `__exit__` resets `active_mode` to `None`
-     instead of restoring the outer mode. The `__enter__` guard at
-     line 58 makes nested re-entry raise, so this is only a risk if
+     instead of restoring the outer mode. The `__enter__` guard
+     makes nested re-entry raise, so this is only a risk if
      the guard is bypassed or if a child context propagates. Note
      this explicitly for the deep-dive agent.
   2. `asyncio`/`concurrent.futures` executor threads that inherit a
@@ -225,14 +225,14 @@ the ones to care about; #3 and #4 are minor follow-ups.
 
 ### `__init__` field writes
 
-- `AsyncCompileMode.__init__` (lines 39-44) and `FutureKernel.__init__`
-  (lines 11-14) only run during object construction. Until the
+- `AsyncCompileMode.__init__` and `FutureKernel.__init__`
+  only run during object construction. Until the
   reference escapes to another thread (via `active_mode.set(self)` or
   via `kernel_cache[key] = future_kernel`), no other thread can see
   the instance. Write-once construction.
 
 ### `future._key = key` custom attribute assignment
 
-- Set once in `submit` at line 51, read once in `__exit__` at line 67.
+- Set once in `submit`, read once in `__exit__`.
   No concurrent mutation. `concurrent.futures.Future` does not use
   `__slots__`, so the assignment succeeds. Benign.

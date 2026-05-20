@@ -5,8 +5,8 @@
 - **Component:** `python/src/linear_layout.cc`
 
 - **Shared state:** A single `MLIRContext` object stored as a leaked
-  `PyObject*` in a function-local static (`getLinearLayoutContext`,
-  lines 19-28). The context is constructed in `ir.cc` line 324 with
+  `PyObject*` in a function-local static (`getLinearLayoutContext`). The
+  context is constructed in `ir.cc`'s `context()` factory with
   `MLIRContext::Threading::DISABLED`, so its `StorageUniquer` (the interner
   backing `StringAttr::get`, `IntegerAttr::get`, `RankedTensorType::get`, …)
   takes no internal locks.

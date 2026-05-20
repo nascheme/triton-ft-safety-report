@@ -10,7 +10,7 @@
   process-global slot holding `None` or a callable
 - **Writer(s):** Any thread mutating the slot (plain attribute, no
   synchronization)
-- **Reader(s):** `JITFunction.run` (jit.py:727-729) reads the slot **twice**:
+- **Reader(s):** `JITFunction.run` reads the slot **twice**:
   once for the `is not None` check and once to call it
 - **Race scenario:** Thread A evaluates
   `knobs.runtime.add_stages_inspection_hook is not None` as `True`. Thread B

@@ -37,21 +37,18 @@ that were considered and rejected.
 All of the following are reachable on the compile path:
 
 - `to_module(mod, ctx)` — MLIR ModuleOp -> `llvm::Module`. Declared with
-  `py::call_guard<py::gil_scoped_release>()` (line 622).
+  `py::call_guard<py::gil_scoped_release>()`.
 - `attach_datalayout(mod, triple, proc, features)` — GIL held; creates a
   `TargetMachine` just to compute a data layout.
 - `optimize_module(mod, opt, arch, features, flags, enable_fp_fusion)` —
   runs the LLVM new pass-manager module pipeline. Declared with
-  `py::call_guard<py::gil_scoped_release>()` (line 759).
+  `py::call_guard<py::gil_scoped_release>()`.
 - `translate_to_asm(llvmIR, triple, proc, features, flags, enable_fp_fusion, isObject)`
   — explicit `py::gil_scoped_release allow_threads;` scope around
-  `parseIR` + `translateLLVMIRToASM` (line 769).
-- `dump_sched_dag(...)` — explicit `py::gil_scoped_release allow_threads;`
-  (line 797).
-- `translate_to_mir(...)` — explicit `py::gil_scoped_release allow_threads;`
-  (line 821).
-- `translate_mir_to_asm(...)` — explicit `py::gil_scoped_release allow_threads;`
-  (line 849).
+  `parseIR` + `translateLLVMIRToASM`.
+- `dump_sched_dag(...)` — explicit `py::gil_scoped_release allow_threads;`.
+- `translate_to_mir(...)` — explicit `py::gil_scoped_release allow_threads;`.
+- `translate_mir_to_asm(...)` — explicit `py::gil_scoped_release allow_threads;`.
 - `init_targets()` — initializes all LLVM targets under `std::call_once`, then
   unconditionally writes `llvm::parallel::strategy`.
 - `link_extern_libs(dstMod, paths)` — GIL held; mutates `dstMod` and its
@@ -244,7 +241,7 @@ follow-up.
 ### 2. `dumpSchedulingDAG` stderr redirection (SEVERE)
 
 - **Shared state:** the process's `stderr` FILE* and file-descriptor 2.
-- **Writer/Reader:** `dumpSchedulingDAG` (lines 203–231) runs:
+- **Writer/Reader:** `dumpSchedulingDAG` runs:
   - `int saved_stderr_fd = dup(fileno(stderr));`
   - `FILE *redirected = freopen(dumpFilename.c_str(), "a", stderr);`
   - run the codegen pipeline
@@ -256,8 +253,8 @@ follow-up.
   which may no longer match the process's stderr state. Other Python threads
   writing to `sys.stderr` during this window also end up appending to the dump
   file.
-- **Runs with GIL released** (the binding is `dump_sched_dag`, which opens an
-  explicit `py::gil_scoped_release allow_threads;` at line 797 before calling
+- **Runs with GIL released** (the `dump_sched_dag` binding opens an
+  explicit `py::gil_scoped_release allow_threads;` before calling
   `dumpSchedulingDAG`).
 - **Severity:** SEVERE. Debug/diagnostic path, but still hits real
   process-global state and corrupts the stderr state for the entire process.
@@ -273,9 +270,9 @@ follow-up.
 
 - **Shared state:** two process-global flags plus LLVM's internal
   `TimePassesHandler` counters used by `reportAndResetTimings`.
-- **Writer/Reader:** `translateLLVMIRToASM` lines 365–368 set these to true
-  when `LLVM_ENABLE_TIMING` is on. Later calls to `reportAndResetTimings`
-  (lines 377, 400) flush and reset the global counters.
+- **Writer/Reader:** `translateLLVMIRToASM` sets these to true when
+  `LLVM_ENABLE_TIMING` is on. Later calls to `reportAndResetTimings`
+  flush and reset the global counters.
 - **Race scenario:** Thread A sets the flags and produces a timing report.
   Thread B mid-pipeline also calls `reportAndResetTimings`, clearing Thread
   A's in-progress counters and printing interleaved timing output to
@@ -296,10 +293,10 @@ follow-up.
 
 - **Shared state:** `llvm::parallel::strategy` — a process-global object
   controlling the default parallel strategy.
-- **Writer:** `init_targets` (lines 863–877): a `std::call_once` block does
-  the one-shot target init correctly, but the following line
-  `llvm::parallel::strategy = llvm::hardware_concurrency(1);` is **outside**
-  the once block and runs on every call.
+- **Writer:** `init_targets`: a `std::call_once` block does the one-shot
+  target init correctly, but the following
+  `llvm::parallel::strategy = llvm::hardware_concurrency(1);` statement
+  is **outside** the once block and runs on every call.
 - **Race scenario:** Two threads calling `init_targets` concurrently both
   perform assignment to `llvm::parallel::strategy`. Even though the value is
   the same, under the C++ memory model this is a data race on a non-atomic
@@ -314,7 +311,7 @@ follow-up.
 
 ### 5. `to_module` binding runs MLIR -> LLVM IR with GIL released (Significant)
 
-- **Binding:** `m.def("to_module", ...)` at line 612, declared with
+- **Binding:** `m.def("to_module", ...)`, declared with
   `py::keep_alive<0, 2>()` and
   `py::call_guard<py::gil_scoped_release>()`.
 - **Shared state:** the user-supplied `mlir::ModuleOp` and the user-supplied
@@ -336,8 +333,8 @@ follow-up.
 
 ### 6. `optimize_module` binding runs the LLVM pass pipeline with GIL released (Significant)
 
-- **Binding:** `m.def("optimize_module", ...)` at line 642, declared with
-  `py::call_guard<py::gil_scoped_release>()` (line 759).
+- **Binding:** `m.def("optimize_module", ...)`, declared with
+  `py::call_guard<py::gil_scoped_release>()`.
 - **Shared state:** the user-supplied `llvm::Module*`. Its `LLVMContext` is
   also shared with anything else that has a handle to it.
 - **Race scenario A:** Two threads call `optimize_module` on the same module
@@ -357,11 +354,11 @@ follow-up.
 
 - **Shared state:** the Python-wrapped `llvm::Module*` and
   `llvm::Function*`.
-- **Exposed mutators:** `add_flag` (line 558), `add_fn_attr`,
-  `remove_fn_attr`, `add_fn_asan_attr`, `add_fn_target_feature`,
-  `set_nvvm_maxnreg` (which also calls
-  `getOrInsertNamedMetadata().addOperand()` — a module-level mutation), and
-  `set_calling_conv`, plus the `FunctionListType` iterator.
+- **Exposed mutators:** `add_flag`, `add_fn_attr`, `remove_fn_attr`,
+  `add_fn_asan_attr`, `add_fn_target_feature`, `set_nvvm_maxnreg`
+  (which also calls `getOrInsertNamedMetadata().addOperand()` — a
+  module-level mutation), and `set_calling_conv`, plus the
+  `FunctionListType` iterator.
 - **Race scenario:** Under free-threading there is no implicit GIL
   serialization between Python callers. Two threads holding the same Python
   `llvm::module` wrapper and calling any combination of these mutators race on
@@ -409,9 +406,10 @@ follow-up.
   is mutation of `dstMod` and its context, which is captured under issue #7.
 - **`report_fatal_error` call sites.** These abort the process on error.
   Not a free-threading issue.
-- **`std::once_flag init_flag` in `init_targets`.** C++11 magic statics / 
+- **`std::once_flag init_flag` in `init_targets`.** C++11 magic statics /
   `std::call_once` are thread-safe by the standard. Only flagged here for
-  the *sibling* write at line 876, which is issue #4.
+  the *sibling* `llvm::parallel::strategy` write outside the once block,
+  which is issue #4.
 - **`py::keep_alive<0, 2>()` on `to_module`.** This is a pybind11 refcount
   contract to keep the `LLVMContext` alive for the returned `llvm::Module`.
   Unrelated to free-threading — but it does confirm that the context is

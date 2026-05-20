@@ -8,11 +8,11 @@
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
 
-- **Shared state:** `self.do_bench` backed by `@cached_property` (line 122),
+- **Shared state:** `self.do_bench` backed by `@cached_property`,
   stored in `self.__dict__`.
 - **Writer(s):** First access triggers the getter, which calls
   `driver.active.get_benchmarker()` or returns `self._do_bench`.
-- **Reader(s):** `_bench()` at line 163 (`self.do_bench(kernel_call, ...)`).
+- **Reader(s):** `_bench()` (`self.do_bench(kernel_call, ...)`).
 - **Race scenario:** Two threads access `self.do_bench` concurrently before
   it is cached. Both execute the getter and both write to `self.__dict__`.
   `@cached_property` lost its internal lock in Python 3.12. The getter is

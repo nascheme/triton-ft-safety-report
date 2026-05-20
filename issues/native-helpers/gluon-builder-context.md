@@ -7,17 +7,17 @@
 - **Shared state:** The `MLIRContext` referenced by every `GluonOpBuilder`.
   `GluonOpBuilder`'s base `TritonOpBuilder` holds an `OpBuilder` constructed
   from a non-owning `MLIRContext *` passed in by the Python wrapper
-  (`py::init<MLIRContext *>()`, line 326). That context is constructed in
-  `ir.cc` line 324 with `MLIRContext::Threading::DISABLED`, so its
+  (`py::init<MLIRContext *>()`). That context is constructed in `ir.cc`'s
+  `context()` factory with `MLIRContext::Threading::DISABLED`, so its
   storage uniquer is not internally locked.
 - **Writer(s):** Most binding lambdas in this file. Each calls
   `mlir::StringAttr::get(ctx, …)`, `IntegerAttr::get`,
   `RankedTensorType::get`, or one of the `*EncodingAttr::get` factories on
-  the same context. Examples: `buildCgaLayoutAttr` (line 36),
-  `getCgaLayoutBases` (line 48), `get_blocked_layout`,
-  `get_distributed_linear_layout`, `get_padded_shared_layout`,
-  `get_shared_linear_layout`, `get_amd_wmma_layout`, `to_linear_layout`,
-  `create_local_gather`, `create_local_scatter`, `create_warp_pipeline_border`.
+  the same context. Examples: `buildCgaLayoutAttr`, `getCgaLayoutBases`,
+  `get_blocked_layout`, `get_distributed_linear_layout`,
+  `get_padded_shared_layout`, `get_shared_linear_layout`,
+  `get_amd_wmma_layout`, `to_linear_layout`, `create_local_gather`,
+  `create_local_scatter`, `create_warp_pipeline_border`.
 - **Reader(s):** All of the above, plus any binding that compares or looks
   up previously interned attributes / types via `==`, `dyn_cast`, etc.
 - **Race scenario:** Two Python threads each hold a `GluonOpBuilder` for the

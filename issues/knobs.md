@@ -47,20 +47,21 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
 
 ### 1. `HookChain.__call__` iterates `self.calls` under concurrent mutation
 
-- **Shared state:** `HookChain.calls: list[F]` (knobs.py:411). For each
-  of `launch_enter_hook`, `launch_exit_hook`, `kernel_load_start_hook`,
+- **Shared state:** `HookChain.calls: list[F]`. For each of
+  `launch_enter_hook`, `launch_exit_hook`, `kernel_load_start_hook`,
   `kernel_load_end_hook`, `kernel_unload_hook`, there is exactly one
   `HookChain` object installed at class definition time and reused for
   every call in the process.
-- **Writer:** `HookChain.add` (knobs.py:414-416) appends; `HookChain.remove`
-  (knobs.py:418-420) pops. Neither is synchronized.
-- **Reader:** `HookChain.__call__` (knobs.py:422-424):
+- **Writer:** `HookChain.add` appends; `HookChain.remove` pops. Neither
+  is synchronized.
+- **Reader:** `HookChain.__call__`:
   ```python
   for call in self.calls if not self.reversed else reversed(self.calls):
       call(*args, **kwargs)
   ```
-  Invoked from hot-path launch/load/unload sites in `compiler.py:442-443,
-  475, 483, 511` and `jit.py:777`.
+  Invoked from hot-path launch/load/unload sites in `compiler.py`
+  (`CompiledKernel._init_handles`, `CompiledKernel.__getitem__`,
+  `CompiledKernel.__del__`) and `jit.py` (`JITFunction.run`).
 - **Race scenario:** Thread A registers a profiling hook via
   `knobs.runtime.launch_enter_hook.add(my_hook)` while Thread B is in
   the middle of `CompiledKernel.__getitem__` → native launch, which
@@ -85,13 +86,13 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
 ### 2. `HookChain.add` / `HookChain.remove` TOCTOU
 
 - **Shared state:** same `HookChain.calls` list as #1.
-- **Concern:** `add` does `if func not in self.calls: self.calls.append(func)`
-  (knobs.py:415-416). Two threads registering the same hook concurrently
-  can both see `not in` as True and both append, producing a duplicate
-  entry — the hook then fires twice per launch / load. `remove` does
-  `if func in self.calls: self.calls.remove(func)` (knobs.py:419-420).
-  Two threads unregistering the same hook can both see `in` as True; the
-  second `list.remove` raises `ValueError`.
+- **Concern:** `add` does `if func not in self.calls: self.calls.append(func)`.
+  Two threads registering the same hook concurrently can both see
+  `not in` as True and both append, producing a duplicate entry — the
+  hook then fires twice per launch / load. `remove` does
+  `if func in self.calls: self.calls.remove(func)`. Two threads
+  unregistering the same hook can both see `in` as True; the second
+  `list.remove` raises `ValueError`.
 - **Tier:** 3.
 - **Severity:** Significant. The duplicate-add case silently doubles
   profiling/tracing output; the duplicate-remove case raises an exception
@@ -102,14 +103,14 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
 ### 3. Hot-path callers re-read `knobs.runtime.*_hook`
 
 - **Shared state:** plain-callable hook slots on the `runtime_knobs`
-  singleton: `jit_cache_hook` (knobs.py:477), `jit_post_compile_hook`
-  (knobs.py:480), `add_stages_inspection_hook` (knobs.py:483). Also
-  applies to `HookChain`-typed slots when the reader stores a local
-  reference then calls the chain — but since those are the *chain
-  object* (not the calls list) and the chain object is assigned at
-  class definition time, the slot value itself does not change in
-  practice; the risk is only the user-replaceable bare-callable slots.
-- **Reader pattern (compiler.py:442-443, 474-475, 482-483):**
+  singleton: `jit_cache_hook`, `jit_post_compile_hook`,
+  `add_stages_inspection_hook`. Also applies to `HookChain`-typed slots
+  when the reader stores a local reference then calls the chain — but
+  since those are the *chain object* (not the calls list) and the chain
+  object is assigned at class definition time, the slot value itself
+  does not change in practice; the risk is only the user-replaceable
+  bare-callable slots.
+- **Reader pattern** (e.g. `compiler.py` kernel-load/unload sites):
   ```python
   if knobs.runtime.kernel_unload_hook is not None:
       knobs.runtime.kernel_unload_hook(self.module, ..., self.hash)
@@ -118,14 +119,14 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
   two, the second read is `None` and the call raises `TypeError`. If it
   swaps the slot, the launch uses a different hook than the
   `is not None` check validated.
-- **Other sites to audit:** compiler.py:247-248 (same pattern on
-  `add_stages_inspection_hook` during `compile()`); compiler.py:492
-  (`launch_enter_hook is None`); jit.py:877, 893, 901 (`jit_cache_hook`
-  / `jit_post_compile_hook`).
-- **Related issue:** jit.py:727-729 has the same pattern and is already
-  written up in
+- **Other sites to audit:** `compiler.py` `compile()`
+  (`add_stages_inspection_hook`); `compiler.py`
+  `CompiledKernel.__getitem__` (`launch_enter_hook is None`); `jit.py`
+  `JITFunction.run` (`jit_cache_hook` / `jit_post_compile_hook`).
+- **Related issue:** the `add_stages_inspection_hook` reader in `jit.py`
+  is already written up in
   [`jit/add-stages-inspection-hook-toctou.md`](jit/add-stages-inspection-hook-toctou.md).
-  The same argument applies to every compiler.py site in this section
+  The same argument applies to every `compiler.py` site in this section
   and should be resolved together.
 - **Tier:** 3.
 - **Severity:** Significant. `None()` raises on hot paths.
@@ -133,11 +134,12 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
   each reader, then operate on the local — identical to the fix
   prescribed for jit.py issue #12.
 
+
 ### 4. `base_knobs.scope()` context manager is not thread-safe
 
 - **Shared state:** `self.__dict__` on the module-level knob singleton
   (for example `knobs.compilation`), plus `os.environ`.
-- **Code (knobs.py:295-309):**
+- **Code (`base_knobs.scope`):**
   ```python
   @contextmanager
   def scope(self) -> Generator[None, None, None]:
@@ -169,9 +171,9 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
   3. *Concurrent `os.environ` restore.* `del os.environ[k]` races with
      similar deletes from `setenv` (issue #6).
 - **Used at:**
-  - `experimental/gsan/_stream_sync.py:39` —
+  - `experimental/gsan/_stream_sync.py` —
     `with triton.knobs.compilation.scope():`
-  - `tools/triton_to_gluon_translator/slice_kernel.py:317, 490`
+  - `tools/triton_to_gluon_translator/slice_kernel.py`
 - **Tier:** 3.
 - **Severity:** Significant. A caller that uses `scope()` to temporarily
   force a compiler flag for a single compile can silently have that
@@ -187,7 +189,7 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
 
 - **Shared state:** `obj.__dict__[self.name]` on the knob singleton, and
   the global `os.environ[self.key]` entry.
-- **Code (knobs.py:84-90):**
+- **Code (`env_base.__set__`):**
   ```python
   def __set__(self, obj, value):
       if isinstance(value, Env):
@@ -201,12 +203,12 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
   1. *Writer vs reader consulting env.* A subprocess (or a native
      extension that reads its own env) can observe the process-global
      `os.environ` updated *before or after* the Python-visible
-     `obj.__dict__` is updated. The descriptor `__get__` path
-     (knobs.py:75-79) prefers the Python side, so pure-Python readers
-     are consistent, but any native code that reads the environment
-     variable directly (for example `libtriton` reading `TRITON_DEBUG`
-     via `getenv` at line 15, or external libraries reading env) sees
-     a different value than Python does for a window.
+     `obj.__dict__` is updated. The descriptor `__get__` path prefers
+     the Python side, so pure-Python readers are consistent, but any
+     native code that reads the environment variable directly (for
+     example `libtriton` reading `TRITON_DEBUG` via `getenv`, or
+     external libraries reading env) sees a different value than Python
+     does for a window.
   2. *Two concurrent writers.* Thread A writes `dump_ir = True` while
      Thread B writes `dump_ir = False`. Each write is a pair (dict
      write, `setenv` call) and the two pairs can interleave, leaving
@@ -224,7 +226,7 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
 
 ### 6. `setenv` check-then-delete TOCTOU on `os.environ`
 
-- **Code (knobs.py:32-39):**
+- **Code (`setenv`):**
   ```python
   def setenv(key, value):
       if not propagate_env:
@@ -247,7 +249,7 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
 
 ### 7. `base_knobs.reset()` non-atomic multi-descriptor delete
 
-- **Code (knobs.py:290-293):**
+- **Code (`base_knobs.reset`):**
   ```python
   def reset(self):
       for knob in self.knob_descriptors.keys():
@@ -269,19 +271,19 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
 
 ### 8. `refresh_knobs()` vs concurrent readers
 
-- **Code (knobs.py:574-576):**
+- **Code (`refresh_knobs`):**
   ```python
   def refresh_knobs():
       runtime.debug = env_bool("TRITON_DEBUG").get()
       compilation.instrumentation_mode = env_str("TRITON_INSTRUMENTATION_MODE", "").get()
   ```
 - **Concern:** Both targets are plain attributes (not `env_base`
-  descriptors — note that line 370 and 465 evaluate `.get()` at class
-  definition time and store the scalar result), so each assignment is
-  a single `obj.__dict__` write and is atomic. A concurrent reader at
-  `jit.py:709-710, 724` sees either the old or new value — there is no
+  descriptors — the class-definition-time assignments evaluate `.get()`
+  once and store the scalar result), so each assignment is a single
+  `obj.__dict__` write and is atomic. A concurrent reader in `jit.py`
+  (`JITFunction.run`) sees either the old or new value — there is no
   intermediate state — but a reader that re-reads the value across
-  multiple lines can observe a change mid-flow.
+  multiple statements can observe a change mid-flow.
 - **Tier:** 3.
 - **Severity:** Minor. These two knobs are the "benign debug-flag
   staleness" carve-out from CLAUDE.md. Report only if a concrete
@@ -294,51 +296,50 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
 
 ## Not worth reporting
 
-- **Module-level singleton construction** (knobs.py:562-571,
-  `build = build_knobs()`, `runtime = runtime_knobs()`, etc.). Written
-  once at import time under the import lock, never replaced. CLAUDE.md's
-  carve-out for write-once globals applies.
+- **Module-level singleton construction** (`build = build_knobs()`,
+  `runtime = runtime_knobs()`, etc.). Written once at import time under
+  the import lock, never replaced. CLAUDE.md's carve-out for write-once
+  globals applies.
 
 - **`HookChain` objects installed as class attributes on
-  `runtime_knobs`** (knobs.py:468-474). The assignment
+  `runtime_knobs`.** The assignment
   `launch_enter_hook: HookChain[LaunchHook] = HookChain()` runs at class
   body execution time (also under the import lock). The `HookChain`
   object identity is stable for the life of the process; what races is
   the `.calls` list inside it — covered by issues #1 and #2.
 
-- **`NvidiaTool.from_path` `@functools.lru_cache`** (knobs.py:181-190).
+- **`NvidiaTool.from_path` `@functools.lru_cache`.**
   `functools.lru_cache` is internally thread-safe on free-threaded
   CPython; duplicate `subprocess.check_output` invocation on a cold
   cache is benign (same stdout, same returned `NvidiaTool`).
 
-- **C++11-style magic-static / import-time env reads.** `env_bool("...").get()`
-  evaluated at class definition time (knobs.py:370, 465) happens under
-  the import lock. `getenv` itself is a single C call and is concurrent-safe
-  for reads.
+- **C++11-style magic-static / import-time env reads.**
+  `env_bool("...").get()` evaluated at class definition time happens
+  under the import lock. `getenv` itself is a single C call and is
+  concurrent-safe for reads.
 
-- **`base_knobs.knob_descriptors` / `.knobs` properties**
-  (knobs.py:272-283). Each returns a fresh dict on every call; callers
-  cannot observe shared mutable state through them.
+- **`base_knobs.knob_descriptors` / `.knobs` properties.** Each returns
+  a fresh dict on every call; callers cannot observe shared mutable
+  state through them.
 
-- **`base_knobs.copy()`** (knobs.py:285-288). Builds a new instance via
-  `type(self)()` and `__dict__.update(self.__dict__)`. Two dict ops, both
-  atomic; worst case `copy()` observes a partial mid-mutation snapshot
-  of `self.__dict__`, which is the semantics the caller asked for.
+- **`base_knobs.copy()`.** Builds a new instance via `type(self)()` and
+  `__dict__.update(self.__dict__)`. Two dict ops, both atomic; worst
+  case `copy()` observes a partial mid-mutation snapshot of
+  `self.__dict__`, which is the semantics the caller asked for.
 
-- **`setenv` write path** (`os.environ[key] = value` on knobs.py:37).
-  Single dict-assignment on `os.environ`; concurrent assignments are
-  internally safe in free-threaded CPython. The hazard is the
-  check-then-delete branch (issue #6).
+- **`setenv` write path** (`os.environ[key] = value`). Single
+  dict-assignment on `os.environ`; concurrent assignments are internally
+  safe in free-threaded CPython. The hazard is the check-then-delete
+  branch (issue #6).
 
-- **Env-var-backed knob reads under `env_base.__get__`**
-  (knobs.py:75-79). `obj.__dict__.get` is atomic; the fallback to
-  `self.get()` hits `getenv` which reads C-level `environ`. Both
-  paths are safe as reads; the hazard is on the *writer* side
-  (issues #5, #6).
+- **Env-var-backed knob reads under `env_base.__get__`.**
+  `obj.__dict__.get` is atomic; the fallback to `self.get()` hits
+  `getenv` which reads C-level `environ`. Both paths are safe as reads;
+  the hazard is on the *writer* side (issues #5, #6).
 
-- **`build.impl` assignment** (knobs.py:326,
-  `runtime/build.py:62` reader using `:=`). The reader uses walrus
-  assignment: `if impl := knobs.build.impl:` — single read into a
-  local. No TOCTOU. If this pattern were to change to a double-read
+- **`build.impl` assignment** (set in `knobs.py`; read in
+  `runtime/build.py` using `:=`). The reader uses walrus assignment:
+  `if impl := knobs.build.impl:` — single read into a local. No TOCTOU.
+  If this pattern were to change to a double-read
   `if knobs.build.impl is not None: knobs.build.impl(...)`, it would
   fall under issue #3.

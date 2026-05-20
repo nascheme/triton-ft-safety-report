@@ -9,11 +9,10 @@
 - **Tier:** 3
 
 - **Shared state:** `self.pre_run_hooks` -- a plain `list` of user-supplied
-  callables, initialized at jit.py:804, never rebound
-- **Writer(s):** `add_pre_run_hook` (jit.py:663-669) calls `list.append`
-  with no lock
-- **Reader(s):** `run()` (jit.py:716-718) iterates the list with `for hook in
-  self.pre_run_hooks:` on every kernel launch
+  callables, initialized in `JITFunction.__init__`, never rebound
+- **Writer(s):** `add_pre_run_hook` calls `list.append` with no lock
+- **Reader(s):** `run()` iterates the list with
+  `for hook in self.pre_run_hooks:` on every kernel launch
 - **Race scenario:** Thread A is iterating `self.pre_run_hooks` in `run()`
   while Thread B calls `add_pre_run_hook`. Per the Python thread safety
   documentation, iteration while modifying a list is not thread-safe -- the

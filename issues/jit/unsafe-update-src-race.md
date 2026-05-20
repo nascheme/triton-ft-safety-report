@@ -11,9 +11,9 @@
 - **Shared state:** `JITCallable._src` and `JITCallable.hash` -- must stay in
   sync (`hash` is derived from `_src`). Every path except `_unsafe_update_src`
   uses `self._hash_lock` to enforce this.
-- **Writer(s):** `_unsafe_update_src` (lines 543-551) writes `self.hash = None`
-  then `self._src = new_src` **without taking `_hash_lock`**. The
-  lock-respecting writer is `cache_key` (lines 499-520).
+- **Writer(s):** `_unsafe_update_src` writes `self.hash = None` then
+  `self._src = new_src` **without taking `_hash_lock`**. The
+  lock-respecting writer is `cache_key`.
 - **Reader(s):** `cache_key` reads both `self.hash` and `self._src` under
   `_hash_lock`
 - **Race scenario:** Thread A holds `_hash_lock` inside `cache_key`, reads old

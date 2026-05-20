@@ -34,14 +34,13 @@ not re-reported, but see the triage notes for a scalability comment.
 
 ### 1. Global `interpreter_builder.grid_idx` / `grid_dim`
 
-- **Code (`interpreter.py:775-777`):** module-level singletons shared by
-  every interpreter invocation process-wide:
+- **Code (`interpreter.py` module-level):** module-level singletons shared
+  by every interpreter invocation process-wide:
   ```python
   interpreter_builder = InterpreterBuilder()
   interpreter_semantic: TritonSemantic = TritonSemantic(interpreter_builder)
   ```
-- **Writers (`interpreter.py:292-302, 1290-1295`):**
-  `InterpreterBuilder.set_grid_dim` / `set_grid_idx` write
+- **Writers:** `InterpreterBuilder.set_grid_dim` / `set_grid_idx` write
   `self.grid_dim = (nx, ny, nz)` and `self.grid_idx = (x, y, z)`.
   `GridExecutor.__call__` drives them from its grid loop:
   ```python
@@ -52,10 +51,10 @@ not re-reported, but see the triage notes for a scalability comment.
               interpreter_builder.set_grid_idx(x, y, z)
               self.fn(**args)
   ```
-- **Readers (`interpreter.py:406-412`):**
-  `create_get_program_id(axis)` / `create_get_num_programs(axis)` read
-  `self.grid_idx` / `self.grid_dim` — these are what `tl.program_id()` and
-  `tl.num_programs()` return inside an interpreted kernel.
+- **Readers:** `create_get_program_id(axis)` /
+  `create_get_num_programs(axis)` read `self.grid_idx` / `self.grid_dim`
+  — these are what `tl.program_id()` and `tl.num_programs()` return
+  inside an interpreted kernel.
 - **Race:** Two threads running interpreter kernels concurrently both
   overwrite `interpreter_builder.grid_idx`. Thread A writes `(5, 0, 0)`,
   Thread B writes `(12, 0, 0)` before Thread A's kernel body reads it;
@@ -72,15 +71,16 @@ not re-reported, but see the triage notes for a scalability comment.
 
 ### 2. `_patch_lang` save/restore on shared module objects
 
-- **Code (`interpreter.py:780-797, 800-811, 814-834, 1032-1045, 1048-1125, 1130-1142`):**
-  `_LangPatchScope.set_attr` reads `getattr(obj, name, _MISSING)` and then
-  `setattr(obj, name, value)` on **shared Python module/class objects**
-  — `tl`, `tl.core`, `tl.tensor`, `tl.dtype`, `tl.math`,
-  `tl.core.tensor_descriptor_base`. `restore()` walks `_changes` in reverse
-  and setattr's the saved "originals" back.
+- **Code (`interpreter.py` `_LangPatchScope` / `_patch_lang` /
+  `_patch_lang_core` / `_patch_builtin` / `_patch_math` /
+  `_patch_tensor`):** `_LangPatchScope.set_attr` reads
+  `getattr(obj, name, _MISSING)` and then `setattr(obj, name, value)` on
+  **shared Python module/class objects** — `tl`, `tl.core`, `tl.tensor`,
+  `tl.dtype`, `tl.math`, `tl.core.tensor_descriptor_base`. `restore()`
+  walks `_changes` in reverse and setattr's the saved "originals" back.
 - **Writer(s):** every `GridExecutor.__call__` enters via
-  `patch_scope = _patch_lang(self.fn)` at line 1280, and `restore()` fires
-  in a `finally` at 1301-1302. Each call mutates globals like `tl.range`,
+  `patch_scope = _patch_lang(self.fn)`, and `restore()` fires in a
+  `finally`. Each call mutates globals like `tl.range`,
   `tl.static_assert`, `tl.reduce`, `tl.associative_scan`,
   `tl.tensor.__bool__`, `tl.dtype.to_ir`, every `tl.core.is_builtin(...)`
   member of `tl`, `tl.core`, `tl.math`, etc.
@@ -112,7 +112,7 @@ not re-reported, but see the triage notes for a scalability comment.
 
 ### 3. `FunctionRewriter._compile_and_exec` mutates `fn.__globals__`
 
-- **Code (`interpreter.py:1382-1390`):**
+- **Code (`interpreter.py` `FunctionRewriter._compile_and_exec`):**
   ```python
   def _compile_and_exec(self, transformed_ast):
       compiled_code = compile(transformed_ast, filename=self.filename, mode='exec')
@@ -169,7 +169,7 @@ not re-reported, but see the triage notes for a scalability comment.
 
 ### 4. `InterpretedFunction.__call__` leaks patches
 
-- **Code (`interpreter.py:1425-1432`):**
+- **Code (`interpreter.py` `InterpretedFunction.__call__`):**
   ```python
   def __call__(self, *args, **kwargs):
       # This is a device function call
@@ -201,7 +201,7 @@ not re-reported, but see the triage notes for a scalability comment.
 
 ### 5. `InterpretedFunction.rewritten_fn` class-level cache
 
-- **Code (`interpreter.py:1393-1419`):**
+- **Code (`interpreter.py` `InterpretedFunction.rewrite`):**
   ```python
   class InterpretedFunction(KernelInterface[T]):
       rewritten_fn: Dict[Callable, Callable] = {}
@@ -230,7 +230,7 @@ not re-reported, but see the triage notes for a scalability comment.
 
 ### 6. `_patch_lang` iterates `fn.__globals__.items()`
 
-- **Code (`interpreter.py:1130-1142`):**
+- **Code (`interpreter.py` `_patch_lang`):**
   ```python
   def _patch_lang(fn):
       scope = _LangPatchScope()
@@ -239,8 +239,8 @@ not re-reported, but see the triage notes for a scalability comment.
       ...
   ```
 - **Concern:** `fn.__globals__` is the kernel's module globals — the same
-  dict `FunctionRewriter._compile_and_exec` mutates via the copy loop at
-  `interpreter.py:1386-1388`. If T1 is in `_compile_and_exec` copying keys
+  dict `FunctionRewriter._compile_and_exec` mutates via its copy loop.
+  If T1 is in `_compile_and_exec` copying keys
   while T2 is in `_patch_lang` iterating, T2's iteration observes an
   undefined element sequence (see `PYTHON_THREADSAFETY.md` and
   `feedback_iteration_not_safe.md`).
@@ -256,7 +256,8 @@ not re-reported, but see the triage notes for a scalability comment.
 
 ### 7. `mem_semantic_map` read via non-const `operator[]`
 
-- **Code (`interpreter.cc:33-38, 673-674, 720-721`):**
+- **Code (`interpreter.cc` `mem_semantic_map`, used in `atomic_rmw` /
+  `atomic_cas` bindings):**
   ```cpp
   std::map<MemSemantic, std::memory_order> mem_semantic_map = { ... };
   // In atomic_rmw / atomic_cas bindings:
@@ -282,7 +283,7 @@ not re-reported, but see the triage notes for a scalability comment.
 
 ### `atomic_op_guard` scalability note (not reported)
 
-`interpreter.cc:21` declares a single process-wide `std::mutex atomic_op_guard`
+`interpreter.cc` declares a single process-wide `std::mutex atomic_op_guard`
 used by every fallback path in `atomic_fadd<npy_half>`, `atomic_cmp`, and all
 `AtomicRMWOp<DType, Op>` branches where
 `is_reinterpret_cast_to_atomic_safe<T>` is false. Correctness is fine (this is
@@ -293,17 +294,17 @@ ever positioned for parallel workloads.
 
 ### Write-once / not worth reporting
 
-- **`InterpreterBuilder.ir_sem_to_interpreter_sem` / `ir_rmw_op_to_interpreter_rmw_op`**
-  class attributes (lines 265-283). Populated at class-definition time; never
-  mutated. Read-only.
-- **`InterpreterBuilder.codegen_fns`** (lines 288-290). Populated once in
-  `__init__`. Never mutated after module init.
-- **`FunctionRewriter.ast_transformer = ASTTransformer()`** (line 1324). One
-  shared instance used by every `_transform_ast` call; `ASTTransformer` holds
-  no per-call state in its `visit_Assign`, so concurrent use is OK.
-- **`np_erf_fp32`, `np_erf_fp64`, `np_umulhi_u64`** (lines 252-254). Module-
-  level `np.vectorize` wrappers; treated as pure functions.
-- **`_MISSING = object()`** sentinel (line 775). Immutable.
+- **`InterpreterBuilder.ir_sem_to_interpreter_sem` /
+  `ir_rmw_op_to_interpreter_rmw_op`** class attributes. Populated at
+  class-definition time; never mutated. Read-only.
+- **`InterpreterBuilder.codegen_fns`.** Populated once in `__init__`.
+  Never mutated after module init.
+- **`FunctionRewriter.ast_transformer = ASTTransformer()`.** One shared
+  instance used by every `_transform_ast` call; `ASTTransformer` holds no
+  per-call state in its `visit_Assign`, so concurrent use is OK.
+- **`np_erf_fp32`, `np_erf_fp64`, `np_umulhi_u64`.** Module-level
+  `np.vectorize` wrappers; treated as pure functions.
+- **`_MISSING = object()`** sentinel. Immutable.
 - **`mem_semantic_map`, `atomic_op_guard`** initialization at C++ namespace
   scope — covered by import-lock carve-out.
 - **`CompileTimer`-style state, caches on `JITFunction`, etc.** — out of
@@ -312,10 +313,10 @@ ever positioned for parallel workloads.
 ## Caller-side concerns noted but out of scope
 
 - **`knobs.runtime.interpret` is a Tier-3 config flag** that selects the
-  interpreter path in `jit.py:967-968` and `1146-1147`. Covered by the
-  `knobs/` component. A mid-run toggle would be a cross-component concern.
+  interpreter path in `jit.py`. Covered by the `knobs/` component. A
+  mid-run toggle would be a cross-component concern.
 - **`JITFunction(self.fn)` is constructed inside
-  `FunctionRewriter._get_jit_fn_file_line`** (line 1355) solely to read
-  `file_name` / `def_file_line_number`. That implicitly registers the jit
-  function in `_triton_jit_function_registry` — already covered under the
-  `jit/` component.
+  `FunctionRewriter._get_jit_fn_file_line`** solely to read `file_name` /
+  `def_file_line_number`. That implicitly registers the jit function in
+  `_triton_jit_function_registry` — already covered under the `jit/`
+  component.

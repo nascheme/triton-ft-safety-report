@@ -35,12 +35,12 @@ that were considered and rejected.
 Organized by what they do with shared state:
 
 - **Context creation / configuration**
-  - `py::class_<MLIRContext>(...)` constructor (line 322): builds a context
-    with `MLIRContext::Threading::DISABLED`, i.e. MLIR's own internal thread
+  - `py::class_<MLIRContext>(...)` constructor: builds a context with
+    `MLIRContext::Threading::DISABLED`, i.e. MLIR's own internal thread
     pool is off.
   - `printOpOnDiagnostic` / `printStackTraceOnDiagnostic` setters.
-  - `load_dialects(context)` (line 336): calls `plugin::loadPlugins()`,
-    builds a `DialectRegistry`, `appendDialectRegistry`, and
+  - `load_dialects(context)`: calls `plugin::loadPlugins()`, builds a
+    `DialectRegistry`, `appendDialectRegistry`, and
     `loadAllAvailableDialects`. Directly mutates the context's dialect state.
 - **Op / attribute / type construction** (bulk of the file)
   - `py::class_<Type>`, `FunctionType`, `Location`, `Value`, `ModuleOp`,
@@ -48,29 +48,30 @@ Organized by what they do with shared state:
     types, attributes, and ops by calling into `MLIRContext` (via
     `IntegerType::get(ctx, ...)`, `StringAttr::get(ctx, ...)`,
     `RoundingModeAttr::get(ctx, ...)`, etc.).
-- **Plugin-provided op builders** — registered at module init (line 1863)
-  from `plugin::loadPlugins()`.
+- **Plugin-provided op builders** — registered at module init from
+  `plugin::loadPlugins()`.
 - **Parsing**
-  - `parse_mlir_module(filename, context)` at line 776 — parses an MLIR file
+  - `parse_mlir_module(filename, context)` — parses an MLIR file
     into the given context.
 - **`PassManager`**
-  - `pass_manager.enable_debug` (line 1876).
+  - `pass_manager.enable_debug`.
   - `pass_manager.get_pipeline_str`.
   - `pass_manager.run(mod, repro_pipeline_tag)` declared with
-    `py::call_guard<py::gil_scoped_release>()` at line 1979. This is the
-    single most important GIL-release site in the file.
+    `py::call_guard<py::gil_scoped_release>()`. This is the single
+    most important GIL-release site in the file.
 - **Environment helpers** (via METH_FASTCALL `py_getenv`, `py_getenv_bool`,
   plus `get_cache_invalidating_env_vars`).
 
 ### Process-global / shared mutable state touched from these bindings
 
-- `::llvm::DebugFlag` (line 1955, 1964): process-wide LLVM debug toggle.
-- `setCurrentDebugTypes(...)` (line 1966): process-wide LLVM debug-type
-  registry.
+- `::llvm::DebugFlag`: process-wide LLVM debug toggle, mutated inside
+  `PassManager::run`.
+- `setCurrentDebugTypes(...)`: process-wide LLVM debug-type registry,
+  also called inside `PassManager::run`.
 - `llvm::errs()` as the diagnostic sink for every context built via this
   file (`TritonSourceMgrDiagnosticHandler` passes `llvm::errs()` to the
   `SourceMgrDiagnosticHandler` base).
-- `plugin::loadPlugins()` — `lib/Tools/PluginUtils.cpp` lines 146–150:
+- `plugin::loadPlugins()` in `lib/Tools/PluginUtils.cpp`:
   ```
   static std::vector<TritonPlugin> plugins;
   static bool pluginsLoaded = false;
@@ -103,7 +104,7 @@ Organized by what they do with shared state:
 
 - **Shared state:** `::llvm::DebugFlag` (a plain non-atomic `bool` in LLVM)
   and the LLVM debug-type registry managed by `setCurrentDebugTypes`.
-- **Writer:** `PassManager::run` body (lines 1954–1967):
+- **Writer:** `PassManager::run` body:
   ```
   if (triton::tools::getBoolEnv("TRITON_ENABLE_LLVM_DEBUG")) {
     ::llvm::DebugFlag = true;
@@ -119,8 +120,8 @@ Organized by what they do with shared state:
 - **Reader:** the LLVM debug-macros machinery reads `DebugFlag` and the
   current debug-type set from everywhere in LLVM, including from inside the
   MLIR/LLVM pass pipeline that immediately follows.
-- **Runs with GIL released** (`py::call_guard<py::gil_scoped_release>()`,
-  line 1979).
+- **Runs with GIL released** (`py::call_guard<py::gil_scoped_release>()`
+  on the `pass_manager.run` binding).
 - **Race scenario:** Thread A and Thread B both enter `PassManager::run`
   with `TRITON_LLVM_DEBUG_ONLY` set. Both write to `::llvm::DebugFlag` and
   both call `setCurrentDebugTypes` with their own `debugTypes` pointer
@@ -144,7 +145,8 @@ Organized by what they do with shared state:
 - **Shared state:** the Python-exposed `mlir::MLIRContext` passed to
   `PassManager::run` via `mod.getContext()`.
 - **Writer:** `PassManager::run` body can call
-  `context->disableMultithreading()` at lines 1929 and 1947.
+  `context->disableMultithreading()` (from both the crash-reproducer
+  setup and the diagnostic-handler setup).
 - **Reader:** every pass in the pipeline, plus any other Python thread
   sharing the same context (for op construction or for its own `run()`).
 - **Race scenario:** Thread A starts `PassManager::run(modA, ...)` and
@@ -168,8 +170,8 @@ Organized by what they do with shared state:
 
 - **Shared state:** the Python-wrapped `MLIRContext`'s dialect registry
   and its loaded-dialect map.
-- **Writer:** `load_dialects(context)` (line 336): builds a
-  `DialectRegistry`, appends it to the context, and then calls
+- **Writer:** `load_dialects(context)`: builds a `DialectRegistry`,
+  appends it to the context, and then calls
   `context.loadAllAvailableDialects()`.
 - **Race scenario:** Two Python threads call `load_dialects(ctx)` on the
   same context, or one thread calls `load_dialects(ctx)` while another is
@@ -195,16 +197,14 @@ Organized by what they do with shared state:
   and every op-builder construction reach into these tables.
 - **Writers/Readers:** essentially every operation-building binding in this
   file — `TritonOpBuilder`, `OpBuilder`, the op construction helpers on
-  `ModuleOp`, `FuncOp`, etc. Line numbers for representative calls include
-  397, 478, 772, 825, 895, 900, 1075, 1082, 1089, 1199, 1808, 1815, 1834,
-  1840.
+  `ModuleOp`, `FuncOp`, etc.
 - **Race scenario:** Two Python threads drive separate kernels whose
   Python-side code holds (or ends up sharing) the same `MLIRContext`. Each
   emits `IntegerType::get(ctx, 32)` etc. The context's uniquing table is
   mutated concurrently. MLIR does provide some internal synchronization for
   these tables when `Threading` is enabled, but the Triton context is
-  explicitly constructed with `Threading::DISABLED` (line 324), which is the
-  mode intended for single-threaded use. Under that mode, the uniquing
+  explicitly constructed with `Threading::DISABLED`, which is the mode
+  intended for single-threaded use. Under that mode, the uniquing
   tables are **not** expected to be hit concurrently.
 - **Severity:** SEVERE if any Python-side sharing of the context exists
   across threads (the most natural way this gets triggered is via shared
@@ -221,18 +221,16 @@ Organized by what they do with shared state:
 ### 5. `plugin::loadPlugins()` plain-bool TOCTOU (Significant)
 
 - **Shared state:** `static std::vector<TritonPlugin> plugins;` and
-  `static bool pluginsLoaded = false;` at `lib/Tools/PluginUtils.cpp`
-  lines 146–147.
+  `static bool pluginsLoaded = false;` in `lib/Tools/PluginUtils.cpp`.
 - **Writer:** `loadPlugins()` itself, populating `plugins` and setting
   `pluginsLoaded = true` on success.
 - **Reader:** any caller of `loadPlugins()`. In `ir.cc`:
-  - line 340 — inside the `load_dialects` binding body. This is a
-    **post-init / user-driven** call site: two threads calling
-    `load_dialects` could both observe `pluginsLoaded == false` and both
-    populate.
-  - line 1863 — at module init under Python's import lock. That call site
-    is not the problem, but it does not pre-populate `plugins` unless some
-    plugin path is set.
+  - inside the `load_dialects` binding body. This is a **post-init /
+    user-driven** call site: two threads calling `load_dialects` could
+    both observe `pluginsLoaded == false` and both populate.
+  - at module init under Python's import lock. That call site is not the
+    problem, but it does not pre-populate `plugins` unless some plugin
+    path is set.
 - **Race scenario:** Two Python threads call `load_dialects(ctx)` before
   either has triggered a successful `loadPlugins` run. Both observe
   `pluginsLoaded == false` and both `push_back` into `plugins`, and both
@@ -252,12 +250,12 @@ Organized by what they do with shared state:
 - **Shared state:** the `PassManager self` and the context's
   crash-reproducer / timing / printing configuration.
 - **Writer:** `PassManager::run` body calls, on every invocation:
-  - `self.enableCrashReproducerGeneration(...)` (lines 1948 or 1951),
-  - `self.enableTiming()` (line 1971),
+  - `self.enableCrashReproducerGeneration(...)`,
+  - `self.enableTiming()`,
   - `TritonSourceMgrDiagnosticHandler diagHandler =
     setupTritonDiagnosticHandler(context);` which in turn calls
     `context->printOpOnDiagnostic(...)`, `context->printStackTraceOnDiagnostic(...)`,
-    and sometimes `context->disableMultithreading()` (line 136).
+    and sometimes `context->disableMultithreading()`.
 - **Race scenario:** Two threads running `PassManager::run` with different
   env-var settings can interleave these mutations. In particular the
   `printOpOnDiagnostic` / `printStackTraceOnDiagnostic` state on the
@@ -278,9 +276,9 @@ Organized by what they do with shared state:
 
 - **Shared state:** the process-wide `llvm::errs()` stream.
 - **Writer:** every `TritonSourceMgrDiagnosticHandler` constructed in this
-  file (including the one built per `PassManager::run` invocation at line
-  1974 and the one built by `getTensorDescMetadata` at line 166) installs
-  itself with `llvm::errs()` as the backing `raw_ostream`.
+  file (including the one built per `PassManager::run` invocation and the
+  one built by `getTensorDescMetadata`) installs itself with `llvm::errs()`
+  as the backing `raw_ostream`.
 - **Race scenario:** Two threads running `PassManager::run` with
   overlapping diagnostics both write to `llvm::errs()`. MLIR's
   `SourceMgrDiagnosticHandler` serializes per-handler, but `llvm::errs()`
@@ -361,7 +359,7 @@ Organized by what they do with shared state:
   than copying.** If it stores a copy (in some LLVM versions), the UAF
   concern under issue #1 goes away; the plain-bool race on `DebugFlag`
   remains.
-- **Confirm `plugin::loadPlugins()` callers.** The module-init call at
-  line 1863 is under the import lock and safe; the `load_dialects` call at
-  line 340 is the one that actually creates the TOCTOU. Are there any
-  other callers in the wider codebase?
+- **Confirm `plugin::loadPlugins()` callers.** The module-init call is
+  under the import lock and safe; the `load_dialects` call is the one
+  that actually creates the TOCTOU. Are there any other callers in the
+  wider codebase?

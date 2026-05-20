@@ -22,7 +22,7 @@ Lower-frequency native pybind11 bindings:
 
 ### Why the MLIRContext story matters here
 
-The Triton MLIR context is constructed in `ir.cc` line 324 with
+The Triton MLIR context is constructed in `ir.cc`'s `context()` factory with
 `MLIRContext::Threading::DISABLED`. With threading disabled, MLIR's storage
 uniquer (the interner that backs `StringAttr::get`, `IntegerAttr::get`,
 `RankedTensorType::get`, etc.) does **not** take any locks. Two Python threads
@@ -36,7 +36,7 @@ binding triggers the race, which shared object is corrupted) differ.
 ### `linear_layout.cc` — process-wide context (issue 1)
 
 The most prominent free-threading hazard in this file is the function-local
-static at lines 19-28:
+static inside `getLinearLayoutContext`:
 
 ```cpp
 mlir::MLIRContext *getLinearLayoutContext() {
@@ -64,13 +64,13 @@ call into the binding routes through one shared context.
 
 ### `linear_layout.cc` — `__imul__` and view methods (issues 2, 3)
 
-`__imul__` (line 165) mutates the LHS `LinearLayout` in place. If the same
+`__imul__` mutates the LHS `LinearLayout` in place. If the same
 Python `LinearLayout` instance is shared between threads, this is a classic
 write-vs-write race on a non-atomic C++ value. Likely a low-probability bug
 because `LinearLayout` instances are usually computed and then used
 read-only, but it is on the public Python surface.
 
-`get_shared_view` and `get_distributed_view` (lines 177-186) use
+`get_shared_view` and `get_distributed_view` use
 `const_cast<LinearLayout &>(self)` to call non-const helpers in
 `mlir::triton::gpu`. Whether these helpers actually mutate the layout is an
 implementation detail of `getSharedLayoutStr` / `getDistributedLayoutStr`. If
@@ -81,7 +81,7 @@ work-around. Worth a deeper read of those helpers to confirm.
 ### `gluon_ir.cc` — builder context (issue 4)
 
 `GluonOpBuilder` does not own its `MLIRContext`; it receives a pointer from
-the Python wrapper (`py::init<MLIRContext *>()` at line 326). All
+the Python wrapper (`py::init<MLIRContext *>()`). All
 attribute/type construction in this file (e.g.
 `buildCgaLayoutAttr`, `get_distributed_linear_layout`, `get_blocked_layout`,
 `get_padded_shared_layout`, etc.) calls `*Attr::get(ctx, …)` on that context.
@@ -101,7 +101,7 @@ fan-out points: a single `GluonOpBuilder` method call can issue many
 
 ### `gluon_ir.cc` — `GluonLayouts` static handles (issue 5)
 
-`layoutToGluon` (line 201-202) holds:
+`layoutToGluon` holds:
 
 ```cpp
 static GluonLayouts layouts;
@@ -137,7 +137,7 @@ concrete corruption scenario has been identified.
 - **`GluonOpBuilder` per-instance state (builder, lastLoc).** Concurrent use
   of the same builder from two threads would be a Python-level mistake; not
   a free-threading-specific bug.
-- **`isConvertLayoutTrivial`** (line 180) calls `minimalCvtLayout` which
+- **`isConvertLayoutTrivial`** calls `minimalCvtLayout` which
   uses the source/destination types' shared context. The race story is the
   same as issue 4; not reported separately.
 - **`hasVerifier` SFINAE helpers and `printDiagStr`.** Pure compile-time /

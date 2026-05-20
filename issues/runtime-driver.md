@@ -23,26 +23,24 @@ plausible downstream consequence of issue #1.
 
 ## Triage notes
 
-`runtime/driver.py` is tiny (50 lines) but sits directly in CLAUDE.md's
-"global registries and lazy singletons on the hot path" bucket
+`runtime/driver.py` is tiny but sits directly in CLAUDE.md's "global
+registries and lazy singletons on the hot path" bucket
 (`runtime.driver.driver`). Everything of interest is on the `DriverConfig`
 object that is instantiated once at import time and mutated lazily
 afterwards.
 
 ### 1. `DriverConfig.default` — lazy init TOCTOU
 
-- **Shared state:** `self._default` on the module-level `driver`
-  (`driver.py:27, 32-34`), starts `None` and is populated on first access
-  to the `default` property.
-- **Writer:** `default` getter at `driver.py:32-34`:
+- **Shared state:** `self._default` on the module-level `driver`, starts
+  `None` and is populated on first access to the `default` property.
+- **Writer:** `default` getter:
   ```python
   if self._default is None:
       self._default = _create_driver()
   return self._default
   ```
-- **Reader:** `default` getter itself, plus `active` getter
-  (`driver.py:38-39`) which calls `self.default` when `self._active is
-  None`.
+- **Reader:** `default` getter itself, plus `active` getter, which calls
+  `self.default` when `self._active is None`.
 - **Race scenario:** Thread A calls `driver.default` (or transitively via
   `driver.active`). It reads `self._default is None`, enters
   `_create_driver()` which in turn instantiates the concrete backend
@@ -64,11 +62,11 @@ afterwards.
      (see [seg-fault-gh-6721.md](runtime-driver/seg-fault-gh-6721.md)).
   2. Two readers of `driver.default` / `driver.active` in the racing
      window can see *different* `DriverBase` instances. Downstream
-     code (`compiler.py:455`, `compiler.py:468`, `jit.py:713-714`)
-     caches handles and launcher objects keyed off a specific driver
-     instance, so state populated under one instance is observed via
-     the other. One instance is effectively leaked, with whatever
-     native resources it holds.
+     code in `compiler.py` (`CompiledKernel._init_handles`) and
+     `jit.py` (`JITFunction.run`) caches handles and launcher objects
+     keyed off a specific driver instance, so state populated under
+     one instance is observed via the other. One instance is
+     effectively leaked, with whatever native resources it holds.
   3. The `default` getter is not idempotent under a race: the final
      `self._default` observed by later callers is whichever thread wrote
      last. If anything in `_create_driver()` has side effects that are
@@ -118,17 +116,17 @@ afterwards.
 
 ### 2. `DriverConfig.active` — lazy init + `set_active` ordering
 
-- **Shared state:** `self._active` (`driver.py:28, 37-46`).
+- **Shared state:** `self._active` on the module-level `driver`.
 - **Writers:**
-  - `active` getter lazy init: `self._active = self.default`
-    (`driver.py:38-39`).
-  - `set_active(driver)` (`driver.py:42-43`).
-  - `reset_active()` (`driver.py:45-46`), which reads `self.default`
-    then writes `self._active`.
-- **Readers:** Every call site that reads `driver.active` — `jit.py:676`,
-  `jit.py:713-714`, `jit.py:809`, `compiler/compiler.py:135,232,453,
-  455,468,470,498,499`, `autotuner.py:125,185`, plus tools/testing. This
-  is the hottest shared object in the project.
+  - `active` getter lazy init: `self._active = self.default`.
+  - `set_active(driver)`.
+  - `reset_active()`, which reads `self.default` then writes
+    `self._active`.
+- **Readers:** Every call site that reads `driver.active` —
+  `runtime/jit.py` (`JITFunction.run`), `compiler/compiler.py`
+  (`compile`, `CompiledKernel._init_handles`, the `__getitem__` runner),
+  `runtime/autotuner.py`, plus tools/testing. This is the hottest shared
+  object in the project.
 - **Race scenarios:**
   1. *Lazy init vs concurrent reader.* Thread A in `active` reads
      `self._active is None` and begins evaluating `self.default`, which
@@ -186,23 +184,22 @@ afterwards.
   reads `driver.active` twice: each read is individually consistent,
   but two reads can see different drivers.
 - **Key call sites:**
-  - `CompiledKernel._init_handles` (`compiler.py:453-470`) reads
-    `driver.active` four times in close succession (device,
-    launcher_cls, load_binary, warp_size).
-  - `runtime/jit.py:713-714` — `get_current_device()` then
-    `get_current_stream(device)`.
-  - `runtime/jit.py:809` — a second `get_current_device()` later in
-    the same flow, expected to agree with line 713.
-  - `runtime/autotuner.py:125,185` — `get_benchmarker()` and
+  - `CompiledKernel._init_handles` in `compiler.py` reads `driver.active`
+    four times in close succession (device, launcher_cls, load_binary,
+    warp_size).
+  - `runtime/jit.py` `JITFunction.run` — `get_current_device()` then
+    `get_current_stream(device)`, and a second `get_current_device()`
+    later in the same flow expected to agree.
+  - `runtime/autotuner.py` — `get_benchmarker()` and
     `get_current_target()` on separate statements.
 - **Race scenario:** Thread A enters `_init_handles`, reads
   `driver.active` → `D1` for device and launcher_cls. Thread B calls
-  `driver.set_active(D2)`. Thread A's next read at line 468 returns
-  `D2`. It calls `D2.utils.load_binary(...)` and stores the result on a
-  `CompiledKernel` whose `self._run` was bound to `D1.launcher_cls`.
-  `CompiledKernel.run` then hands a `D2`-loaded handle to a `D1`-bound
-  launcher. For unrelated backends, the native launch call receives a
-  handle from the wrong address space.
+  `driver.set_active(D2)`. Thread A's next read returns `D2`. It calls
+  `D2.utils.load_binary(...)` and stores the result on a `CompiledKernel`
+  whose `self._run` was bound to `D1.launcher_cls`. `CompiledKernel.run`
+  then hands a `D2`-loaded handle to a `D1`-bound launcher. For unrelated
+  backends, the native launch call receives a handle from the wrong
+  address space.
 - **Relationship to other issues:** Independent of issues #1 and #2 —
   even after the lazy-init races are closed, `set_active` is still a
   legitimate API and can fire between any two `driver.active` reads.
@@ -219,7 +216,7 @@ afterwards.
 - **Suggested fix:** Cache `driver.active` into a local at the top of
   each affected function:
   ```python
-  # compiler.py:453-470 after fix
+  # _init_handles after fix
   drv = driver.active
   device = drv.get_current_device()
   self._run = drv.launcher_cls(self.src, self.metadata)
@@ -235,21 +232,19 @@ afterwards.
 
 ## Not worth reporting
 
-- **Module-level `driver = DriverConfig()`** (`driver.py:49`). Written
-  once at import time under the import lock, never replaced. CLAUDE.md's
-  carve-out for write-once globals applies.
+- **Module-level `driver = DriverConfig()`.** Written once at import
+  time under the import lock, never replaced. CLAUDE.md's carve-out for
+  write-once globals applies.
 
-- **`backends` dict from `triton.backends`** (imported at
-  `driver.py:5`). Populated once at import time by
-  `_discover_backends()` and never mutated after. Read-only shared
-  state; not a bug on its own. If any individual backend's driver
+- **`backends` dict from `triton.backends`.** Populated once at import
+  time by `_discover_backends()` and never mutated after. Read-only
+  shared state; not a bug on its own. If any individual backend's driver
   `__init__` mutates process-global C++ state that is the backend's
   problem, not `driver.py`'s.
 
-- **`_create_driver()` reading `os.environ`** (`driver.py:9`).
-  `os.environ.get` is a single dict lookup; concurrent readers are
-  safe. Mutation of `TRITON_DEFAULT_BACKEND` at runtime is not a
-  supported workflow.
+- **`_create_driver()` reading `os.environ`.** `os.environ.get` is a
+  single dict lookup; concurrent readers are safe. Mutation of
+  `TRITON_DEFAULT_BACKEND` at runtime is not a supported workflow.
 
 - **`DriverConfig.default` property returning a stale-but-consistent
   instance after the race window closes.** Once `self._default` has

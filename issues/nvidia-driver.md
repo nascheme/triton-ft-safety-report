@@ -22,7 +22,7 @@ Related out-of-scope file (referenced but not audited here):
 |---|----------|-----------|------|-------|
 | 1 | Minor       | module globals         | 1 | [`PyCUtensorMap` / `PyKernelArg` / `ARG_*` module globals rewritten on every `CudaUtils()` call, but values are equivalent — benign staleness only](nvidia-driver/module-globals-lazy-init-race.md) |
 | 2 | Minor       | `CudaUtils` singleton  | 1 | [Broken singleton pattern: `__init__` re-runs on every call, causing duplicate `compile_module_from_src` and `dlopen` under concurrent driver bring-up](nvidia-driver/cudautils-singleton-race.md) |
-| 3 | Minor       | `CudaDriver.__init__`  | 1 | Every `CudaDriver()` instantiation triggers the full `CudaUtils()` bring-up via `self.utils = CudaUtils()` (line 336). Under the `DriverConfig.default` race in `runtime-driver/` issue #1, two concurrent default-driver constructions therefore double up the entire native init. No separate writeup; this is covered by issues #1 and #2 above. |
+| 3 | Minor       | `CudaDriver.__init__`  | 1 | Every `CudaDriver()` instantiation triggers the full `CudaUtils()` bring-up via `self.utils = CudaUtils()`. Under the `DriverConfig.default` race in `runtime-driver/` issue #1, two concurrent default-driver constructions therefore double up the entire native init. No separate writeup; this is covered by issues #1 and #2 above. |
 
 ## Triage notes
 
@@ -45,17 +45,16 @@ objects of interest:
 ### 1. Module-level globals populated from `CudaUtils.__init__`
 
 - **Shared state:** `PyCUtensorMap`, `PyKernelArg`, `ARG_CONSTEXPR`,
-  `ARG_KERNEL`, `ARG_TUPLE` (lines 17–21). Initialized to `None`.
-- **Writers:** `CudaUtils.__init__` (lines 73–82). Rewritten on *every*
-  `CudaUtils()` call (see issue #2).
-- **Readers:** `annotate_arguments()` (lines 194–198) reads `PyKernelArg`,
-  `ARG_TUPLE`, `ARG_KERNEL`, `ARG_CONSTEXPR` unconditionally. Called from
-  `CudaLauncher.__init__` at line 302, which runs when *any*
-  `CompiledKernel` is materialized — i.e. on every compile-time or
-  load-from-cache path, on every thread.
+  `ARG_KERNEL`, `ARG_TUPLE`. Initialized to `None`.
+- **Writers:** `CudaUtils.__init__`. Rewritten on *every* `CudaUtils()`
+  call (see issue #2).
+- **Readers:** `annotate_arguments()` reads `PyKernelArg`, `ARG_TUPLE`,
+  `ARG_KERNEL`, `ARG_CONSTEXPR` unconditionally. Called from
+  `CudaLauncher.__init__`, which runs when *any* `CompiledKernel` is
+  materialized.
 - **Why the original "globals still None" scenario is not reachable:**
   The only code path to `CudaLauncher` goes through `CudaDriver.__init__`,
-  which calls `CudaUtils()` synchronously (line 336). That call blocks in
+  which calls `CudaUtils()` synchronously. That call blocks in
   `compile_module_from_src` until the module is built, then assigns all
   five globals before `CudaDriver.__init__` returns. A thread cannot have
   a `CudaDriver` reference (and therefore cannot reach `CudaLauncher`)
@@ -79,10 +78,9 @@ objects of interest:
 
 ### 2. `CudaUtils` broken singleton pattern
 
-- **Shared state:** `CudaUtils.instance` class attribute (line 62); plus all
-  the instance attributes assigned in `__init__`
-  (`self.load_binary`, `self.launch`, …, lines 83–90); plus the five module
-  globals from issue #1.
+- **Shared state:** `CudaUtils.instance` class attribute; all the instance
+  attributes assigned in `__init__` (`self.load_binary`, `self.launch`,
+  …); the five module globals from issue #1.
 - **The `__new__` TOCTOU:** Two threads arriving simultaneously can both
   observe `not hasattr(cls, "instance")` and both allocate; one
   `cls.instance` assignment wins. However, `cls.instance` is set to a bare
@@ -94,8 +92,8 @@ objects of interest:
   call re-runs `__init__`, which re-runs `compile_module_from_src`,
   re-imports the compiled extension, and rewrites the module globals and
   instance attributes. The `# TODO: make static` comment on
-  `self.utils = CudaUtils()` at line 336 shows the author was aware of
-  this smell.
+  `self.utils = CudaUtils()` in `CudaDriver.__init__` shows the author
+  was aware of this smell.
 - **Race scenario:** Any concurrent `CudaDriver()` construction lands two
   `CudaUtils()` calls in parallel. Both run `compile_module_from_src` to
   completion, each `dlopen`ing the resulting `.so`.
@@ -123,9 +121,9 @@ objects of interest:
 ### 3. `CudaDriver.__init__` does not guard `self.utils = CudaUtils()`
 
 - **Shared state:** the singleton state inside `CudaUtils` (see #2).
-- **Writer/reader:** `CudaDriver.__init__` (line 336). Every driver
-  instance unconditionally calls `CudaUtils()`, even if one has already
-  been built. The `# TODO: make static` comment flags this.
+- **Writer/reader:** `CudaDriver.__init__`. Every driver instance
+  unconditionally calls `CudaUtils()`, even if one has already been
+  built. The `# TODO: make static` comment flags this.
 - **Race scenario:** Covered entirely by issues #1 and #2. Not a separate
   bug; rather, this line is the *trigger* that turns the issue #1 and #2
   hazards into a real race whenever two threads build a `CudaDriver`
@@ -168,18 +166,18 @@ unverified.
 
 ## Not worth reporting
 
-- **`dirname`, `include_dirs`, `libdevice_dir`, `libraries`** (lines 13–16).
-  Set once at import time, never mutated. Import-lock protected.
-- **`@functools.lru_cache` on `libcuda_dirs` / `library_dirs`** (lines 24,
-  48). Free-threaded CPython's `functools.lru_cache` is internally
-  thread-safe; worst case is that the `ldconfig` subprocess runs twice on
-  first use. Benign duplicate work.
-- **`ty_to_cpp`'s inline dict literal** (lines 103–120). Rebuilt on every
-  call; not shared state.
-- **`TMA_DTYPE_DEVICE_TO_HOST` / `TMA_TF32`** (lines 203–207). Written
-  once at import time, read-only afterward.
+- **`dirname`, `include_dirs`, `libdevice_dir`, `libraries`.** Set once at
+  import time, never mutated. Import-lock protected.
+- **`@functools.lru_cache` on `libcuda_dirs` / `library_dirs`.**
+  Free-threaded CPython's `functools.lru_cache` is internally thread-safe;
+  worst case is that the `ldconfig` subprocess runs twice on first use.
+  Benign duplicate work.
+- **`ty_to_cpp`'s inline dict literal.** Rebuilt on every call; not
+  shared state.
+- **`TMA_DTYPE_DEVICE_TO_HOST` / `TMA_TF32`.** Written once at import
+  time, read-only afterward.
 - **`expand_signature`, `make_kernel_signature`, `make_tensordesc_arg`,
-  `wrap_handle_tensordesc`**. Pure functions over their arguments; the
+  `wrap_handle_tensordesc`.** Pure functions over their arguments; the
   only shared state they touch is `triton.runtime.driver.active.utils.*`,
   which is covered by the `runtime-driver/` writeups and by issues #1/#2.
 - **`CudaLauncher` instance attributes.** Written in `__init__` on a
@@ -187,6 +185,6 @@ unverified.
 - **`CudaDriver.get_current_target` / `get_active_torch_device` / etc.**
   Read-only wrappers over `torch.cuda` calls; any thread-safety concerns
   are torch's problem, not Triton's.
-- **Module-level `import torch` inside `GPUDriver.__init__`** (base class,
-  `backends/driver.py:54`). Python's import lock serializes first import;
+- **Module-level `import torch` inside `GPUDriver.__init__`** (base class
+  in `backends/driver.py`). Python's import lock serializes first import;
   subsequent constructions re-bind local names only.

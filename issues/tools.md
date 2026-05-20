@@ -46,8 +46,8 @@ def get_sass(cubin_asm, fun=None):
 ```
 
 - Called from `compiler/compiler.py`: `AsmDict.__getitem__` on the `"sass"` key
-  (two call sites: lines 343 and 395). That makes it a real runtime cache
-  shared across threads, keyed on raw `bytes` cubin payloads.
+  (two call sites). That makes it a real runtime cache shared across threads,
+  keyed on raw `bytes` cubin payloads.
 - Per-call side effects are on per-process temp files via `tempfile.mkstemp`,
   so there is no file-name collision between concurrent calls.
 - `functools.lru_cache` on free-threaded CPython uses an internal lock, so

@@ -33,7 +33,7 @@ answer.
 
 ### 1. `has_profile_allocator()` / `_profile_allocator.get()` TOCTOU
 
-- **Code (`_allocation.py:56-68`):**
+- **Code (`_allocation.py`):**
   ```python
   _profile_allocator = _AllocatorWrapper(_NULL_ALLOCATOR)
 
@@ -43,15 +43,17 @@ answer.
   def has_profile_allocator():
       return not isinstance(_profile_allocator.get(), NullAllocator)
   ```
-- **Readers on hot path (nvidia/backend/driver.py:317-319, amd/backend/driver.py:363-365):**
+- **Readers on hot path** (`nvidia/backend/driver.py`,
+  `amd/backend/driver.py`):
   ```python
   if _allocation.has_profile_allocator():
       profile_scratch = allocate_scratch(..., _allocation._profile_allocator)
   ```
-  Inside `allocate_scratch` (nvidia/backend/driver.py:301-307):
+  Inside `allocate_scratch`:
   `alloc_fn = allocator.get(); return alloc_fn(alloc_size, align, stream)`.
-- **Writer:** `proton/hooks/instrumentation.py:194, 217` —
-  `set_profile_allocator(self.allocator)` / `set_profile_allocator(NullAllocator())`.
+- **Writer:** `proton/hooks/instrumentation.py` —
+  `set_profile_allocator(self.allocator)` /
+  `set_profile_allocator(NullAllocator())`.
 - **Concern:** `has_profile_allocator()` does one `.get()`; then
   `allocate_scratch` does a second `.get()` on the same wrapper. Between the
   two, a Proton instrumentation hook on another thread can call
@@ -74,7 +76,7 @@ answer.
 
 ### 2. `_AllocatorWrapper._allocator` unsynchronized read/write
 
-- **Code (`_allocation.py:37-53`):**
+- **Code (`_allocation.py`):**
   ```python
   class _AllocatorWrapper:
       def __init__(self, allocator): self._allocator = allocator
@@ -106,7 +108,7 @@ answer.
 
 ### 3. Duplicate compile / `cache.put` write race
 
-- **Code (`build.py:132-154`):**
+- **Code (`build.py` `_compile_so`):**
   ```python
   def _compile_so(src, src_path, name, ..., load_module, language):
       cache = _get_cache_manager(src, config=config)
@@ -137,10 +139,11 @@ answer.
 - **Deep-dive questions:**
   - Are concurrent first-use calls actually realistic? The main callers
     (`CudaUtils` / `HIPUtils`) are singleton-per-process, and the singleton
-    `__new__` itself has a TOCTOU (see `third_party/nvidia/backend/driver.py:95-98`)
-    that is not part of this component. Note: if both `CudaUtils()` instances
-    race, both `__init__`s overwrite module-level globals (`PyCUtensorMap`, etc.)
-    — that's a caller bug, not a build.py bug, but worth cross-referencing.
+    `__new__` itself has a TOCTOU (see `third_party/nvidia/backend/driver.py`
+    `CudaUtils.__new__`) that is not part of this component. Note: if both
+    `CudaUtils()` instances race, both `__init__`s overwrite module-level
+    globals (`PyCUtensorMap`, etc.) — that's a caller bug, not a build.py
+    bug, but worth cross-referencing.
   - Does `_build`'s `subprocess.check_call(cc_cmd, stdout=subprocess.DEVNULL)`
     interact badly with concurrent Python threads (e.g., signal handling under
     free-threading)?
@@ -150,7 +153,7 @@ answer.
 
 ### 4. Non-atomic multi-read of `knobs.build.*` during `_build`
 
-- **Code (`build.py:62-83`):**
+- **Code (`build.py` `_build`):**
   ```python
   if impl := knobs.build.impl:
       return impl(name, src, srcdir, library_dirs, include_dirs, libraries)
@@ -160,18 +163,17 @@ answer.
   cc_cmd = [cc, src, "-O3", "-shared", "-fPIC", "-Wno-psabi", "-o", so]
   ...
   ```
-  And via `_find_compiler` (line 22-47): `os.environ.get("CC")`,
-  `shutil.which("clang")`, `shutil.which("gcc")`.
+  And via `_find_compiler`: `os.environ.get("CC")`, `shutil.which("clang")`,
+  `shutil.which("gcc")`.
 - **Concern:** Parallels the `cache.py` #2 triage note. Each individual
   knob read is atomic, but the sequence (`impl`, then `backend_dirs`, then
   `cc`/`cxx` inside the lru_cache) is not. Tier 3 mutation during a compile
   could yield a mix of old and new config.
 - **Follow-on:** `knobs.build.backend_dirs` is itself a `@property` that
-  reads `self.cudacrt_path` *and* `self.cudart_path` in a single expression
-  (knobs.py:329-330). That single property evaluation is itself a two-read
-  sequence within the non-atomic multi-read described above. Both reads
-  inside the property go through the descriptor protocol, so each is atomic
-  individually.
+  reads `self.cudacrt_path` *and* `self.cudart_path` in a single expression.
+  That single property evaluation is itself a two-read sequence within the
+  non-atomic multi-read described above. Both reads inside the property go
+  through the descriptor protocol, so each is atomic individually.
 - **Deep-dive questions:**
   - What real workflow mutates `knobs.build.impl` at runtime? If this is
     "set once before any compile", it's not worth reporting (write-once after
@@ -183,7 +185,7 @@ answer.
 
 ### 5. `@functools.lru_cache` on `_find_compiler` freezes first-seen env
 
-- **Code (`build.py:21-47`):**
+- **Code (`build.py` `_find_compiler`):**
   ```python
   @functools.lru_cache()
   def _find_compiler(language: str) -> str:
@@ -210,7 +212,7 @@ answer.
 
 ### 6. Concurrent `exec_module` of the same `.so` cache file
 
-- **Code (`build.py:108-114`):**
+- **Code (`build.py` `_load_module_from_path`):**
   ```python
   def _load_module_from_path(name: str, path: str) -> ModuleType:
       spec = importlib.util.spec_from_file_location(name, path)
@@ -247,29 +249,31 @@ answer.
 
 ## Not worth reporting (initial pass)
 
-- **`_allocator: ContextVar[Allocator]`** (`_allocation.py:26`). `ContextVar`
-  is thread-safe and context-local by design. Matches CLAUDE.md's
-  `ContextVar`-based state carve-out.
-- **`NullAllocator` / `_NULL_ALLOCATOR`** module-level singleton — stateless,
-  immutable.
-- **`@functools.lru_cache` on `platform_key()`** (`build.py:94`). Pure
-  function over `platform.machine()` / `system()` / `architecture()`. Same
+- **`_allocator: ContextVar[Allocator]`** in `_allocation.py`.
+  `ContextVar` is thread-safe and context-local by design. Matches
+  CLAUDE.md's `ContextVar`-based state carve-out.
+- **`NullAllocator` / `_NULL_ALLOCATOR`** module-level singleton —
+  stateless, immutable.
+- **`@functools.lru_cache` on `platform_key()`**. Pure function over
+  `platform.machine()` / `system()` / `architecture()`. Same
   internal-sync story as `_find_compiler` but with no env dependency.
 - **`_language_from_filename`, `_get_file_extension`, `_library_flag`** —
   pure functions.
-- **`tempfile.TemporaryDirectory()` in `_compile_so` / `_compile_so_from_src`**
-  — each call creates a unique directory with a random name; no sharing.
+- **`tempfile.TemporaryDirectory()` in `_compile_so` /
+  `_compile_so_from_src`** — each call creates a unique directory with a
+  random name; no sharing.
 - **`subprocess.check_call(cc_cmd, stdout=subprocess.DEVNULL)`** — each
   call uses an independent process and independent pipes. Compiler
   concurrency is the OS's job.
 - **Module-level imports of `knobs`, `get_cache_manager`** — write-once at
   import time.
-- **`set_allocator(allocator)`** (`_allocation.py:29-34`). Writes to a
+- **`set_allocator(allocator)`** in `_allocation.py`. Writes to a
   `ContextVar`; `ContextVar.set` is thread-safe.
 
 ## Caller-side concerns noted but out of scope
 
-- **`CudaUtils.__new__` singleton TOCTOU** (`third_party/nvidia/backend/driver.py:95-98`):
+- **`CudaUtils.__new__` singleton TOCTOU** in
+  `third_party/nvidia/backend/driver.py`:
   ```python
   def __new__(cls):
       if not hasattr(cls, "instance"):
@@ -277,10 +281,10 @@ answer.
       return cls.instance
   ```
   Two concurrent first-use calls can both pass the `hasattr` check, both
-  construct, and both run `__init__`, which overwrites module-level globals
-  `PyCUtensorMap`, `PyKernelArg`, `ARG_CONSTEXPR`, `ARG_KERNEL`, `ARG_TUPLE`
-  (driver.py:108-117). Belongs in the `nvidia-driver` / eventual
-  `amd-driver` component audit, not here. Flagged for cross-reference.
+  construct, and both run `__init__`, which overwrites module-level
+  globals `PyCUtensorMap`, `PyKernelArg`, `ARG_CONSTEXPR`, `ARG_KERNEL`,
+  `ARG_TUPLE`. Belongs in the `nvidia-driver` / eventual `amd-driver`
+  component audit, not here. Flagged for cross-reference.
 - **`compile_module_from_file` result is used to repopulate module globals**
   in backend drivers. The build step itself is fine; the post-build
   assignments are the caller's concurrency concern.

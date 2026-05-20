@@ -8,14 +8,13 @@
 - **Tier:** 2
 
 - **Shared state:** `self.nargs` — a `dict` set on the shared `Autotuner`
-  instance at the start of every `run()` (line 213) and `warmup()` (line 288),
-  cleared at exit (lines 257, 296).
+  instance at the start of every `run()` and `warmup()`, cleared at exit.
 - **Writer(s):** Every `run()` and `warmup()` caller overwrites `self.nargs`
   unconditionally with its own arguments.
-- **Reader(s):** `_bench()` (line 143: `full_nargs = {**self.nargs, ...}`),
-  `prune_configs()` (line 263: `early_config_prune(self.configs, self.nargs, ...)`
-  and line 278: `self.perf_model(**self.nargs, ...)`), `benchmark()` inner
-  function (line 233), and `run()` post-benchmark (line 250).
+- **Reader(s):** `_bench()` (`full_nargs = {**self.nargs, ...}`),
+  `prune_configs()` (`early_config_prune(self.configs, self.nargs, ...)`
+  and `self.perf_model(**self.nargs, ...)`), `benchmark()` inner function,
+  and `run()` post-benchmark.
 - **Race scenario:** Thread A calls `run(x_ptr, 1024)`, setting `self.nargs`
   to `{name: x_ptr, N: 1024}`. Thread B calls `run(y_ptr, 2048)`, overwriting
   `self.nargs` with `{name: y_ptr, N: 2048}`. Thread A's in-progress

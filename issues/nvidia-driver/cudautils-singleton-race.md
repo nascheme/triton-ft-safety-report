@@ -6,15 +6,15 @@
 - **Component:** `third_party/nvidia/backend/driver.py`
 - **Tier:** 1
 
-- **Shared state:** `CudaUtils.instance` class attribute (line 62); all
-  `self.*` instance attributes (lines 83–90); the five module globals
-  from [issue #1](module-globals-lazy-init-race.md).
+- **Shared state:** `CudaUtils.instance` class attribute; all `self.*`
+  instance attributes set in `__init__`; the five module globals from
+  [issue #1](module-globals-lazy-init-race.md).
 - **Writer(s):** `CudaUtils()` — `__new__` has a TOCTOU on
-  `hasattr(cls, "instance")` (lines 59–61), and `__init__` re-runs on
-  every call because `type.__call__` always invokes `__init__` on the
-  returned object, even for a cached instance.
+  `hasattr(cls, "instance")`, and `__init__` re-runs on every call
+  because `type.__call__` always invokes `__init__` on the returned
+  object, even for a cached instance.
 - **Reader(s):** `CudaLauncher.__init__` reads instance attributes like
-  `utils.launch` and `utils.build_signature_metadata` (lines 300, 183).
+  `utils.launch` and `utils.build_signature_metadata`.
 - **Race scenario:** Two concurrent `CudaDriver()` calls both enter
   `CudaUtils()`.  Both run `compile_module_from_src` and `dlopen` the
   same `.so`.  The values produced are functionally equivalent (same

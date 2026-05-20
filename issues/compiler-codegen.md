@@ -11,9 +11,9 @@ The earlier `compiler/` pass (see [`compiler.md`](compiler.md))
 already touched `code_generator.py` lightly and filed
 [`code-generator-gscope-iteration-race.md`](compiler/code-generator-gscope-iteration-race.md).
 This report is a wider, surface-level sweep intended to enumerate every
-remaining candidate worth a deep-dive. Each entry below points at the lines and
-the question another agent should answer before deciding whether to upgrade
-into a separate issue file.
+remaining candidate worth a deep-dive. Each entry below points at the question
+another agent should answer before deciding whether to upgrade into a separate
+issue file.
 
 ## Issues
 
@@ -39,41 +39,38 @@ finding.
 
 A grep for module-level mutable state on `code_generator.py`:
 
-- `_condition_types = {bool, int, type(None)}` (`code_generator.py:108`) — set
+- `_condition_types = {bool, int, type(None)}` (module-level) — set
   literal of three immutable types; never mutated.
-- `CodeGenerator.builtin_namespace` (`code_generator.py:343-351`) — class-body
+- `CodeGenerator.builtin_namespace` — class-body
   dict populated at class-definition time from `(len, list, range, float, int,
   isinstance, getattr, hasattr)` plus three explicit overrides; never mutated
   after class body finishes executing.
-- `CodeGenerator._method_name_for_bin_op` (`code_generator.py:782-795`),
-  `_method_name_for_bool_op` (line 1496), `_method_name_for_comp_op` (line
-  1054-1056), `_method_name_for_unary_op` (line 1073-1075) — all class-body
+- `CodeGenerator._method_name_for_bin_op`, `_method_name_for_bool_op`,
+  `_method_name_for_comp_op`, `_method_name_for_unary_op` — all class-body
   literal dicts, frozen.
-- `CodeGenerator.statically_implemented_functions` (`code_generator.py:1614-1622`)
-  — class-body literal dict, frozen.
-- The `from ..experimental.gluon import language as ttgl` at
-  `code_generator.py:1614` is inside the class body and runs at class-definition
-  time, protected by Python's import lock.
+- `CodeGenerator.statically_implemented_functions` — class-body literal dict,
+  frozen.
+- The `from ..experimental.gluon import language as ttgl` is inside the class
+  body and runs at class-definition time, protected by Python's import lock.
 
 None of these are reportable; they are all "write-once at import / class body
 execution" per CLAUDE.md.
 
 ### Per-CodeGenerator instance state — per-call, not cross-thread
 
-`CodeGenerator.__init__` (`code_generator.py:276-341`) builds the instance
-fields fresh per call:
+`CodeGenerator.__init__` builds the instance fields fresh per call:
 
 - `self.gscope`, `self.lscope`, `self.local_defs`, `self.return_vals`,
   `self.return_ips`, `self.scf_stack`, `self.function_ret_types`, `self.module`,
   `self.builder`, `self.semantic`.
 
 `function_ret_types` deserves a one-line callout: it is threaded into recursive
-`CodeGenerator(...)` constructions for callee compilation
-(`code_generator.py:1331-1336`, `function_types=self.function_ret_types`) so the
-same dict is **shared across recursion within one `ast_to_ttir` call**. The
-TOCTOU at `code_generator.py:1328` (`self.module.has_function(fn_name)`) →
-either `self.function_ret_types[fn_name] = callee_ret_type` (line 1346) or
-`self.function_ret_types[fn_name]` (line 1348) is benign within one call
+`CodeGenerator(...)` constructions for callee compilation in
+`call_JitFunction` (`function_types=self.function_ret_types`) so the same dict
+is **shared across recursion within one `ast_to_ttir` call**. The
+TOCTOU at `self.module.has_function(fn_name)` →
+either `self.function_ret_types[fn_name] = callee_ret_type` or
+`self.function_ret_types[fn_name]` is benign within one call
 (single thread of recursion) but would be a real race if anyone ever shared a
 pre-built `CodeGenerator` across threads. `ast_to_ttir` always constructs a
 fresh top-level `CodeGenerator` per `compile()` call, so this is currently
@@ -87,22 +84,22 @@ Already documented in
 
 The relevant call sites in `code_generator.py` are:
 
-- `CodeGenerator.__init__` line 309-319 (top-level kernel)
-- `call_JitFunction` line 1331 (recursive callee compile)
-- `ContainsReturnChecker.__init__` (line 134) and its `gscope[name]` reads at
-  lines 165, 166, 175, 176 — also takes `self.gscope` by reference and walks
-  the AST while reading from it. If `gscope` is the live `fn.__globals__` (no
-  closure), then concurrent module-level rebinds in another thread make even
-  these reads "iteration over a concurrently-mutated mapping" because
-  `ast.NodeVisitor.generic_visit` walks an unbounded set of names and reads each
-  one — same fix (snapshot) covers it.
+- `CodeGenerator.__init__` (top-level kernel, gscope-rewrite loop)
+- `call_JitFunction` (recursive callee compile)
+- `ContainsReturnChecker.__init__` and its `gscope[name]` reads — also takes
+  `self.gscope` by reference and walks the AST while reading from it. If
+  `gscope` is the live `fn.__globals__` (no closure), then concurrent
+  module-level rebinds in another thread make even these reads "iteration
+  over a concurrently-mutated mapping" because `ast.NodeVisitor.generic_visit`
+  walks an unbounded set of names and reads each one — same fix (snapshot)
+  covers it.
 
 The existing fix (snapshot in `JITFunction.get_capture_scope` no-closure
 branch) repairs all three call sites at once. No new issue file required.
 
 ### 2. `module_map` target-module attribute reads during `gscope` rewrite
 
-`code_generator.py:309-319`:
+In `CodeGenerator.__init__`:
 
 ```python
 self.gscope = {}
@@ -117,9 +114,9 @@ for k, v in gscope.items():
         self.gscope[k] = v
 ```
 
-`module_map` is supplied by the backend (`get_module_map()` at
-`third_party/nvidia/backend/compiler.py:231-233`,
-`third_party/amd/backend/compiler.py:171`). For NVIDIA it is
+`module_map` is supplied by the backend (`get_module_map()` in
+`third_party/nvidia/backend/compiler.py` and
+`third_party/amd/backend/compiler.py`). For NVIDIA it is
 `{"triton.language.extra.libdevice": libdevice}`. The dict itself is a fresh
 literal per `compile()` call, but **its values are live module objects**.
 
@@ -139,11 +136,11 @@ the module mid-compile."
 `triton.language.extra.libdevice` or any other `module_map` value after import?
 If no, downgrade to "not worth reporting." If a backend or extra package does,
 file as Tier 1 minor. Same question applies to the `visit_Attribute`
-fixed-point walk at `code_generator.py:1509-1517`.
+fixed-point walk.
 
 ### 3. `inspect.signature(fn)` on user callables during call lowering
 
-`code_generator.py:1374-1383`:
+In the call-lowering branch of `visit_Call`:
 
 ```python
 sig = getattr(fn, "signature", None)
@@ -177,10 +174,9 @@ answer this.
 
 Two warning emission sites:
 
-- `code_generator.py:935` — block-tensor `if` deprecation warning, fired when
-  the user passes a block tensor to a non-`item()`-converted `if`.
-- `code_generator.py:1472-1478` — boolean `and`/`or` on non-scalar tensors
-  deprecation warning.
+- block-tensor `if` deprecation warning, fired when the user passes a block
+  tensor to a non-`item()`-converted `if`.
+- boolean `and`/`or` on non-scalar tensors deprecation warning.
 
 `warnings.warn` consults the process-global `warnings.filters` list and the
 per-module `__warningregistry__` dict. Both are mutable globals.
@@ -197,7 +193,7 @@ but worth a one-line grep.
 
 ### 5. `JITFunction._src` rebind during `parse()`
 
-`runtime/jit.py:543-548`:
+In `JITFunction.parse`:
 
 ```python
 def parse(self):
@@ -206,14 +202,13 @@ def parse(self):
     ...
 ```
 
-`self._src` is a string set in `JITFunction.__init__` (`runtime/jit.py:486`)
-and may be replaced by `_unsafe_update_src` (`runtime/jit.py:558`). Strings are
-immutable, so a single attribute load gives a stable snapshot. **No race in
-the read itself.**
+`self._src` is a string set in `JITFunction.__init__` and may be replaced by
+`_unsafe_update_src`. Strings are immutable, so a single attribute load gives
+a stable snapshot. **No race in the read itself.**
 
-But: `parse()` is called from compile-path code (`code_generator.py:1338`,
-`code_generator.py:1656`) and also from `JITFunction.cache_key` (`runtime/jit.py:526`,
-under `_hash_lock`). If thread A is mid-compile parsing the old `_src` while
+But: `parse()` is called from compile-path code (`code_generator.py`
+`call_JitFunction` / `visit_FunctionDef`) and also from `JITFunction.cache_key`
+(under `_hash_lock`). If thread A is mid-compile parsing the old `_src` while
 thread B does `_unsafe_update_src`, the two threads see two different ASTs.
 The cache key was computed against whichever `_src` was visible at hash time
 — if a swap happens between hash and parse, the compiled kernel would be
@@ -227,7 +222,7 @@ observable point.
 
 ### 6. Builder attribute storage (`codegen_fns` / `module_map` / `options`)
 
-`code_generator.py:296`, `300`, `301`:
+In `CodeGenerator.__init__`:
 
 ```python
 self.builder.options = options
@@ -254,7 +249,7 @@ the builder. Mainly a robustness audit point — current usage doesn't share.
 
 ### 7. Lazy intra-function imports of the semantic classes
 
-`code_generator.py:281-288`:
+In `CodeGenerator.__init__`:
 
 ```python
 if is_gluon:
@@ -284,10 +279,10 @@ unlikely. Listed for completeness.
 
 ### 8. Backend-supplied `module_map` / `codegen_fns` identity across `compile()` calls
 
-NVIDIA `get_codegen_implementation` (`third_party/nvidia/backend/compiler.py:221-229`)
-and `get_module_map` (line 231-233) both return **fresh dict literals** per
-call. AMD does the same (`third_party/amd/backend/compiler.py:168,171`). So
-those dicts are not shared across compile invocations.
+NVIDIA `get_codegen_implementation` (in `third_party/nvidia/backend/compiler.py`)
+and `get_module_map` both return **fresh dict literals** per call. AMD does
+the same (`third_party/amd/backend/compiler.py`). So those dicts are not
+shared across compile invocations.
 
 But the dict **values** are shared — `cuda.convert_custom_float8_sm80`,
 `min_dot_size(self.target)`, `libdevice` module — all are process-global. If

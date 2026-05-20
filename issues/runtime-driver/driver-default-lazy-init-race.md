@@ -3,15 +3,15 @@
 - **Status:** Open
 - **Patch:** `driver-default-lazy-init-race.patch` (add a `threading.Lock` to `DriverConfig` and use double-checked locking in `default`/`active`; also serializes `set_active`/`reset_active`. Also fixes `driver-active-set-active-race.md`.)
 - **Severity:** Significant
-- **Component:** `runtime/driver.py:30-34`
+- **Component:** `runtime/driver.py` (`DriverConfig.default`)
 - **Tier:** 1
 
 - **Shared state:** `DriverConfig._default` on the module-level singleton
   `driver`. Starts `None`, populated lazily by the `default` property.
-- **Writer(s):** `default` getter at line 33
-  (`self._default = _create_driver()`), no lock.
-- **Reader(s):** `default` getter and transitively `active` getter
-  (line 38-39), read from every hot path in the project.
+- **Writer(s):** `default` getter (`self._default = _create_driver()`),
+  no lock.
+- **Reader(s):** `default` getter and transitively `active` getter, read
+  from every hot path in the project.
 - **Race scenario:** Thread A and B both call `driver.active` for the first
   time. Both read `self._default is None` → `True` and enter
   `_create_driver()` concurrently. For the NVIDIA backend this runs
