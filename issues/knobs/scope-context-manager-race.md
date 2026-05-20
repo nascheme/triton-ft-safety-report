@@ -3,6 +3,7 @@
 - **Status:** Open
 - **Severity:** Significant
 - **Component:** `python/triton/knobs.py` (`base_knobs.scope`)
+- **Tier:** 3
 
 - **Shared state:** `self.__dict__` of the module-level knob singleton on
   which `scope()` is invoked (e.g. `knobs.compilation`), and `os.environ`

@@ -25,10 +25,10 @@ See [OVERVIEW.md](OVERVIEW.md) for an architectural overview of the Triton codeb
 | [cache](issues/cache.md) | Ongoing | 0 | 0 | 4 | 4 |
 | [knobs](issues/knobs.md) | Ongoing | 1 | 4 | 3 | 8 |
 | [backends](issues/backends.md) | Ongoing | 0 | 0 | 2 | 2 |
-| [ir](issues/ir.md) | Ongoing | 4 | 3 | 1 | 8 |
-| [llvm](issues/llvm.md) | Ongoing | 2 | 5 | 1 | 8 |
+| [ir](issues/ir.md) | Ongoing | 0 | 1 | 7 | 8 |
+| [llvm](issues/llvm.md) | Ongoing | 2 | 1 | 5 | 8 |
 | [src-main](issues/src-main.md) | Ongoing | 0 | 0 | 1 | 1 |
-| [src-passes](issues/src-passes.md) | Ongoing | 0 | 2 | 2 | 4 |
+| [src-passes](issues/src-passes.md) | Ongoing | 0 | 1 | 3 | 4 |
 | [runtime-build](issues/runtime-build.md) | Ongoing | 0 | 1 | 5 | 6 |
 | [interpreter](issues/interpreter.md) | Ongoing | 2 | 2 | 3 | 7 |
 | [compiler-codegen](issues/compiler-codegen.md) | Ongoing | 0 | 0 | 0 | 0 |
@@ -36,7 +36,7 @@ See [OVERVIEW.md](OVERVIEW.md) for an architectural overview of the Triton codeb
 | [language](issues/language.md) | Ongoing | 0 | 0 | 6 | 6 |
 | [tools](issues/tools.md) | Ongoing | 0 | 0 | 4 | 4 |
 | [experimental](issues/experimental.md) | Ongoing | 0 | 3 | 4 | 7 |
-| **Total** | | **18** | **43** | **44** | **105** |
+| **Total** | | **14** | **36** | **55** | **105** |
 
 ## Components
 
@@ -137,10 +137,14 @@ Typical risks:
 - launch-path hook chains *read* under concurrent reads
 - async-compile bookkeeping (`FutureKernel` result caching)
 
-Open question to confirm with maintainers: is `MLIRContext` per-compile or
-shared across threads? Multi-threaded compile already works under the GIL,
-so either it is per-compile or shared use is already protected. The answer
-determines the size of the `ir/` and `native-helpers/` Tier 2 fix list.
+`MLIRContext` was confirmed to be per-compile, not shared across
+threads: every `ir.context()` caller (`compiler.py:239`/`:300`,
+`_filecheck.py:70`, the proton instrumentation hook, and tests)
+constructs the context as a function-local variable. The Tier 2 SEVERE
+candidates in `ir.md` (#2/#3/#4) were therefore downgraded to Minor
+(latent only) — the unsafe patterns are real but unreachable until a
+future change starts caching or pooling contexts. See the open-questions
+resolution at the bottom of `issues/ir.md` for the call-site trace.
 
 ### Tier 3 — Concurrent configuration mutation (tracked, not a goal)
 

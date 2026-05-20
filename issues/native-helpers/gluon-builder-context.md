@@ -3,6 +3,7 @@
 - **Status:** Open
 - **Severity:** Significant
 - **Component:** `python/src/gluon_ir.cc`
+- **Tier:** 2
 
 - **Shared state:** The `MLIRContext` referenced by every `GluonOpBuilder`.
   `GluonOpBuilder`'s base `TritonOpBuilder` holds an `OpBuilder` constructed

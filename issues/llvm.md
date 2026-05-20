@@ -7,10 +7,10 @@
 | 1 | SEVERE      | 1/2 | `setLLVMOption` / `restoreLLVMOption` / `ScopedLLVMOption` | Process-global `llvm::cl::opt<>` state mutated from GIL-released compile paths; RAII "original-value" capture interleaves between threads |
 | 2 | SEVERE      | 1/2 | `dumpSchedulingDAG` stderr redirection                     | Process-wide `dup` / `freopen(stderr)` / `dup2` sequence races with other threads and other Python I/O |
 | 3 | Significant | 1/2 | `llvm::TimePassesIsEnabled` / `llvm::TimePassesPerRun`     | Process-global timing flags and `reportAndResetTimings` used from GIL-released `translateLLVMIRToASM` |
-| 4 | Significant | 1   | `init_targets` — `llvm::parallel::strategy` write          | Unconditional write outside the `std::call_once` block; data race on the global strategy object |
-| 5 | Significant | 2   | `to_module` binding                                        | `py::call_guard<py::gil_scoped_release>` around `translateModuleToLLVMIR` with a user-supplied `mlir::ModuleOp` and `llvm::LLVMContext` |
-| 6 | Significant | 2   | `optimize_module` binding                                  | `py::call_guard<py::gil_scoped_release>` around `PassBuilder` / `ModulePassManager::run` operating on a user-supplied `llvm::Module` |
-| 7 | Significant | 2   | `llvm::Module` mutation bindings (`add_flag`, `add_fn_attr`, `set_nvvm_maxnreg`, `link_extern_libs`, ...) | Free-threaded Python removes the GIL; concurrent mutation of a shared `llvm::Module` / `llvm::Function` is UB |
+| 4 | Minor       | 2   | `init_targets` — `llvm::parallel::strategy` write          | Unconditional write outside the `std::call_once` block. Concurrent compile threads write the same value (`hardware_concurrency(1)`); technically UB but observable outcome converges. |
+| 5 | Minor (latent) | 2 | `to_module` binding                                        | `py::call_guard<py::gil_scoped_release>` around `translateModuleToLLVMIR` with a user-supplied `mlir::ModuleOp` and `llvm::LLVMContext`. Downgraded: both backends construct fresh per-compile contexts and modules; not reachable today. |
+| 6 | Minor (latent) | 2 | `optimize_module` binding                                  | `py::call_guard<py::gil_scoped_release>` around `PassBuilder` / `ModulePassManager::run` operating on a user-supplied `llvm::Module`. Downgraded: per-compile module, not shared. |
+| 7 | Minor (latent) | 2 | `llvm::Module` mutation bindings (`add_flag`, `add_fn_attr`, `set_nvvm_maxnreg`, `link_extern_libs`, ...) | Concurrent mutation of a shared `llvm::Module` / `llvm::Function` would be UB. Downgraded: backends only mutate the per-compile module they just created; never shared across threads. |
 | 8 | Minor       | 3   | `init_triton_stacktrace_hook` / `llvm::sys::AddSignalHandler` | Process-global signal handler registration; typically one-shot but not guarded |
 
 Issues in `python/src/llvm.cc` — the pybind11 surface that wraps LLVM/MLIR
@@ -22,9 +22,11 @@ explicitly (`translate_to_asm`, `translate_to_mir`, `translate_mir_to_asm`,
 (`to_module`, `optimize_module`), and those regions touch process-global LLVM
 state.
 
-Individual issue files should be written for at least the SEVERE items
-(#1, #2) and likely for the Significant items #3 and #5/#6 as well. Issues
-#4, #7, #8 can stay as triage notes unless deeper investigation promotes them.
+Individual issue files exist for the SEVERE items (#1, #2) and for the
+Significant item #3. Issues #5/#6/#7 were downgraded to Minor (latent) on
+the deeper-audit pass — see the per-compile-vs-shared resolution in the
+"Open questions" section at the bottom of this file. Issues #4 and #8
+remain as triage notes only.
 
 See the triage notes below for the reasoning behind each entry and for items
 that were considered and rejected.
@@ -289,47 +291,90 @@ follow-up.
   or do not mutate the global timing flags from pybind11 bindings at all and
   instead set them through LLVM's existing API once during `init_targets`.
 
-### 4. `init_targets` — `llvm::parallel::strategy` write after `call_once` (Significant)
+### 4. `init_targets` — `llvm::parallel::strategy` write after `call_once` (Minor)
 
-- **Shared state:** `llvm::parallel::strategy` — a process-global object
-  controlling the default parallel strategy.
+- **Shared state:** `llvm::parallel::strategy` — a process-global
+  `ThreadPoolStrategy` controlling the default parallel strategy.
 - **Writer:** `init_targets`: a `std::call_once` block does the one-shot
   target init correctly, but the following
   `llvm::parallel::strategy = llvm::hardware_concurrency(1);` statement
-  is **outside** the once block and runs on every call.
-- **Race scenario:** Two threads calling `init_targets` concurrently both
-  perform assignment to `llvm::parallel::strategy`. Even though the value is
-  the same, under the C++ memory model this is a data race on a non-atomic
-  object.
-- **Severity:** Significant. Same-value race on an ordinary object is UB per
-  C++ even if it appears benign on tested platforms. Also, if a future change
-  makes the assigned value non-constant (e.g. parameterize concurrency), the
-  race becomes materially wrong.
-- **Fix direction:** move the `llvm::parallel::strategy` assignment inside
-  the `std::call_once` block so the write is serialized with the target
-  initialization.
+  is **outside** the once block and runs on every call. Called per-compile
+  from `nvidia/backend/compiler.py:415` and `amd/backend/compiler.py:406`
+  inside the `make_llir` stage.
+- **Race scenario:** Two compile threads (Tier 2) call `init_targets`
+  concurrently, both assign to `llvm::parallel::strategy`. The value is the
+  same in both writes (`hardware_concurrency(1)` is a free function
+  returning a fixed struct), so this is a same-value race on a non-atomic
+  object. Technically UB; the observable steady state is correct.
+- **Severity:** Minor. Same-value writes converge to the right value; the
+  only practical risk is a reader observing a torn struct during the write
+  window, and Triton specifically requests `concurrency(1)` so LLVM's
+  internal thread pool isn't exercised anyway. If a future change ever
+  makes the assigned value non-constant (e.g. parameterized concurrency),
+  the race becomes materially wrong and the severity would rise.
+- **Tier:** Tier 2 (only races when multiple compile threads are active).
+  The earlier "Tier 1" label was wrong — under Tier 1 only one thread
+  enters `init_targets`.
+- **Fix direction:** trivial — move the `llvm::parallel::strategy`
+  assignment inside the `std::call_once` block.
 
-### 5. `to_module` binding runs MLIR -> LLVM IR with GIL released (Significant)
+### 5. `to_module` binding runs MLIR -> LLVM IR with GIL released (Minor, latent)
 
 - **Binding:** `m.def("to_module", ...)`, declared with
   `py::keep_alive<0, 2>()` and
   `py::call_guard<py::gil_scoped_release>()`.
-- **Shared state:** the user-supplied `mlir::ModuleOp` and the user-supplied
-  `llvm::LLVMContext`. Both are Python-wrapped objects that can be referenced
-  from multiple threads. MLIR IR data structures and `llvm::LLVMContext` are
-  not thread-safe for concurrent access.
-- **Race scenario:** Two Python threads call `to_module(mod_a, ctx)` and
-  `to_module(mod_b, ctx)` with the same `llvm::LLVMContext` wrapper. With the
-  GIL released, `translateModuleToLLVMIR` runs concurrently, mutating the
-  shared context (types, constants, metadata interning tables) without
+- **Shared state (pattern):** the user-supplied `mlir::ModuleOp` and the
+  user-supplied `llvm::LLVMContext`. If shared, `translateModuleToLLVMIR`
+  would mutate the context's interning tables concurrently without
   synchronization.
-- **Tier:** Tier 2 (and Tier 1 if the Python side keeps a single
-  `llvm::LLVMContext` and hands it to compiles from multiple threads — which
-  is exactly what `triton/python/triton/backends/*.py` and
-  `triton/python/triton/compiler/compiler.py` should be audited for).
-- **Fix direction:** either document and enforce that each thread uses its
-  own `LLVMContext`, or add a context-level lock. Requires confirming the
-  Python-side usage pattern before choosing. Needs deeper investigation.
+- **Verification (per-compile, not shared):** Both call sites construct a
+  fresh context as a function-local variable immediately before calling
+  `to_module`:
+  - `third_party/nvidia/backend/compiler.py` `make_llir`:
+    `context = llvm.context(); llvm_mod = llvm.to_module(mod, context); ...;
+    del llvm_mod; del context`
+  - `third_party/amd/backend/compiler.py` `make_llir`: same pattern.
+  The `mlir::ModuleOp` passed in is also per-compile (the
+  `MLIRContext` is per-compile per the `ir.md` Open-questions
+  resolution). Nothing in the shipping Python codebase shares the
+  `LLVMContext` or the `ModuleOp` across threads.
+- **Downgrade:** the binding's GIL-release pattern is real but
+  unreachable today; the race is latent only. Severity Minor — flag for
+  re-review if any caller ever caches or shares an `llvm::LLVMContext`.
+
+### 6. `optimize_module` binding runs the LLVM pass pipeline with GIL released (Minor, latent)
+
+- **Binding:** `m.def("optimize_module", ...)`, declared with
+  `py::call_guard<py::gil_scoped_release>()`.
+- **Shared state (pattern):** the user-supplied `llvm::Module*` and its
+  `LLVMContext`. If shared, two `optimize_module` calls would race on
+  module mutation and context interning maps.
+- **Verification (per-compile, not shared):** both backends pass the
+  same fresh `llvm_mod` they just produced from `to_module`, in the
+  same `make_llir` body, and discard it before returning the textual
+  IR. No code path reuses the `llvm::Module` across threads.
+- **Downgrade:** Minor. The remaining global-state risk in the binding
+  body — flag forwarding into `cl::opt<>` — is already covered by
+  issue #1. Re-promote if any caller ever shares an `llvm::Module`.
+
+### 7. `llvm::Module` mutation bindings on shared module objects (Minor, latent)
+
+- **Shared state (pattern):** the Python-wrapped `llvm::Module*` and
+  `llvm::Function*`.
+- **Exposed mutators:** `add_flag`, `add_fn_attr`, `remove_fn_attr`,
+  `add_fn_asan_attr`, `add_fn_target_feature`, `set_nvvm_maxnreg`,
+  `set_calling_conv`, `link_extern_libs`, plus the `FunctionListType`
+  iterator. All directly mutate the underlying `llvm::Module` /
+  `llvm::Function`.
+- **Verification (per-compile, not shared):** every call to these
+  mutators in `third_party/{nvidia,amd}/backend/compiler.py` operates
+  on the per-compile `llvm_mod` produced by `to_module` in the same
+  function body. The module is dropped before `make_llir` returns;
+  only the stringified IR is propagated to later stages. No other
+  caller exists in the shipping codebase.
+- **Downgrade:** Minor. The bindings have no internal locking, so if a
+  future caller ever shared an `llvm::Module` across threads the race
+  would be real, but no such caller exists today.
 
 ### 6. `optimize_module` binding runs the LLVM pass pipeline with GIL released (Significant)
 
@@ -419,11 +464,18 @@ follow-up.
 
 ## Open questions for the deeper audit
 
-- Does the Python side ever call any of the GIL-released bindings concurrently
-  from multiple threads with a shared `llvm::LLVMContext`? Start from
-  `triton/python/triton/compiler/compiler.py` and the backend-specific
-  compile paths (NVIDIA/AMD backends). This determines whether issues #5
-  and #6 are Tier 2 theoretical or Tier 1/2 immediate.
+- **Resolved (2026-05):** Does the Python side ever share an
+  `llvm::LLVMContext` or `llvm::Module` across threads? **No.** Both
+  `third_party/nvidia/backend/compiler.py` (`make_llir`) and
+  `third_party/amd/backend/compiler.py` (`make_llir`) build a fresh
+  `context = llvm.context()` and a fresh `llvm_mod = llvm.to_module(...)`
+  as function-local variables per compile, then drop them before
+  returning. The `mlir::ModuleOp` argument is also per-compile (see
+  the `ir.md` Open-questions resolution that `MLIRContext` is
+  per-compile). The only other importer of `triton._C.libtriton.llvm`
+  is `python/test/unit/test_link.py`, which just sniffs the binding
+  via `sys.setprofile`. Issues #5/#6/#7 are therefore latent-only and
+  were downgraded to Minor.
 - Is there already a process-wide compile lock in Python (e.g. in
   `compiler.py` or `_async_compile.py`) that would implicitly serialize these
   calls? If so, the severity of #1–#3 drops until that lock is removed.

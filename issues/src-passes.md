@@ -4,8 +4,8 @@
 
 | # | Severity | Tier | Component | Issue |
 |---|----------|------|-----------|-------|
-| 1 | Significant | 2   | `ModuleAllocation` / `ModuleMembarAnalysis` bindings | Analysis objects wrap a caller-supplied `mlir::ModuleOp`; concurrent construction or `.run()` on analyses whose modules share an `MLIRContext` mutates shared MLIR state. No `py::gil_scoped_release` here, but under free-threading the attached-thread-state model does not serialize Python threads — transitively the same family as `ir/issues.md` issue #4 |
-| 2 | Significant | 1   | `init_plugin_passes` → `mlir::triton::plugin::loadPlugins()` (`lib/Tools/PluginUtils.cpp:147–188`) | Plain-`bool` TOCTOU on `static bool pluginsLoaded` + `static std::vector<TritonPlugin> plugins`. `passes.cc` reaches this at module init (under the import lock) but the same function is reached from `ir.cc`'s `load_dialects` at hot-path time — cross-reference to `ir/issues.md` issue #5 |
+| 1 | Minor       | 2   | `ModuleAllocation` / `ModuleMembarAnalysis` bindings | Latent only: would mutate the caller's `MLIRContext`, but the context is per-compile in the shipping codebase (same family / same downgrade as `ir.md` issue #4). Also, the `passes.analysis.allocation` / `passes.analysis.membar` bindings have no Python callers in the shipping tree today; real `ModuleAllocation` / `ModuleMembarAnalysis` use lives entirely inside C++ passes |
+| 2 | Minor       | 1   | `init_plugin_passes` → `mlir::triton::plugin::loadPlugins()` (`lib/Tools/PluginUtils.cpp:147–188`) | Plain-`bool` TOCTOU on `static bool pluginsLoaded` + `static std::vector<TritonPlugin> plugins`. Not currently reachable: module-init call sites in `passes.cc` and `ir.cc` (both under the import lock) pre-warm `pluginsLoaded = true`, so post-init `load_dialects` callers always hit the fast path. Latent risk — cross-reference to `ir.md` issue #5 |
 | 3 | Minor       | 2   | Pass-builder lambdas registered by `ADD_PASS_WRAPPER_*` / `ADD_PASS_OPTION_WRAPPER_*` | Each lambda does `pm.addPass(builder(...))` on a caller-supplied `mlir::PassManager`. Two threads sharing one `PassManager` race on that object; two threads on separate `PassManager`s do not. Contract concern, not a file-local bug — see triage notes |
 | 4 | Minor       | 2   | Pass-builder factory functions (`createTritonGPUCoalesce`, `createConvertTritonToTritonGPU`, …) | `ADD_PASS_WRAPPER_0` etc. invoke MLIR pass-factory free functions each time the binding is called. Most are plain `new PassT(...)`, but a deeper audit should spot-check for factory-local static state (per-pass option registries, one-shot diagnostics, plugin-side factories) |
 | 5 | Not worth reporting | — | `m.def(...)` / `py::class_<…>` registrations inside `init_triton_passes_*` | Registrations run once from the `PYBIND11_MODULE` body under CPython's import lock — write-once module init, covered by CLAUDE.md "low-value patterns" |
@@ -15,14 +15,17 @@ pass-pipeline builder functions and two analysis wrappers
 (`ModuleAllocation`, `ModuleMembarAnalysis`). This is pass-3 item #5 in the
 audit plan, below `specialize.cc`, `llvm.cc`, and `ir.cc`.
 
-No separate issue file is written at this stage; `passes.cc` is structurally
-very thin and its substantive concurrency risks route back through
-`mlir::PassManager` / `mlir::MLIRContext` semantics (already tracked in
-`ir/issues.md`) or through the plugin loader (already tracked in
-`ir/issues.md` issue #5). Items #1 and #2 should gain a separate issue file
-only if the deeper audit decides that this file needs an independently
-reviewable fix. Items #3–#5 are kept in the table as traceability notes.
-See the triage notes below for reasoning and rejected observations.
+No individual issue files are warranted. `passes.cc` is structurally very thin
+and its substantive concurrency risks route back through `mlir::PassManager` /
+`mlir::MLIRContext` semantics (already tracked in `ir.md`) or through the
+plugin loader (already tracked in `ir.md` issue #5). Item #1 was downgraded
+to Minor after verifying that (a) `MLIRContext` is per-compile in the shipping
+codebase — same resolution as `ir.md` issues #2/#3/#4 (see the open-questions
+resolution at the bottom of `ir.md`) — and (b) the `passes.analysis.allocation`
+/ `passes.analysis.membar` bindings have no Python callers in the shipping
+tree, so the analyses are not reached from Python at all today. Items #3–#5
+are kept in the table as traceability notes. See the triage notes below for
+reasoning and rejected observations.
 
 
 ## Context
@@ -101,59 +104,63 @@ means Python C API calls in these bindings are safe for the calling thread.
 
 ## Triage notes
 
-### 1. `ModuleAllocation` / `ModuleMembarAnalysis` — MLIRContext concurrency (Significant)
+### 1. `ModuleAllocation` / `ModuleMembarAnalysis` — MLIRContext concurrency (Minor — latent only)
 
-- **Shared state:** whatever state inside `mlir::MLIRContext` the
-  allocation-analysis construction and `ModuleMembarAnalysis::run`
+- **Shared state (candidate):** whatever state inside `mlir::MLIRContext`
+  the allocation-analysis construction and `ModuleMembarAnalysis::run`
   transitively touch (type/attribute uniquing tables, op insertion during
-  membar synthesis, diagnostic engine, …). Concretely: the module and its
-  context are caller-supplied and can be reused across threads.
+  membar synthesis, diagnostic engine, …). The module and its context are
+  caller-supplied.
 - **Writer(s):** `ModuleMembarAnalysis::run` inserts barrier ops into the
   module; the `ModuleAllocation` constructor performs whole-module
   analysis. Both effectively mutate MLIR-side structures hanging off the
   context.
-- **Reader(s):** any other Python-facing MLIR binding on the same context
-  (op builders in `ir.cc`, `PassManager::run` with the GIL released, the
-  other pass-builder lambdas in this file).
-- **Race scenario:** Thread A constructs or runs an analysis on module
-  `M1` tied to context `C`. Thread B runs `PassManager.run` (GIL released,
-  see `ir/issues.md` issue #2 / #4) on module `M2` also tied to `C`, or
-  runs its own analysis. Both paths mutate `C`'s uniquing tables or
-  diagnostic state — UB.
-- **Why not SEVERE here:** the bindings in `passes.cc` themselves do not
-  release the GIL, and the analyses are not on the default hot
-  `specialize` / `launch` path. The concrete failure still requires the
-  caller to share an `MLIRContext` across threads, which is the broader
-  MLIR-binding concern covered in `ir/issues.md` issue #4.
-- **Fix direction:** there is nothing to fix in `passes.cc` alone. The
-  correct resolution is at the `MLIRContext` design level (one context
-  per worker thread, or enable MLIR's internal locking on the context —
-  currently constructed with `MLIRContext::Threading::DISABLED` per
-  `ir.cc`).
-- **Tier:** Tier 2.
+- **Why not currently a bug:**
+  1. The `passes.analysis.allocation` / `passes.analysis.membar` bindings
+     have no Python call sites in the shipping tree (grep of
+     `python/`, `third_party/` for `passes.analysis`, `analysis.membar`,
+     `analysis.allocation` returns no matches). Real
+     `ModuleAllocation` / `ModuleMembarAnalysis` use is entirely inside
+     C++ passes (`third_party/{nvidia,amd}/lib/.../TritonGPUToLLVM.cpp`
+     etc.), reached only via `PassManager::run`, not via these bindings.
+  2. Even if the bindings were called, the caller-supplied `MLIRContext`
+     is per-compile in the shipping codebase. This is the same downgrade
+     argument that took `ir.md` issues #2/#3/#4 from SEVERE to Minor —
+     see the "Open questions" resolution at the bottom of `ir.md` for
+     the traced call sites (`compiler.py:239`/`:300`, `_filecheck.py:70`,
+     proton instrumentation, tests). Two concurrent compiles operate on
+     disjoint contexts, so the per-context mutation cannot race.
+- **Severity:** Minor — the unsafe pattern (no MLIR-side lock because
+  the context is built with `Threading::DISABLED`) is real and would
+  fire immediately if (a) these analysis bindings ever gain a Python
+  caller *and* (b) a future refactor caches or pools `MLIRContext`
+  objects across threads. Today neither condition holds.
+- **Fix direction:** nothing to fix in `passes.cc` alone. Resolution is at
+  the `MLIRContext` design level (one context per thread, or rebuild with
+  `Threading::ENABLED`) and would land alongside the `ir.md` #2/#3/#4
+  family. No fix needed today.
+- **Tier:** Tier 2 in shape, but unreachable.
 
-### 2. `init_plugin_passes` → `loadPlugins()` TOCTOU (Significant, cross-reference)
+### 2. `init_plugin_passes` → `loadPlugins()` TOCTOU (Minor — latent only, cross-reference)
 
 - **Shared state:** `static std::vector<TritonPlugin> plugins` and
   `static bool pluginsLoaded` in `lib/Tools/PluginUtils.cpp`'s `loadPlugins`.
 - **Writer(s):** the first caller of `loadPlugins()` after process start.
-  Populates `plugins` and sets `pluginsLoaded = true`.
-- **Reader(s):** any later caller. In `passes.cc`, `init_plugin_passes` is
-  called exactly once, at module import, under CPython's import lock. Also
-  called from `ir.cc`'s `load_dialects` and from plugin op-builder
-  registration.
-- **Race scenario:** `passes.cc`'s call is race-free *in isolation* because
-  it runs during `PYBIND11_MODULE` init. The real concern is that
-  `load_dialects` can be invoked later from Python on a user-created
-  context, so two threads can enter `loadPlugins()` at the same time and
-  both observe `pluginsLoaded == false`. This is `ir/issues.md` issue #5;
-  `passes.cc` is listed here only so the fix in `PluginUtils.cpp` is not
-  overlooked.
-- **Why not a separate issue file:** the bug lives in
-  `lib/Tools/PluginUtils.cpp`, already tracked under `ir/issues.md`. A
-  separate issue file would duplicate. Cross-reference only.
-- **Tier:** Tier 1 (first-use) during module init is race-free, but the
-  underlying TOCTOU is Tier 1 when reached via `load_dialects` on demand.
+  Populates `plugins` (only if `TRITON_PLUGIN_PATHS` is set) and
+  unconditionally sets `pluginsLoaded = true`.
+- **Reader(s):** module-init callers `init_plugin_passes`
+  (`passes.cc:107`) and `init_triton_ir` (`ir.cc:1863`), both under the
+  Python import lock; plus the post-init `load_dialects` binding at
+  `ir.cc:340`.
+- **Why not currently a bug:** module-init callers pre-warm
+  `pluginsLoaded = true` before user code can run, so every subsequent
+  `load_dialects` invocation hits the `if (pluginsLoaded) return plugins;`
+  fast path. The TOCTOU is unreachable in the current binding layout.
+- **Severity:** Minor — latent risk only. If a refactor removes either
+  module-init pre-warm, two concurrent compile threads in `load_dialects`
+  would race on `pluginsLoaded` / `push_back(plugins)`.
+- **Why not a separate issue file:** bug lives in
+  `lib/Tools/PluginUtils.cpp`; cross-referenced from `ir.md` issue #5.
 
 ### 3. Pass-builder lambdas as caller-PassManager mutators (Minor)
 
@@ -248,9 +255,7 @@ means Python C API calls in these bindings are safe for the calling thread.
   for `static` inside `createTriton*` / `createGluon*` /
   `createConvert*` / `createLLVMDIScope` / `createCanonicalizeLLVMIR`
   should be enough.
-- Resolve whether `init_plugin_passes`'s call to `loadPlugins()` during
-  module init effectively "wins the TOCTOU race" in practice, making
-  `ir.cc`'s `load_dialects` call a guaranteed cache hit. That would not
-  *fix* the TOCTOU, but it would make real-world reproduction harder and
-  could influence how the deeper audit prioritizes the `PluginUtils.cpp`
-  fix.
+- Resolved: `init_plugin_passes` (and `init_triton_ir`) both call
+  `loadPlugins()` under the import lock and `pluginsLoaded` is set
+  unconditionally on first call, so post-init `load_dialects` callers
+  always hit the fast path. Issue downgraded to Minor / latent.

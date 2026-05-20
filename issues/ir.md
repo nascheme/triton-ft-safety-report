@@ -4,12 +4,12 @@
 
 | # | Severity | Tier | Component | Issue |
 |---|----------|------|-----------|-------|
-| 1 | SEVERE      | 1/2 | `PassManager::run` — `::llvm::DebugFlag` / `setCurrentDebugTypes` | Process-global LLVM debug flag and debug-type registry mutated inside a `py::gil_scoped_release` binding body |
-| 2 | SEVERE      | 2   | `PassManager::run` — `context->disableMultithreading()`           | Concurrent mutation of a shared `mlir::MLIRContext` with the GIL released |
-| 3 | SEVERE      | 2   | `load_dialects` binding                                           | Concurrent `appendDialectRegistry` + `loadAllAvailableDialects` on a shared `MLIRContext` |
-| 4 | SEVERE      | 2   | Operation-building bindings (`TritonOpBuilder`, `OpBuilder`, `IntegerType::get`, `StringAttr::get`, …) | Implicit mutation of `MLIRContext`'s type/attribute uniquing tables from multiple threads once the GIL is gone |
-| 5 | Significant | 1   | `plugin::loadPlugins()` TOCTOU (transitive via `load_dialects` and init) | `static bool pluginsLoaded` + `static std::vector<TritonPlugin> plugins` guarded only by a plain bool (in `lib/Tools/PluginUtils.cpp`, reachable from `ir.cc`) |
-| 6 | Significant | 1/3 | `PassManager::run` — `enableCrashReproducerGeneration` / `enableTiming` / `enableIRPrinting` / diagnostic-handler install | Stateful mutation of `self` and of the shared `MLIRContext` (diagnostic / printing / reproducer state) per call, GIL-released |
+| 1 | Minor       | 2   | `PassManager::run` — `::llvm::DebugFlag` / `setCurrentDebugTypes` | Process-global LLVM debug flag and debug-type registry mutated inside a `py::gil_scoped_release` binding body. Debug/diagnostic-only; does not affect codegen. |
+| 2 | Minor       | 2   | `PassManager::run` — `context->disableMultithreading()`           | Latent only: per-compile context, not shared across threads in the shipping codebase |
+| 3 | Minor       | 2   | `load_dialects` binding                                           | Latent only: per-compile context, not shared across threads in the shipping codebase |
+| 4 | Minor       | 2   | Operation-building bindings (`TritonOpBuilder`, `OpBuilder`, `IntegerType::get`, `StringAttr::get`, …) | Latent only: per-compile context, not shared across threads in the shipping codebase |
+| 5 | Minor       | 1   | `plugin::loadPlugins()` TOCTOU (transitive via `load_dialects` and init) | `static bool pluginsLoaded` + `static std::vector<TritonPlugin> plugins` guarded only by a plain bool (in `lib/Tools/PluginUtils.cpp`). Pattern is unsound but not currently reachable: `init_triton_ir` and `init_plugin_passes` both call `loadPlugins()` at module init under the import lock, so `pluginsLoaded == true` by the time any user thread can call `load_dialects`. Latent risk only. |
+| 6 | Minor       | 2   | `PassManager::run` — `enableCrashReproducerGeneration` / `enableTiming` / `enableIRPrinting` / diagnostic-handler install | Per-call mutations on `self` and `mod.getContext()`. Backends create `PassManager` and `MLIRContext` fresh per compile, so these mutate per-compile objects, not shared state. Only residual race is the reproducer file write when `TRITON_REPRODUCER_PATH` is set — debug-only. |
 | 7 | Significant | 3   | `setupTritonDiagnosticHandler` — `llvm::errs()` sink                | All diagnostic output goes to the process-wide `llvm::errs()`; concurrent emissions interleave |
 | 8 | Minor       | 3   | `py_getenv` / `py_getenv_bool` / `get_cache_invalidating_env_vars` | POSIX `getenv` is not thread-safe against `setenv`; these helpers are reachable from any thread |
 
@@ -20,9 +20,13 @@ audit plan: `PassManager::run` is the main GIL-release site, and the
 dialect-registration and op-building bindings effectively decide whether an
 `MLIRContext` can be shared across threads at all.
 
-Individual issue files should be written for at least #1, #2, #3, #4, and #5.
-Items #6–#8 can stay as triage notes unless deeper investigation promotes
-them.
+No individual issue files are warranted at this time. The Tier 2 SEVERE
+candidates #2/#3/#4 were downgraded to Minor after verifying that
+`mlir::MLIRContext` is constructed fresh per `compile()` call and is
+never shared across Python threads in the shipping codebase. The unsafe
+patterns remain real and would become live races if a future refactor
+ever cached or pooled contexts; see the open-questions resolution at the
+bottom for the trace.
 
 See the triage notes below for the reasoning behind each entry and for items
 that were considered and rejected.
@@ -100,7 +104,7 @@ Organized by what they do with shared state:
 
 ## Triage notes
 
-### 1. `::llvm::DebugFlag` and `setCurrentDebugTypes` mutation with GIL released (SEVERE)
+### 1. `::llvm::DebugFlag` and `setCurrentDebugTypes` mutation with GIL released (Minor)
 
 - **Shared state:** `::llvm::DebugFlag` (a plain non-atomic `bool` in LLVM)
   and the LLVM debug-type registry managed by `setCurrentDebugTypes`.
@@ -124,131 +128,148 @@ Organized by what they do with shared state:
   on the `pass_manager.run` binding).
 - **Race scenario:** Thread A and Thread B both enter `PassManager::run`
   with `TRITON_LLVM_DEBUG_ONLY` set. Both write to `::llvm::DebugFlag` and
-  both call `setCurrentDebugTypes` with their own `debugTypes` pointer
-  (pointing at Thread-A-local storage). LLVM holds onto pointer data from
-  `setCurrentDebugTypes` internally; if Thread A's `storage` SmallVector
-  goes out of scope while Thread B's pipeline is still running, reads of
-  the debug-type list are use-after-free. Even without the UAF, both threads
-  race on a plain-`bool` flag and on LLVM's internal debug-type container.
-- **Severity:** SEVERE — plain non-atomic bool mutation under concurrency,
-  plus potential use-after-free on the debug-type storage.
-- **Tier:** Tier 1 / 2 whenever LLVM debug env vars are set. These are
-  developer flags but they are not guarded by a debug build.
+  both call `setCurrentDebugTypes`. The plain-`bool` write is technically a
+  data race; concurrent `setCurrentDebugTypes` calls also race on LLVM's
+  internal debug-type container (upstream LLVM copies the strings into a
+  `std::vector<std::string>`, so there is no UAF on the caller's storage,
+  but the vector itself is mutated unlocked).
+- **Severity:** Minor.
+  - The flags only gate `LLVM_DEBUG(...)` stderr output; they do not affect
+    codegen, cache state, or kernel correctness. This matches the
+    "benign debug/print flag staleness" exclusion in `CLAUDE.md`.
+  - Both threads read the same env var and write the same value, so the
+    steady-state outcome is identical; transient races only affect what
+    debug lines print.
+  - Triggered only when developer env vars (`TRITON_ENABLE_LLVM_DEBUG`,
+    `TRITON_LLVM_DEBUG_ONLY`) are set.
+- **Tier:** Tier 2 (only races when two threads compile concurrently). This
+  is essentially a debug-feature analogue of the LLVM `cl::opt` mutation
+  case the README puts under Tier 3, but it's not user-driven knob mutation
+  so it's listed here rather than promoted.
 - **Fix direction:** move the LLVM debug flag setup out of the per-call
   body into a one-shot setup (e.g. at `init_targets` or context creation),
-  or guard the mutation with a dedicated mutex. Also fix the
-  `setCurrentDebugTypes` lifetime problem by keeping the backing storage
-  alive beyond the scope of `run()`. Needs deeper investigation.
+  or guard the mutation with a dedicated mutex. Low priority given the
+  diagnostic-only impact.
 
-### 2. `context->disableMultithreading()` from `PassManager::run` (SEVERE)
+### 2. `context->disableMultithreading()` from `PassManager::run` (Minor — latent only)
 
-- **Shared state:** the Python-exposed `mlir::MLIRContext` passed to
-  `PassManager::run` via `mod.getContext()`.
+- **Shared state (candidate):** the Python-exposed `mlir::MLIRContext`
+  passed to `PassManager::run` via `mod.getContext()`.
 - **Writer:** `PassManager::run` body can call
   `context->disableMultithreading()` (from both the crash-reproducer
   setup and the diagnostic-handler setup).
-- **Reader:** every pass in the pipeline, plus any other Python thread
-  sharing the same context (for op construction or for its own `run()`).
-- **Race scenario:** Thread A starts `PassManager::run(modA, ...)` and
-  flips `disableMultithreading`. Thread B is simultaneously building ops
-  on the same context, or is about to start its own `PassManager::run`.
-  The threading-state flip is visible mid-pipeline and is not synchronized.
-  Worse, `MLIRContext` itself is not documented as safe for concurrent
-  writer + readers across Python threads.
-- **Runs with GIL released**.
-- **Severity:** SEVERE — concurrent mutation of a non-thread-safe context
-  on the pass-manager hot path.
-- **Tier:** Tier 2 whenever two Triton compiles share an `MLIRContext`. See
-  the open-question at the bottom of this README.
-- **Fix direction:** at minimum, do not mutate `disableMultithreading`
-  inside `PassManager::run`; set it once at context creation (the context
-  is already built with `Threading::DISABLED`, so most of these calls look
-  redundant). The broader question — can one `MLIRContext` be driven from
-  two threads at all — is issue #3/#4. Needs deeper investigation.
+- **Why not currently a bug:** every `ir.context()` caller in the
+  shipping codebase creates the context as a local variable and uses it
+  within a single compile call (see the open-questions resolution at the
+  bottom). Two concurrent compiles each get their own `MLIRContext`, so
+  the per-call mutation operates on a per-compile object, not shared
+  state. Also note that `MLIRContext` is constructed with
+  `Threading::DISABLED` already (in `ir.cc`), so the per-call
+  `disableMultithreading()` is a same-value write even on the owning
+  thread.
+- **Severity:** Minor — the pattern of mutating context state inside a
+  GIL-released binding body is unsound and would be a SEVERE race the
+  moment any path caches or pools `MLIRContext` objects, but it is not
+  reachable in the current code.
+- **Tier:** Tier 2 in shape, but unreachable.
+- **Fix direction:** drop the redundant `disableMultithreading()` calls
+  from `PassManager::run` — the context is already constructed in that
+  mode. Low priority defensively.
 
-### 3. `load_dialects` on a shared `MLIRContext` (SEVERE)
+### 3. `load_dialects` on a shared `MLIRContext` (Minor — latent only)
 
-- **Shared state:** the Python-wrapped `MLIRContext`'s dialect registry
-  and its loaded-dialect map.
+- **Shared state (candidate):** the Python-wrapped `MLIRContext`'s
+  dialect registry and its loaded-dialect map.
 - **Writer:** `load_dialects(context)`: builds a `DialectRegistry`,
   appends it to the context, and then calls
   `context.loadAllAvailableDialects()`.
-- **Race scenario:** Two Python threads call `load_dialects(ctx)` on the
-  same context, or one thread calls `load_dialects(ctx)` while another is
-  building ops on `ctx`. `appendDialectRegistry` and `loadAllAvailableDialects`
-  mutate per-context data structures that are not thread-safe under
-  concurrent readers.
-- **Runs with GIL held** (no explicit release). Under free-threaded CPython
-  that still means there is no global serialization — the binding executes
-  concurrently with other bindings on the same context.
-- **Severity:** SEVERE if the Python side ever shares a context across
-  threads for dialect loading. If `load_dialects` is always called once per
-  context before any concurrency, severity drops to Significant. Needs
-  Python-side confirmation.
-- **Fix direction:** document the single-threaded-per-context contract and
-  enforce it at the Python layer, or guard the mutation with a context-scoped
-  mutex.
+- **Why not currently a bug:** `load_dialects` is called exactly once
+  per context in the shipping codebase, immediately after the fresh
+  `ir.context()` construction and before any other thread can see the
+  context. Call sites:
+  - `compiler.py:301` — right after `context = ir.context()` at the top
+    of `compile()`, on a function-local context.
+  - `IRSource.__init__` (`compiler.py:95`) — invoked from
+    `compile()` at line 240 on the same function-local context.
+  - `_filecheck.py:71` — function-local context.
+  - `test_bindings.py:95` — function-local context.
+  - `proton/hooks/instrumentation.py:236` — function-local context.
 
-### 4. MLIR op / attribute / type construction on a shared context (SEVERE)
+  No path shares the resulting context with another thread, so the
+  per-context mutations cannot race.
+- **Severity:** Minor — the binding does not release the GIL itself, but
+  the GIL is no longer a serializer under free-threading. If a future
+  change ever exposes a context for cross-thread reuse, this becomes a
+  SEVERE race on the dialect registry. Worth a watcher.
+- **Fix direction:** if shared contexts are ever introduced, either
+  enforce single-threaded `load_dialects` per context (e.g. eager load
+  at context construction) or guard the mutation with a context-scoped
+  mutex. No fix needed today.
 
-- **Shared state:** `MLIRContext`'s type-uniquing and attribute-uniquing
-  tables. Calls like `IntegerType::get(ctx, 32)`, `StringAttr::get(ctx,
-  name)`, `RoundingModeAttr::get(ctx, ...)`, `DenseIntElementsAttr::get(...)`,
-  and every op-builder construction reach into these tables.
-- **Writers/Readers:** essentially every operation-building binding in this
-  file — `TritonOpBuilder`, `OpBuilder`, the op construction helpers on
-  `ModuleOp`, `FuncOp`, etc.
-- **Race scenario:** Two Python threads drive separate kernels whose
-  Python-side code holds (or ends up sharing) the same `MLIRContext`. Each
-  emits `IntegerType::get(ctx, 32)` etc. The context's uniquing table is
-  mutated concurrently. MLIR does provide some internal synchronization for
-  these tables when `Threading` is enabled, but the Triton context is
-  explicitly constructed with `Threading::DISABLED`, which is the mode
-  intended for single-threaded use. Under that mode, the uniquing
-  tables are **not** expected to be hit concurrently.
-- **Severity:** SEVERE if any Python-side sharing of the context exists
-  across threads (the most natural way this gets triggered is via shared
-  builder / module objects). Even module-local op construction (walk,
-  rewrite) races through the shared context if the context is shared.
-- **Tier:** Tier 2 or Tier 1 depending on how the Python side structures
-  compiles.
-- **Fix direction:** either (a) confirm and enforce one `MLIRContext` per
-  thread, or (b) rebuild the context with `Threading::ENABLED` so MLIR's
-  own locks cover the uniquing tables (this interacts with issue #2 — the
-  code explicitly wants `Threading::DISABLED` for diagnostic reasons).
-  Needs deeper investigation.
+### 4. MLIR op / attribute / type construction on a shared context (Minor — latent only)
 
-### 5. `plugin::loadPlugins()` plain-bool TOCTOU (Significant)
+- **Shared state (candidate):** `MLIRContext`'s type-uniquing and
+  attribute-uniquing tables. Calls like `IntegerType::get(ctx, 32)`,
+  `StringAttr::get(ctx, name)`, `RoundingModeAttr::get(ctx, ...)`,
+  `DenseIntElementsAttr::get(...)`, and every op-builder construction
+  reach into these tables. The context is built with
+  `Threading::DISABLED`, so MLIR's own per-table locks are not engaged.
+- **Writers/Readers:** every operation-building binding in this file —
+  `TritonOpBuilder`, `OpBuilder`, op construction helpers on `ModuleOp`,
+  `FuncOp`, etc.
+- **Why not currently a bug:** the context is per-compile (see the
+  open-questions resolution at the bottom). All op/attribute/type
+  construction inside a `compile()` call runs on that call's private
+  context. The compiled-kernel result (`CompiledKernel`) retains a
+  reference to the source IR module (and transitively the context),
+  but no further op construction happens against that retained context
+  after `compile()` returns — it is effectively frozen. Two concurrent
+  compiles operate on disjoint contexts and disjoint uniquing tables.
+- **Severity:** Minor — the unsafe pattern (uniquing-table mutation
+  with no lock) is real, but unreachable while contexts are
+  per-compile. The day a context cache or pool is introduced, this
+  becomes a SEVERE race against MLIR's internal containers and against
+  borrowed type/attribute pointers.
+- **Fix direction:** when shared contexts are introduced, either pin
+  one context per thread or rebuild the context with
+  `Threading::ENABLED` so MLIR's locks cover the uniquing tables (this
+  interacts with the explicit `Threading::DISABLED` choice made for
+  diagnostic reasons). No fix needed today.
+
+### 5. `plugin::loadPlugins()` plain-bool TOCTOU (Minor — latent only)
 
 - **Shared state:** `static std::vector<TritonPlugin> plugins;` and
   `static bool pluginsLoaded = false;` in `lib/Tools/PluginUtils.cpp`.
-- **Writer:** `loadPlugins()` itself, populating `plugins` and setting
-  `pluginsLoaded = true` on success.
-- **Reader:** any caller of `loadPlugins()`. In `ir.cc`:
-  - inside the `load_dialects` binding body. This is a **post-init /
-    user-driven** call site: two threads calling `load_dialects` could
-    both observe `pluginsLoaded == false` and both populate.
-  - at module init under Python's import lock. That call site is not the
-    problem, but it does not pre-populate `plugins` unless some plugin
-    path is set.
-- **Race scenario:** Two Python threads call `load_dialects(ctx)` before
-  either has triggered a successful `loadPlugins` run. Both observe
-  `pluginsLoaded == false` and both `push_back` into `plugins`, and both
-  assign `pluginsLoaded = true`. Concurrent `std::vector::push_back` on the
-  same vector is undefined behavior.
-- **Severity:** Significant — shape is identical to `specialize.cc` issue
-  #1 (`init_globals` TOCTOU), but the hot-path reachability is narrower
-  (only `load_dialects`, which callers often run once).
-- **Fix direction:** use `std::call_once` around the body, or convert the
-  flag to `std::atomic<bool>` with acquire/release and guard the slow path
-  with a mutex. Note: this fix lives in `lib/Tools/PluginUtils.cpp`, not
-  `ir.cc` — but the Triton audit should track it because the only callers
-  are `ir.cc`.
+- **Writer:** `loadPlugins()` itself, populating `plugins` (only if
+  `TRITON_PLUGIN_PATHS` is set) and unconditionally setting
+  `pluginsLoaded = true` at the end.
+- **Reader:** any caller of `loadPlugins()`. Call sites:
+  - `init_triton_ir` at `ir.cc:1863` — module init, under the import lock.
+  - `init_plugin_passes` at `passes.cc:107` — module init, under the
+    import lock.
+  - `load_dialects` binding at `ir.cc:340` — post-init / per-compile.
+- **Why not currently a bug:** the two module-init call sites both run
+  `loadPlugins()` before user Python code can run. `loadPlugins()` sets
+  `pluginsLoaded = true` unconditionally on first call (even when the env
+  var is unset). So by the time any thread reaches the `load_dialects`
+  binding, `pluginsLoaded == true` and every caller takes the
+  `if (pluginsLoaded) return plugins;` fast path. The race window is
+  closed.
+- **Severity:** Minor — the TOCTOU pattern is unsound, but unreachable in
+  the current binding layout. Worth tracking as a latent risk only: if
+  either module-init call to `loadPlugins()` is removed in a refactor,
+  the race becomes live (two compile threads racing through
+  `load_dialects` would both observe `pluginsLoaded == false` and both
+  `push_back` into `plugins`).
+- **Fix direction (defensive):** use `std::call_once` around the body, or
+  convert the flag to `std::atomic<bool>` with acquire/release and guard
+  the slow path with a mutex. Fix lives in `lib/Tools/PluginUtils.cpp`.
 
-### 6. PassManager-wide mutation during `run()` (Significant)
+### 6. PassManager-wide mutation during `run()` (Minor)
 
-- **Shared state:** the `PassManager self` and the context's
-  crash-reproducer / timing / printing configuration.
+- **Shared state (candidate):** the `PassManager self` and the
+  `mod.getContext()` configuration (crash-reproducer / timing /
+  printing / diagnostic state).
 - **Writer:** `PassManager::run` body calls, on every invocation:
   - `self.enableCrashReproducerGeneration(...)`,
   - `self.enableTiming()`,
@@ -256,21 +277,26 @@ Organized by what they do with shared state:
     setupTritonDiagnosticHandler(context);` which in turn calls
     `context->printOpOnDiagnostic(...)`, `context->printStackTraceOnDiagnostic(...)`,
     and sometimes `context->disableMultithreading()`.
-- **Race scenario:** Two threads running `PassManager::run` with different
-  env-var settings can interleave these mutations. In particular the
-  `printOpOnDiagnostic` / `printStackTraceOnDiagnostic` state on the
-  context is flipped per call and is shared between contexts that two
-  threads both hold. `makeReproducer` also writes a file at the configured
-  path; if two threads use the same `TRITON_REPRODUCER_PATH` they race on
-  the file.
-- **Severity:** Significant. Most of these are diagnostic knobs rather
-  than codegen-affecting state, so the practical consequence is interleaved
-  or corrupted diagnostic output, not wrong-kernel execution. Listed
-  separately from #2 because the mutations are conceptually per-call even
-  though they alias shared state.
-- **Fix direction:** move one-shot context configuration out of the
-  per-call body; keep only strictly per-run settings on the `PassManager`
-  itself. Needs deeper investigation.
+- **Why not actually a race in practice:**
+  - Backend compilers construct a fresh `PassManager` per stage
+    (e.g. `pm = ir.pass_manager(mod.context)` in
+    `third_party/nvidia/backend/compiler.py` and equivalents). The
+    PassManager is not shared across threads.
+  - `compiler.py` constructs a fresh `MLIRContext` per compile
+    (`context = ir.context()`). The context mutated here is the
+    per-compile context, not a process-global one.
+  - So the per-call mutations modify per-compile objects, not shared
+    state. No cross-thread race on the PassManager or context fields
+    themselves.
+- **Residual concern (Minor):** `makeReproducer(..., reproducerPath)`
+  writes a file when `TRITON_REPRODUCER_PATH` is set. The path is
+  suffixed with `repro_pipeline_tag`, so two concurrent compiles at the
+  same pipeline stage with the same env var collide on the same file.
+  Debug/diagnostic-only — does not affect codegen.
+- **Tier:** Tier 2. (The original "Tier 1" label was wrong: Tier 1 has
+  only one Triton thread so per-call mutations cannot race.)
+- **Fix direction:** if the reproducer file race ever matters, include a
+  pid/thread-id in the path. Lower priority.
 
 ### 7. `setupTritonDiagnosticHandler` — `llvm::errs()` sink (Significant)
 
@@ -341,12 +367,33 @@ Organized by what they do with shared state:
 ## Open questions for the deeper audit
 
 - **Does Triton's Python layer ever share a single `MLIRContext` across
-  threads?** This is the single most important question for issues #2,
-  #3, #4, #6. Start from `triton/python/triton/compiler/compiler.py` and
-  the backend-specific compile entry points. If the answer is "each
-  compile creates its own context", severity of #2–#4 drops significantly.
-  If the answer is "yes, a module-global context is reused", several of
-  these issues move from Tier 2 theoretical to Tier 1 immediate.
+  threads? — Resolved: NO.** Every `ir.context()` caller constructs the
+  context as a function-local variable and consumes it within that
+  call. Traced call sites:
+  - `triton/python/triton/compiler/compiler.py:239` — `compile()`,
+    IRSource path. Local; `IRSource` is built one line later and the
+    `assert isinstance(src, str)` rules out smuggling in a shared
+    `IRSource`.
+  - `triton/python/triton/compiler/compiler.py:300` — `compile()`,
+    ASTSource path. Local.
+  - `triton/python/triton/_filecheck.py:70` — test helper, local.
+  - `triton/python/test/unit/runtime/test_bindings.py:91` — test,
+    local.
+  - `triton/python/test/unit/tools/test_irsource.py:43`/`:88` — tests,
+    local.
+  - `triton/third_party/proton/proton/hooks/instrumentation.py:235` —
+    `init_handle`, local to that call.
+
+  No module-global context exists; no backend stores a context (the
+  backend compilers reach the context only via `mod.context`, which was
+  attached by the per-compile path); `CompiledKernel` retains the source
+  module (and transitively the context), but no further op
+  construction, dialect loading, or `PassManager::run` runs against
+  that retained context after `compile()` returns.
+
+  Consequence: issues #2, #3, #4 were downgraded from SEVERE to Minor
+  (latent only). They are real patterns of unsafe context mutation that
+  would fire immediately if any path ever cached or pooled contexts.
 - **Is there an existing process-wide compile lock?** If `_async_compile.py`
   or the JIT dispatch layer already serializes `PassManager::run`, issues
   #1, #2, #6 become unreachable in practice (but still deserve defensive
@@ -356,10 +403,12 @@ Organized by what they do with shared state:
   a straightforward race; if yes, see whether the lock covers both writer
   and readers.
 - **Confirm that `setCurrentDebugTypes` stores the caller's pointer rather
-  than copying.** If it stores a copy (in some LLVM versions), the UAF
-  concern under issue #1 goes away; the plain-bool race on `DebugFlag`
-  remains.
-- **Confirm `plugin::loadPlugins()` callers.** The module-init call is
-  under the import lock and safe; the `load_dialects` call is the one
-  that actually creates the TOCTOU. Are there any other callers in the
-  wider codebase?
+  than copying.** Upstream LLVM appears to copy into a
+  `std::vector<std::string>`, which is why issue #1 is currently Minor (no
+  UAF, just a diagnostic-only race). Worth confirming for the LLVM revision
+  Triton vendors.
+- **Confirm `plugin::loadPlugins()` callers.** Currently two module-init
+  call sites (`init_triton_ir`, `init_plugin_passes`) under the import
+  lock pre-warm `pluginsLoaded = true`, defusing the post-init
+  `load_dialects` TOCTOU. If a refactor removes either of those calls,
+  the race becomes live. Worth a watcher.

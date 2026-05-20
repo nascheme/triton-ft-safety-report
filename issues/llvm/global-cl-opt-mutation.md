@@ -9,6 +9,7 @@ type: issue
 - **Status:** Open
 - **Severity:** SEVERE
 - **Component:** `python/src/llvm.cc` — `setLLVMOption` / `restoreLLVMOption` / `ScopedLLVMOption`
+- **Tier:** 1/2
 
 - **Shared state:** the process-global `llvm::cl::opt<T>` registry returned by
   `llvm::cl::getRegisteredOptions()` and the individual `cl::opt<T>` objects it
