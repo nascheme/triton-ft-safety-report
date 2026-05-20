@@ -283,12 +283,12 @@ be flagged as out of scope rather than promoted to a tier.
 When you turn a pass into a report, keep it narrowly scoped by subsystem, for
 example:
 
-- `jit/issues.md`
-- `autotuner/issues.md`
-- `driver-and-knobs/issues.md`
-- `compiler/issues.md`
-- `specialize/issues.md`
-- `llvm/issues.md`
+- `issues/jit.md`
+- `issues/autotuner.md`
+- `issues/driver-and-knobs.md`
+- `issues/compiler.md`
+- `issues/specialize.md`
+- `issues/llvm.md`
 
 That keeps architecture summaries short and makes it easier for later review to
 confirm specific claims file by file.

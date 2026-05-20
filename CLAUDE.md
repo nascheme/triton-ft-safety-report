@@ -234,7 +234,7 @@ For each piece of mutable state you find:
 
 ## Report format for component
 
-Create a file `<component>/issues.md` file.  At the top of that file, create a
+Create a file `issues/<component>.md` file.  At the top of that file, create a
 table:
 
   ```markdown
@@ -256,11 +256,11 @@ The triage notes section is the place for:
 - and any detail that would make the individual issue files too long.
 
 For issues that are determined to be valid, create one individual markdown file
-per issue as `<component>/<issue-name>.md`.
+per issue as `issues/<component>/<issue-name>.md`.
 
 Keep the individual issue files brief. Reviewers should be able to understand
 the bug, impact, and fix quickly without reading a long narrative. Put any
-supporting detail or extended discussion in `<component>/issues.md` under
+supporting detail or extended discussion in `issues/<component>.md` under
 "## Triage notes".
 
 
@@ -293,12 +293,12 @@ Guidelines:
   alternative theories in the issue file unless they are necessary to establish
   the bug.
 - Put extra commentary, nuance, edge cases, examples, and follow-up notes in
-  `<component>/issues.md` under `## Triage notes`.
+  `issues/<component>.md` under `## Triage notes`.
 - If a component has multiple closely related races, use separate issue files
   when reviewers would likely want to discuss or fix them independently.
 - If several smaller races are really consequences of one root design bug, keep
   the individual issue file focused on the root issue and put the decomposition
-  into `issues.md`.
+  into `issues/<component>.md`.
 
 ### Style note
 
@@ -311,7 +311,7 @@ Use the individual issue files for the minimum needed to answer:
 
 If you find yourself adding long caveats, multiple alternative hypotheses, or
 detailed severity justification, move that material into the component
-`issues.md` triage notes instead.
+`issues/<component>.md` triage notes instead.
 
 ## Severity guide
 
