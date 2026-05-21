@@ -4,7 +4,7 @@
 - **Severity:** Significant
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
-- **Patch:** `cache-toctou.patch`
+- **Patch:** [`cache-toctou.patch`](cache-toctou.patch)
 
 - **Shared state:** `self.restore_copies` — a `dict` on the shared `Autotuner`
   instance mapping tensor names to cloned snapshots. Written by the default

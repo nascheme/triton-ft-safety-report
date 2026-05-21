@@ -4,7 +4,7 @@
 - **Severity:** Significant
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
-- **Patch:** `cache-toctou.patch`
+- **Patch:** [`cache-toctou.patch`](cache-toctou.patch)
 
 - **Shared state:** `self.cache[tuning_key]`, `self.configs_timings`,
   and the on-disk cache file.

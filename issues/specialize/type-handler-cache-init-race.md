@@ -4,7 +4,7 @@
 - **Severity:** SEVERE
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 1
-- **Patch:** `init-globals-toctou.patch`
+- **Patch:** [`init-globals-toctou.patch`](init-globals-toctou.patch)
 
 - **Shared state:** `static TypeHandlerCache type_handler_cache` in
   `specialize.cc`, a process-global

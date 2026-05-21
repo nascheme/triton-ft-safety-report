@@ -4,7 +4,7 @@
 - **Severity:** Significant
 - **Component:** `runtime/driver.py` (`DriverConfig.default`)
 - **Tier:** 1
-- **Patch:** `driver-default-lazy-init-race.patch`
+- **Patch:** [`driver-default-lazy-init-race.patch`](driver-default-lazy-init-race.patch)
 
 - **Shared state:** `DriverConfig._default` on the module-level singleton
   `driver`. Starts `None`, populated lazily by the `default` property.

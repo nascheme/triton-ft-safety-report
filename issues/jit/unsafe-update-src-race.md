@@ -4,7 +4,7 @@
 - **Severity:** Significant
 - **Component:** `runtime/jit.py`
 - **Tier:** 2
-- **Patch:** `unsafe-update-src-race.patch`
+- **Patch:** [`unsafe-update-src-race.patch`](unsafe-update-src-race.patch)
 
 - **Shared state:** `JITCallable._src` and `JITCallable.hash` -- must stay in
   sync (`hash` is derived from `_src`). Every path except `_unsafe_update_src`

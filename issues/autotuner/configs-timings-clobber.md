@@ -4,7 +4,7 @@
 - **Severity:** Significant
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
-- **Patch:** `cache-toctou.patch`
+- **Patch:** [`cache-toctou.patch`](cache-toctou.patch)
 
 - **Shared state:** `self.configs_timings` — a `dict` mapping `Config` objects
   to benchmark timings, stored on the shared `Autotuner` instance.

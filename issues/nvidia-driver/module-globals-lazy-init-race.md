@@ -4,7 +4,7 @@
 - **Severity:** Minor
 - **Component:** `third_party/nvidia/backend/driver.py`
 - **Tier:** 1
-- **Patch:** `cudautils-singleton-race.patch`
+- **Patch:** [`cudautils-singleton-race.patch`](cudautils-singleton-race.patch)
 
 - **Shared state:** Five module-level globals — `PyCUtensorMap`,
   `PyKernelArg`, `ARG_CONSTEXPR`, `ARG_KERNEL`, `ARG_TUPLE` — initialized

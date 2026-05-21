@@ -4,7 +4,7 @@
 - **Severity:** Significant
 - **Component:** `experimental/gsan/symmetric_memory.py` (`rendezvous`)
 - **Tier:** 2
-- **Patch:** `symmetric-memory-rendezvous-toctou.patch`
+- **Patch:** [`symmetric-memory-rendezvous-toctou.patch`](symmetric-memory-rendezvous-toctou.patch)
 
 - **Shared state:** module-level `_RUNTIME_BOOTSTRAP_CACHE: dict[(id(process_group), device_index), set[int]]`. The value `set` records which peer ranks have already received this rank's runtime-state FD, so that subsequent `rendezvous()` calls only send the runtime-state FD to new peers.
 - **Writer(s):** `rendezvous()` materializes the set via `setdefault(...)`, then later does `runtime_bootstrapped_peers.update(peers_needing_runtime_bootstrap)` once the protocol succeeds.

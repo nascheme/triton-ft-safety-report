@@ -4,7 +4,7 @@
 - **Severity:** Minor
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
-- **Patch:** `do-bench-cached-property.patch`
+- **Patch:** [`do-bench-cached-property.patch`](do-bench-cached-property.patch)
 
 - **Shared state:** `self.do_bench` backed by `@cached_property`,
   stored in `self.__dict__`.

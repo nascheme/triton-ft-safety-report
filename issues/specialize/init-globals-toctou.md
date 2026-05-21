@@ -4,7 +4,7 @@
 - **Severity:** SEVERE
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 1
-- **Patch:** `init-globals-toctou.patch`
+- **Patch:** [`init-globals-toctou.patch`](init-globals-toctou.patch)
 
 - **Shared state:** `static bool init_called` in `specialize.cc` and every
   file-scope global it guards: the class pointers

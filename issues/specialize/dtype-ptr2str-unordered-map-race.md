@@ -4,7 +4,7 @@
 - **Severity:** SEVERE
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 2
-- **Patch:** `dtype-ptr2str-unordered-map-race.patch`
+- **Patch:** [`dtype-ptr2str-unordered-map-race.patch`](dtype-ptr2str-unordered-map-race.patch)
 
 - **Shared state:** `static DtypePtr2Str dtype_ptr2str` in `specialize.cc`,
   a process-global

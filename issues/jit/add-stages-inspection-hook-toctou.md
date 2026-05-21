@@ -4,7 +4,7 @@
 - **Severity:** Significant
 - **Component:** `runtime/jit.py`
 - **Tier:** 3
-- **Patch:** `add-stages-inspection-hook-toctou.patch`
+- **Patch:** [`add-stages-inspection-hook-toctou.patch`](add-stages-inspection-hook-toctou.patch)
 
 - **Shared state:** `knobs.runtime.add_stages_inspection_hook` -- a
   process-global slot holding `None` or a callable

@@ -4,7 +4,7 @@
 - **Severity:** Significant
 - **Component:** `runtime/_async_compile.py`
 - **Tier:** 2
-- **Patch:** `async-compile-races.patch`
+- **Patch:** [`async-compile-races.patch`](async-compile-races.patch)
 
 Two threads can reach the same `FutureKernel` concurrently: one via the
 `AsyncCompileMode.__exit__` `as_completed` loop, another via

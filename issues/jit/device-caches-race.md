@@ -4,7 +4,7 @@
 - **Severity:** SEVERE
 - **Component:** `runtime/jit.py`
 - **Tier:** 2
-- **Patch:** `device-caches-race.patch`
+- **Patch:** [`device-caches-race.patch`](device-caches-race.patch)
 
 - **Shared state:** `self.device_caches` -- a `defaultdict(self.create_binder)`
   on a shared `JITFunction` instance

@@ -4,7 +4,7 @@
 - **Severity:** Significant
 - **Component:** `python/triton/compiler/compiler.py`
 - **Tier:** 3
-- **Patch:** `add-stages-inspection-hook-toctou.patch`
+- **Patch:** [`add-stages-inspection-hook-toctou.patch`](add-stages-inspection-hook-toctou.patch)
 
 - **Shared state:** `knobs.runtime.add_stages_inspection_hook` — a
   plain `Optional[PipelineStagesHook]` slot on the process-global

@@ -4,7 +4,7 @@
 - **Severity:** SEVERE
 - **Component:** `python/src/linear_layout.cc`
 - **Tier:** 2
-- **Patch:** `shared-mlir-context.patch`
+- **Patch:** [`shared-mlir-context.patch`](shared-mlir-context.patch)
 
 - **Shared state:** A single `MLIRContext` object stored as a leaked
   `PyObject*` in a function-local static (`getLinearLayoutContext`). The

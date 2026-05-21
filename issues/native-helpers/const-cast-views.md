@@ -4,7 +4,7 @@
 - **Severity:** Significant
 - **Component:** `python/src/linear_layout.cc`
 - **Tier:** 2
-- **Patch:** `const-cast-views.patch`
+- **Patch:** [`const-cast-views.patch`](const-cast-views.patch)
 
 - **Shared state:** A `LinearLayout` instance owned by a Python wrapper.
   The bindings cast away `const`:

@@ -4,7 +4,7 @@
 - **Severity:** Significant
 - **Component:** `runtime/jit.py`
 - **Tier:** 3
-- **Patch:** `pre-run-hooks-unsynchronized-iteration.patch`
+- **Patch:** [`pre-run-hooks-unsynchronized-iteration.patch`](pre-run-hooks-unsynchronized-iteration.patch)
 
 - **Shared state:** `self.pre_run_hooks` -- a plain `list` of user-supplied
   callables, initialized in `JITFunction.__init__`, never rebound

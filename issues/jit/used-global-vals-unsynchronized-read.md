@@ -4,7 +4,7 @@
 - **Severity:** Significant
 - **Component:** `runtime/jit.py`
 - **Tier:** 2
-- **Patch:** `used-global-vals-unsynchronized-read.patch`
+- **Patch:** [`used-global-vals-unsynchronized-read.patch`](used-global-vals-unsynchronized-read.patch)
 
 - **Shared state:** `JITCallable.used_global_vals` -- a dict recording captured
   global variables and their values at first compilation. Initialized to `{}`

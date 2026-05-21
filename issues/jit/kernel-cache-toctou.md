@@ -4,7 +4,7 @@
 - **Severity:** Significant
 - **Component:** `runtime/jit.py`
 - **Tier:** 2
-- **Patch:** `kernel-cache-toctou.patch`
+- **Patch:** [`kernel-cache-toctou.patch`](kernel-cache-toctou.patch)
 
 - **Shared state:** `kernel_cache` and `kernel_key_cache` -- plain dicts inside
   the per-device `device_caches` tuple, shared across all threads calling the

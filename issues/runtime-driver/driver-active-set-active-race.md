@@ -5,7 +5,7 @@
 - **Component:** `runtime/driver.py` (`DriverConfig.active` /
   `set_active` / `reset_active`)
 - **Tier:** 3
-- **Patch:** `driver-default-lazy-init-race.patch`
+- **Patch:** [`driver-default-lazy-init-race.patch`](driver-default-lazy-init-race.patch)
 
 - **Shared state:** `DriverConfig._active` on the module-level singleton.
   Read by `driver.active` on every hot path.

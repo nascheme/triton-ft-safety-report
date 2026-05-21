@@ -4,7 +4,7 @@
 - **Severity:** Minor
 - **Component:** `third_party/nvidia/backend/driver.py`
 - **Tier:** 1
-- **Patch:** `cudautils-singleton-race.patch`
+- **Patch:** [`cudautils-singleton-race.patch`](cudautils-singleton-race.patch)
 
 - **Shared state:** `CudaUtils.instance` class attribute; all `self.*`
   instance attributes set in `__init__`; the five module globals from
