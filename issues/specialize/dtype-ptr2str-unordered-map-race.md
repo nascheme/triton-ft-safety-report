@@ -1,13 +1,10 @@
 # `dtype_ptr2str` `std::unordered_map` mutated on the hot specialization path
 
 - **Status:** Open
-- **Patch:** `dtype-ptr2str-unordered-map-race.patch` (add a
-  `std::mutex dtype_ptr2str_mutex`; lookup under the lock, drop it
-  before calling `canonicalize_ptr_dtype_fn`, then re-lock to
-  `emplace` — loser `Py_DECREF`s its result)
 - **Severity:** SEVERE
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 2
+- **Patch:** `dtype-ptr2str-unordered-map-race.patch`
 
 - **Shared state:** `static DtypePtr2Str dtype_ptr2str` in `specialize.cc`,
   a process-global

@@ -1,10 +1,10 @@
 # `knobs.runtime.add_stages_inspection_hook` TOCTOU in `run()`
 
 - **Status:** Open
-- **Patch:** `add-stages-inspection-hook-toctou.patch` (single load of the hook slot into a local before the None-check and call)
 - **Severity:** Significant
 - **Component:** `runtime/jit.py`
 - **Tier:** 3
+- **Patch:** `add-stages-inspection-hook-toctou.patch`
 
 - **Shared state:** `knobs.runtime.add_stages_inspection_hook` -- a
   process-global slot holding `None` or a callable

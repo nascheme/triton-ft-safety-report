@@ -1,12 +1,10 @@
 # `self.restore_copies` pre/post hook race
 
 - **Status:** Open
-- **Patch:** `cache-toctou.patch` (default pre/post hooks keep their
-  snapshots in `self._tls` — a `threading.local` — so each thread has
-  its own `restore_copies`)
 - **Severity:** Significant
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
+- **Patch:** `cache-toctou.patch`
 
 - **Shared state:** `self.restore_copies` — a `dict` on the shared `Autotuner`
   instance mapping tensor names to cloned snapshots. Written by the default

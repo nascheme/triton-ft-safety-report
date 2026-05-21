@@ -1,12 +1,10 @@
 # `JITCallable._unsafe_update_src` unsynchronized hash invalidation
 
 - **Status:** Open
-- **Patch:** `unsafe-update-src-race.patch` (acquire `self._hash_lock` inside
-  `_unsafe_update_src` so the src/hash update is atomic with respect to
-  in-flight `cache_key` computations)
 - **Severity:** Significant
 - **Component:** `runtime/jit.py`
 - **Tier:** 2
+- **Patch:** `unsafe-update-src-race.patch`
 
 - **Shared state:** `JITCallable._src` and `JITCallable.hash` -- must stay in
   sync (`hash` is derived from `_src`). Every path except `_unsafe_update_src`

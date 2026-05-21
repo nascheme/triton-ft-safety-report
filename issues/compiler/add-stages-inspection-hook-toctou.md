@@ -1,10 +1,10 @@
 # `knobs.runtime.add_stages_inspection_hook` TOCTOU in `compile()`
 
 - **Status:** Open
-- **Patch:** `add-stages-inspection-hook-toctou.patch` (single load of the hook slot into a local before the None-check and call)
 - **Severity:** Significant
 - **Component:** `python/triton/compiler/compiler.py`
 - **Tier:** 3
+- **Patch:** `add-stages-inspection-hook-toctou.patch`
 
 - **Shared state:** `knobs.runtime.add_stages_inspection_hook` — a
   plain `Optional[PipelineStagesHook]` slot on the process-global

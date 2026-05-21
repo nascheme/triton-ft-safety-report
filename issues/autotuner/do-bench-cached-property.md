@@ -1,12 +1,10 @@
 # `do_bench` `@cached_property` duplicate execution
 
 - **Status:** Open
-- **Patch:** `do-bench-cached-property.patch` (replace `@cached_property`
-  with a `@property` + double-checked init guarded by a per-instance
-  `threading.Lock`)
 - **Severity:** Minor
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
+- **Patch:** `do-bench-cached-property.patch`
 
 - **Shared state:** `self.do_bench` backed by `@cached_property`,
   stored in `self.__dict__`.

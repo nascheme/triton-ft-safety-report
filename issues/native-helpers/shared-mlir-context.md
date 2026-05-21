@@ -1,12 +1,10 @@
 # `linear_layout.cc` shares one process-wide MLIRContext across all calls
 
 - **Status:** Open
-- **Patch:** `shared-mlir-context.patch` (call `enableMultithreading()`
-  on the shared context after construction so the `StorageUniquer`'s
-  own per-shard reader/writer mutex synchronizes inserts and lookups)
 - **Severity:** SEVERE
 - **Component:** `python/src/linear_layout.cc`
 - **Tier:** 2
+- **Patch:** `shared-mlir-context.patch`
 
 - **Shared state:** A single `MLIRContext` object stored as a leaked
   `PyObject*` in a function-local static (`getLinearLayoutContext`). The

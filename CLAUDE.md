@@ -280,6 +280,7 @@ Prefer a short, flat format like this:
 
 - **Status:** Open
 - **Severity:** SEVERE | Significant | Minor
+- **Tier:** <n>
 - **Component:** `<file or subsystem>`
 
 - **Shared state:** what shared mutable state is being raced on

@@ -1,10 +1,10 @@
 # `CompiledKernel._init_handles` lazy handle initialization race
 
 - **Status:** Open
-- **Patch:** `compiled-kernel-init-handles-race.patch` (per-instance `_init_lock` with double-check; publish handles before `self._run`; preserve poison-on-error)
 - **Severity:** SEVERE
 - **Component:** `python/triton/compiler/compiler.py`
 - **Tier:** 2
+- **Patch:** `compiled-kernel-init-handles-race.patch`
 
 - **Shared state:** `self._run`, `self.module`, `self.function`,
   `self.n_regs`, `self.n_spills`, `self.n_max_threads` on a

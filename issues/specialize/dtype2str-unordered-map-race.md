@@ -1,12 +1,10 @@
 # `dtype2str` `std::unordered_map` mutated on the tensordesc specialization path
 
 - **Status:** Open
-- **Patch:** `dtype2str-unordered-map-race.patch` (guard `dtype2str`
-  with a mutex and use a two-phase miss path so
-  `canonicalize_dtype_fn` runs outside the critical section)
 - **Severity:** SEVERE
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 2
+- **Patch:** `dtype2str-unordered-map-race.patch`
 
 - **Shared state:** `static Dtype2Str dtype2str` in `specialize.cc`, a
   process-global `std::unordered_map<Py_hash_t, PyObject *>`. There is no

@@ -1,13 +1,10 @@
 # `rendezvous()` check-then-act on `_RENDEZVOUS_CACHE`
 
 - **Status:** Open
-- **Patch:** `symmetric-memory-rendezvous-toctou.patch` (module-level
-  `threading.Lock` held across the `_RENDEZVOUS_CACHE` check, the
-  rendezvous protocol, and the trailing cache write; the same lock
-  covers [[symmetric-memory-bootstrap-cache-rmw]])
 - **Severity:** Significant
 - **Component:** `experimental/gsan/symmetric_memory.py` (`rendezvous`)
 - **Tier:** 2
+- **Patch:** `symmetric-memory-rendezvous-toctou.patch`
 
 - **Shared state:** module-level `_RENDEZVOUS_CACHE: WeakValueDictionary[(base_ptr, storage_key, id(process_group)), GSanSymmetricMemoryHandle]`. The cache memoizes the full result of a multi-step Unix-socket FD-exchange rendezvous so that repeated `rendezvous()` calls on the same `(tensor storage, process group)` return the same handle.
 - **Writer(s):** `rendezvous()` writes `_RENDEZVOUS_CACHE[cache_key] = handle` at the end of the protocol. `GSanSymmetricMemoryHandle.close()` (also reachable from `__del__`) removes the entry with `_RENDEZVOUS_CACHE.pop(self._cache_key)`.

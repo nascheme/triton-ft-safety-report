@@ -1,11 +1,11 @@
 # `kernel_load_start_hook` / `kernel_load_end_hook` — `HookChain` iteration race
 
 - **Status:** Open
-- **Patch:** `kernel-load-hook-chain-race.patch` (copy-on-write `HookChain.calls` under a per-instance lock; `__call__` snapshots the binding before iterating). Fixes all four `HookChain` slots at once.
 - **Severity:** Significant
 - **Component:** `python/triton/knobs.py` (`HookChain`),
   `python/triton/compiler/compiler.py`
 - **Tier:** 3
+- **Patch:** `kernel-load-hook-chain-race.patch`
 
 - **Shared state:** `HookChain.calls: list[F]` on the process-global
   `kernel_load_start_hook` / `kernel_load_end_hook` instances declared

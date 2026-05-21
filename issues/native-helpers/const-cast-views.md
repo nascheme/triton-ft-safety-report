@@ -1,13 +1,10 @@
 # `get_shared_view` / `get_distributed_view` `const_cast` away const on `LinearLayout`
 
 - **Status:** Open
-- **Patch:** `const-cast-views.patch` (`getSharedLayoutStr` /
-  `getDistributedLayoutStr` only use const accessors; their signatures
-  are changed to take `const LinearLayout &` and the `const_cast` in the
-  view bindings is removed)
 - **Severity:** Significant
 - **Component:** `python/src/linear_layout.cc`
 - **Tier:** 2
+- **Patch:** `const-cast-views.patch`
 
 - **Shared state:** A `LinearLayout` instance owned by a Python wrapper.
   The bindings cast away `const`:

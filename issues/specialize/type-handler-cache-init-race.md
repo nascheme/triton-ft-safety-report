@@ -1,13 +1,10 @@
 # `type_handler_cache` init-time race through unsynchronized lazy init
 
 - **Status:** Open
-- **Patch:** `init-globals-toctou.patch` (replace the plain-bool init guard
-  with an acquire/release atomic plus a mutex-protected slow path so only one
-  thread runs `init_globals()` at a time and `type_handler_cache` is fully
-  published before any reader observes it).
 - **Severity:** SEVERE
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 1
+- **Patch:** `init-globals-toctou.patch`
 
 - **Shared state:** `static TypeHandlerCache type_handler_cache` in
   `specialize.cc`, a process-global

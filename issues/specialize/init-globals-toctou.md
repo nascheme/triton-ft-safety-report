@@ -1,14 +1,10 @@
 # `init_globals()` TOCTOU on plain-bool guard races every file-scope global
 
 - **Status:** Open
-- **Patch:** `init-globals-toctou.patch` (replace the plain-bool guard with
-  an `std::atomic<bool>` fast path and a mutex-protected slow path in
-  `ensure_init()`. This serializes first-use initialization, preserves the
-  existing retry-on-failure behavior, and publishes `type_handler_cache`
-  and the other file-scope globals with release/acquire ordering.)
 - **Severity:** SEVERE
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 1
+- **Patch:** `init-globals-toctou.patch`
 
 - **Shared state:** `static bool init_called` in `specialize.cc` and every
   file-scope global it guards: the class pointers

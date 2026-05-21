@@ -1,12 +1,10 @@
 # `LinearLayout.__imul__` mutates a shared Python object in place
 
 - **Status:** Open
-- **Patch:** `imul-shared-mutation.patch` (omit the `__imul__` binding
-  under `Py_GIL_DISABLED` so free-threaded builds fall back to
-  `a = a * b`; GIL builds keep the existing in-place semantics)
 - **Severity:** Significant
 - **Component:** `python/src/linear_layout.cc`
 - **Tier:** 2
+- **Patch:** `imul-shared-mutation.patch`
 
 - **Shared state:** A `LinearLayout` instance held by a Python wrapper. The
   binding declares:

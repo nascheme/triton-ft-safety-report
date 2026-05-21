@@ -1,10 +1,10 @@
 # `DriverConfig.default` lazy init race creates duplicate driver instances
 
 - **Status:** Open
-- **Patch:** `driver-default-lazy-init-race.patch` (add a `threading.Lock` to `DriverConfig` and use double-checked locking in `default`/`active`; also serializes `set_active`/`reset_active`. Also fixes `driver-active-set-active-race.md`.)
 - **Severity:** Significant
 - **Component:** `runtime/driver.py` (`DriverConfig.default`)
 - **Tier:** 1
+- **Patch:** `driver-default-lazy-init-race.patch`
 
 - **Shared state:** `DriverConfig._default` on the module-level singleton
   `driver`. Starts `None`, populated lazily by the `default` property.
