@@ -1,6 +1,9 @@
 # `LinearLayout.__imul__` mutates a shared Python object in place
 
 - **Status:** Open
+- **Patch:** `imul-shared-mutation.patch` (omit the `__imul__` binding
+  under `Py_GIL_DISABLED` so free-threaded builds fall back to
+  `a = a * b`; GIL builds keep the existing in-place semantics)
 - **Severity:** Significant
 - **Component:** `python/src/linear_layout.cc`
 - **Tier:** 2
@@ -30,8 +33,9 @@
   The C++ `operator*=` performs unsynchronized writes to the same `bases`
   map / vectors that Thread B reads, producing a data race on non-atomic
   C++ containers (use-after-free or torn read possible).
-- **Suggested fix:** Make `__imul__` non-mutating from Python's perspective:
-  return a fresh `LinearLayout` (`return lhs * rhs;`) so the Python `__imul__`
-  protocol rebinds rather than mutating shared C++ state. Alternatively,
-  document that `LinearLayout` is not safe to share across threads once any
-  thread may call `*=`.
+- **Suggested fix:** Guard the `__imul__` binding with
+  `#ifndef Py_GIL_DISABLED` so it is only exposed on GIL-enabled builds.
+  On free-threaded builds Python's `a *= b` falls back to `a = a * b`
+  (via `__mul__`), which rebinds the name instead of mutating shared
+  C++ state. This avoids any API change for existing GIL-build users
+  who may rely on the in-place semantics.

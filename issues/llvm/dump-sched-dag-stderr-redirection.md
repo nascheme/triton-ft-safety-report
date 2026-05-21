@@ -7,7 +7,7 @@ type: issue
 # `dumpSchedulingDAG` stderr redirection races process-wide stderr
 
 - **Status:** Open
-- **Severity:** SEVERE
+- **Severity:** Minor
 - **Component:** `python/src/llvm.cc` — `dumpSchedulingDAG` (only active when
   `TRITON_DUMP_MIR` is set)
 - **Tier:** 1/2

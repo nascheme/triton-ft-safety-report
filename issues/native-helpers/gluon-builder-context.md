@@ -1,6 +1,10 @@
 # Gluon IR bindings race on a shared, threading-disabled `MLIRContext`
 
 - **Status:** Open
+- **Patch:** `gluon-builder-context.patch` (changes the per-compile
+  `ir.context()` factory in `python/src/ir.cc` to construct the
+  `MLIRContext` with `Threading::ENABLED` so the `StorageUniquer`
+  takes its own internal locks)
 - **Severity:** Significant
 - **Component:** `python/src/gluon_ir.cc`
 - **Tier:** 2

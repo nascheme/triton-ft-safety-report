@@ -19,24 +19,24 @@ See [OVERVIEW.md](OVERVIEW.md) for an architectural overview of the Triton codeb
 | [autotuner](issues/autotuner.md) | In-review | 1 | 4 | 2 | 7 |
 | [compiler](issues/compiler.md) | In-review | 1 | 3 | 0 | 4 |
 | [runtime-driver](issues/runtime-driver.md) | In-review | 1 | 3 | 0 | 4 |
-| [nvidia-driver](issues/nvidia-driver.md) | In-review | 0 | 0 | 2 | 2 |
-| [specialize](issues/specialize.md) | Ongoing | 4 | 1 | 1 | 6 |
-| [async-compile](issues/async-compile.md) | Ongoing | 0 | 2 | 2 | 4 |
-| [cache](issues/cache.md) | Ongoing | 0 | 0 | 4 | 4 |
-| [knobs](issues/knobs.md) | Ongoing | 1 | 4 | 3 | 8 |
-| [backends](issues/backends.md) | Ongoing | 0 | 0 | 2 | 2 |
-| [ir](issues/ir.md) | Ongoing | 0 | 1 | 7 | 8 |
-| [llvm](issues/llvm.md) | Ongoing | 2 | 1 | 5 | 8 |
-| [src-main](issues/src-main.md) | Ongoing | 0 | 0 | 1 | 1 |
-| [src-passes](issues/src-passes.md) | Ongoing | 0 | 1 | 3 | 4 |
-| [runtime-build](issues/runtime-build.md) | Ongoing | 0 | 1 | 5 | 6 |
-| [interpreter](issues/interpreter.md) | Ongoing | 2 | 2 | 3 | 7 |
-| [compiler-codegen](issues/compiler-codegen.md) | Ongoing | 0 | 0 | 0 | 0 |
-| [native-helpers](issues/native-helpers.md) | Ongoing | 1 | 3 | 1 | 5 |
-| [language](issues/language.md) | Ongoing | 0 | 0 | 6 | 6 |
-| [tools](issues/tools.md) | Ongoing | 0 | 0 | 4 | 4 |
-| [experimental](issues/experimental.md) | Ongoing | 0 | 3 | 4 | 7 |
-| **Total** | | **14** | **36** | **55** | **105** |
+| [nvidia-driver](issues/nvidia-driver.md) | In-review | 0 | 0 | 3 | 3 |
+| [specialize](issues/specialize.md) | In-review | 4 | 1 | 1 | 6 |
+| [async-compile](issues/async-compile.md) | In-review | 0 | 2 | 2 | 4 |
+| [cache](issues/cache.md) | In-review | 0 | 0 | 4 | 4 |
+| [knobs](issues/knobs.md) | In-review | 1 | 4 | 3 | 8 |
+| [backends](issues/backends.md) | In-review | 0 | 0 | 2 | 2 |
+| [ir](issues/ir.md) | In-review | 0 | 1 | 7 | 8 |
+| [llvm](issues/llvm.md) | In-review | 0 | 0 | 8 | 8 |
+| [src-main](issues/src-main.md) | In-review | 0 | 0 | 1 | 1 |
+| [src-passes](issues/src-passes.md) | In-review | 0 | 0 | 4 | 4 |
+| [runtime-build](issues/runtime-build.md) | In-review | 0 | 1 | 5 | 6 |
+| [interpreter](issues/interpreter.md) | In-review | 2 | 2 | 3 | 7 |
+| [compiler-codegen](issues/compiler-codegen.md) | In-review | 0 | 0 | 0 | 0 |
+| [native-helpers](issues/native-helpers.md) | In-review | 1 | 3 | 1 | 5 |
+| [language](issues/language.md) | In-review | 0 | 0 | 6 | 6 |
+| [tools](issues/tools.md) | In-review | 0 | 0 | 4 | 4 |
+| [experimental](issues/experimental.md) | In-review | 0 | 3 | 4 | 7 |
+| **Total** | | **12** | **34** | **60** | **106** |
 
 ## Components
 

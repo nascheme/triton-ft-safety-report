@@ -1,0 +1,127 @@
+From 287636e5aecf44e98ba25e7394891d5e93f3c8d3 Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Wed, 20 May 2026 15:28:35 -0700
+Subject: [PATCH] [experimental] Serialize gsan symmetric_memory.rendezvous()
+
+The rendezvous protocol does check-then-act on a module-level
+WeakValueDictionary `_RENDEZVOUS_CACHE`, runs a multi-step Unix-socket
+FD-exchange, then writes to that cache; it also reads-decides-updates a
+shared peer set held by `_RUNTIME_BOOTSTRAP_CACHE`. Under free-threaded
+CPython two threads rendezvousing on the same tensor / process group
+can both miss the cache, both run the full protocol, both write to the
+cache (orphaning one handle, whose finalizer double-frees peer
+allocations), and both decide the same peers still need a runtime-state
+FD (resulting in duplicate `import_runtime_state_handle`).
+
+Hold a module-level `threading.Lock` across the cache check, the
+protocol, and the trailing cache / peer-set update. The rendezvous
+path is a setup-time, blocking I/O path so a single coarse lock is
+acceptable. The body of the protocol is factored into a helper
+`_rendezvous_uncached()` so the lock-and-cache wrapper stays small
+and the diff against the original implementation stays focused on
+the synchronization change.
+
+Assisted-by: claude-opus-4.7
+---
+ .../experimental/gsan/symmetric_memory.py     | 50 +++++++++++++++----
+ 1 file changed, 40 insertions(+), 10 deletions(-)
+
+diff --git a/python/triton/experimental/gsan/symmetric_memory.py b/python/triton/experimental/gsan/symmetric_memory.py
+index aaf923ea0..17556a56d 100644
+--- a/python/triton/experimental/gsan/symmetric_memory.py
++++ b/python/triton/experimental/gsan/symmetric_memory.py
+@@ -10,6 +10,7 @@ import os
+ import socket
+ import struct
+ import tempfile
++import threading
+ import time
+ import uuid
+ import weakref
+@@ -279,6 +280,11 @@ def _connect(path: Path, timeout: float = 10) -> socket.socket:
+ _RENDEZVOUS_CACHE: weakref.WeakValueDictionary[_RendezvousCacheKey,
+                                                GSanSymmetricMemoryHandle] = weakref.WeakValueDictionary()
+ _RUNTIME_BOOTSTRAP_CACHE: dict[_RuntimeBootstrapCacheKey, set[int]] = {}
++# Serializes the rendezvous check-then-act on `_RENDEZVOUS_CACHE` and the
++# read-decide-update on the shared `_RUNTIME_BOOTSTRAP_CACHE` peer set under
++# free-threaded CPython. The rendezvous protocol is a setup-time, blocking
++# I/O path so a single module-level lock is acceptable.
++_RENDEZVOUS_LOCK = threading.Lock()
+
+
+ def rendezvous(tensor: torch.Tensor, group) -> GSanSymmetricMemoryHandle:
+@@ -302,15 +308,43 @@ def rendezvous(tensor: torch.Tensor, group) -> GSanSymmetricMemoryHandle:
+     base_ptr = storage.data_ptr()
+     storage_key = int(getattr(storage, "_cdata", base_ptr))
+     cache_key = (base_ptr, storage_key, id(process_group))
+-    cached = _RENDEZVOUS_CACHE.get(cache_key)
+-    if cached is not None and not cached._closed:
+-        return cached
+-    _RENDEZVOUS_CACHE.pop(cache_key, None)
+
++    with _RENDEZVOUS_LOCK:
++        cached = _RENDEZVOUS_CACHE.get(cache_key)
++        if cached is not None and not cached._closed:
++            return cached
++        _RENDEZVOUS_CACHE.pop(cache_key, None)
++        handle = _rendezvous_uncached(
++            tensor=tensor,
++            process_group=process_group,
++            rank=rank,
++            world_size=world_size,
++            device_index=device_index,
++            base_ptr=base_ptr,
++            cache_key=cache_key,
++        )
++        _RENDEZVOUS_CACHE[cache_key] = handle
++        return handle
++
++
++def _rendezvous_uncached(
++    *,
++    tensor: torch.Tensor,
++    process_group,
++    rank: int,
++    world_size: int,
++    device_index: int,
++    base_ptr: int,
++    cache_key: _RendezvousCacheKey,
++) -> GSanSymmetricMemoryHandle:
++    # Caller (`rendezvous`) must hold `_RENDEZVOUS_LOCK` and have already
++    # consulted `_RENDEZVOUS_CACHE`. This helper runs the full FD-exchange
++    # protocol and returns a fresh handle; the caller inserts it into the
++    # cache.
+     buffer_size = tensor.untyped_storage().nbytes()
+
+     if world_size == 1:
+-        handle = GSanSymmetricMemoryHandle(
++        return GSanSymmetricMemoryHandle(
+             group=process_group,
+             rank=rank,
+             world_size=world_size,
+@@ -320,8 +354,6 @@ def rendezvous(tensor: torch.Tensor, group) -> GSanSymmetricMemoryHandle:
+             peer_device_indices=(int(device_index), ),
+             cache_key=cache_key,
+         )
+-        _RENDEZVOUS_CACHE[cache_key] = handle
+-        return handle
+
+     runtime_bootstrap_cache_key = (id(process_group), int(device_index))
+     runtime_bootstrapped_peers = _RUNTIME_BOOTSTRAP_CACHE.setdefault(runtime_bootstrap_cache_key, set())
+@@ -465,7 +497,7 @@ def rendezvous(tensor: torch.Tensor, group) -> GSanSymmetricMemoryHandle:
+         if peers_needing_runtime_bootstrap:
+             runtime_bootstrapped_peers.update(peers_needing_runtime_bootstrap)
+
+-    handle = GSanSymmetricMemoryHandle(
++    return GSanSymmetricMemoryHandle(
+         group=process_group,
+         rank=rank,
+         world_size=world_size,
+@@ -475,5 +507,3 @@ def rendezvous(tensor: torch.Tensor, group) -> GSanSymmetricMemoryHandle:
+         peer_device_indices=peer_device_indices,
+         cache_key=cache_key,
+     )
+-    _RENDEZVOUS_CACHE[cache_key] = handle
+-    return handle
+--
+2.47.3

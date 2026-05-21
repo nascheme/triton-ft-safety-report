@@ -7,7 +7,7 @@ type: issue
 # LLVM `TimePasses` global flags and `reportAndResetTimings` raced by concurrent compiles
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** Minor
 - **Component:** `python/src/llvm.cc` — `translateLLVMIRToASM` (only active
   when `LLVM_ENABLE_TIMING` is set)
 - **Tier:** 1/2
@@ -50,15 +50,20 @@ type: issue
      `raw_ostream`) with no synchronization, producing interleaved or
      torn timing-report output.
 
-- **Suggested fix:** This is a diagnostic-only path, so two reasonable
-  options:
-  1. Serialize the timing-enabled region under the same process-wide
-     compile mutex used for the `cl::opt` mutations
-     (`issues/llvm/global-cl-opt-mutation.md`). Both concerns share the
-     same root cause: process-global LLVM state mutated from a
-     GIL-released hot path.
-  2. Set `TimePassesIsEnabled` / `TimePassesPerRun` once at module-init
-     time based on the env var instead of every compile, and skip the
-     `reportAndResetTimings` calls when the flags aren't on.
+- **Severity rationale:** Strictly opt-in via `LLVM_ENABLE_TIMING` and
+  expected to be used in single-threaded test/debug situations, not in
+  multi-threaded production work. No compiled-code correctness impact —
+  the race only scrambles the timing report itself (drained counters,
+  interleaved `llvm::dbgs()` output). Same shape as
+  `dump-sched-dag-stderr-redirection`.
 
-  Either is acceptable; option 1 is the minimal change.
+- **Suggested fix:** Document that `LLVM_ENABLE_TIMING` is not safe to
+  use with concurrent in-process compilation (timing reports will be
+  interleaved/truncated) and treat it as a single-threaded diagnostic.
+  If a mutex is wanted anyway, serialize the timing-enabled region under
+  the same process-wide compile mutex that would cover the `cl::opt`
+  mutations (`issues/llvm/global-cl-opt-mutation.md`) — both share the
+  same root cause: process-global LLVM state mutated from a GIL-released
+  path. Alternatively, set `TimePassesIsEnabled` / `TimePassesPerRun`
+  once at module-init time based on the env var instead of every compile,
+  and skip the `reportAndResetTimings` calls when the flags aren't on.

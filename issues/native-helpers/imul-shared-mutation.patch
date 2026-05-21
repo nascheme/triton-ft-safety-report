@@ -1,0 +1,49 @@
+From f1033c7ec2341214ec303d5fac73b0a24f2da334 Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Wed, 20 May 2026 15:21:38 -0700
+Subject: [PATCH] [native-helpers] Drop LinearLayout __imul__ on free-threaded
+ builds
+
+LinearLayout::operator*= mutates the receiver's bases / outDims
+in-place. Exposing that as Python __imul__ means `a *= b` writes to a
+non-atomic C++ value that another thread may be reading concurrently
+(e.g. via __eq__, __mul__, get_shared_view, repr) under free-threaded
+CPython.
+
+On free-threaded builds (Py_GIL_DISABLED), omit the __imul__ binding
+entirely. Python's `a *= b` then falls back to `a = a * b`, which uses
+__mul__ and rebinds the name -- no in-place C++ mutation of a possibly
+shared object. The GIL build keeps __imul__ unchanged so existing
+callers depending on the in-place semantics are not affected.
+
+Assisted-by: claude-opus-4.7
+---
+ python/src/linear_layout.cc | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/python/src/linear_layout.cc b/python/src/linear_layout.cc
+index 21ad10125..a1b2c3d4e 100644
+--- a/python/src/linear_layout.cc
++++ b/python/src/linear_layout.cc
+@@ -161,6 +161,11 @@ void init_linear_layout(py::module &&m) {
+       .def_property_readonly("num_out_dims", &LinearLayout::getNumOutDims)
+       .def("__mul__", [](const LinearLayout &lhs,
+                          const LinearLayout &rhs) { return lhs * rhs; })
++      // On free-threaded CPython (Py_GIL_DISABLED), do not expose __imul__:
++      // operator*= mutates the receiver's non-atomic C++ storage in place,
++      // which races with concurrent readers of the same Python object.
++      // Without __imul__, Python's `a *= b` falls back to `a = a * b`.
++#ifndef Py_GIL_DISABLED
+       .def(
+           "__imul__",
+           [](LinearLayout &lhs, const LinearLayout &rhs) -> LinearLayout & {
+@@ -168,6 +173,7 @@ void init_linear_layout(py::module &&m) {
+             return lhs;
+           },
+           py::return_value_policy::reference_internal)
++#endif
+       .def("__eq__", [](const LinearLayout &lhs,
+                         const LinearLayout &rhs) { return lhs == rhs; })
+       .def("__ne__", [](const LinearLayout &lhs,
+--
+2.47.3

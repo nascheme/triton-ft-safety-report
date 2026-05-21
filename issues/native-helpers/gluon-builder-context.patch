@@ -1,0 +1,48 @@
+From b5fc70532f3b81d58bc4e444eaff18efa44025c4 Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Wed, 20 May 2026 15:25:14 -0700
+Subject: [PATCH] [ir] Construct the per-compile MLIRContext with
+ Threading::ENABLED
+
+The MLIRContext factory exposed to Python (triton._C.libtriton.ir.context())
+constructed contexts with Threading::DISABLED, which leaves MLIR's
+StorageUniquer unsynchronized. Any binding that calls StringAttr::get /
+*EncodingAttr::get / *Type::get on a shared context (e.g. via
+GluonOpBuilder, or via the process-wide context kept by
+linear_layout.cc) is then a concurrent writer of a non-thread-safe
+unordered_map under free-threaded CPython.
+
+Construct the context with Threading::ENABLED so the uniquer takes its
+own internal locks. The debug paths that explicitly want
+single-threaded behaviour (MLIR_ENABLE_DUMP, TRITON_REPRODUCER_PATH,
+MLIR_DISABLE_MULTITHREADING) already call context->disableMultithreading()
+themselves and continue to work.
+
+Assisted-by: claude-opus-4.7
+---
+ python/src/ir.cc | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/python/src/ir.cc b/python/src/ir.cc
+index 816266a82..31984db5b 100644
+--- a/python/src/ir.cc
++++ b/python/src/ir.cc
+@@ -321,7 +321,14 @@ void init_triton_ir(py::module &&m) {
+ 
+   py::class_<MLIRContext>(m, "context", py::module_local())
+       .def(py::init<>([]() {
+-        return std::make_unique<MLIRContext>(MLIRContext::Threading::DISABLED);
++        // Threading::ENABLED makes MLIR's StorageUniquer take internal locks
++        // so that StringAttr::get / IntegerAttr::get / *EncodingAttr::get
++        // can be called concurrently from multiple Python threads under
++        // free-threaded CPython. Triton does not exploit MLIR's parallel
++        // pass execution; pass managers that explicitly need single-threaded
++        // behavior (MLIR dump, reproducer, MLIR_DISABLE_MULTITHREADING)
++        // still call context->disableMultithreading() themselves.
++        return std::make_unique<MLIRContext>(MLIRContext::Threading::ENABLED);
+       }))
+       .def("printOpOnDiagnostic",
+            [](MLIRContext &self, bool v) { self.printOpOnDiagnostic(v); })
+-- 
+2.47.3
+

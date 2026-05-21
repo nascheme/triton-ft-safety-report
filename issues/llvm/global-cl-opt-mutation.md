@@ -7,9 +7,16 @@ type: issue
 # Global LLVM `cl::opt<>` mutation from GIL-released compile paths
 
 - **Status:** Open
-- **Severity:** SEVERE
+- **Severity:** Minor (pre-existing maintainer-rule violation, not a free-threading bug)
 - **Component:** `python/src/llvm.cc` — `setLLVMOption` / `restoreLLVMOption` / `ScopedLLVMOption`
-- **Tier:** 1/2
+- **Tier:** Out-of-scope (see README "Pre-existing rule violations" /
+  Tier 3 family)
+
+> **Scope note:** Triton maintainers' rule is "don't mutate `cl::opt`
+> per-kernel"; only debug features currently do it. The race exists under
+> the GIL build too. Per `README.md` and `CLAUDE.md`, this category is
+> tracked for completeness rather than promoted to a free-threading tier.
+> Filed here so the failure mode is documented, not as an ask to fix.
 
 - **Shared state:** the process-global `llvm::cl::opt<T>` registry returned by
   `llvm::cl::getRegisteredOptions()` and the individual `cl::opt<T>` objects it
@@ -50,17 +57,12 @@ type: issue
   flipped after both threads return. The save/restore invariant is logically
   wrong under any concurrent caller, independent of the C++ memory model.
 
-- **Suggested fix:** Add a single process-wide mutex that covers the entire
-  capture-set-run-restore body of every function that touches `cl::opt`
-  state (`translateLLVMIRToASM`, `translateLLVMIRToMIR`, `translateMIRToASM`,
-  `dumpSchedulingDAG`, and the `optimize_module` lambda). The lock must span
-  `ScopedLLVMOption` construction through destruction so the original-value
-  capture is accurate. Gate it under `#ifdef Py_GIL_DISABLED` to avoid cost
-  in GIL-enabled builds. The GIL is already released, so there is no
-  GIL/lock-ordering deadlock risk. Per-option locking does not fix scenario
-  B — the critical section must be the whole scope.
-
-  Long-term: migrate flag forwarding off `cl::opt` (e.g. new pass-manager
-  `PipelineTuningOptions` and instrumentation callbacks) so per-compile
-  configuration is no longer process-global. See `issues.md` triage notes
-  for the extended discussion.
+- **Suggested fix:** Honor the existing maintainer rule and stop mutating
+  `cl::opt` from runtime paths. Where the only callers are debug features
+  (`TRITON_DUMP_MIR`, `LLVM_IR_ENABLE_DUMP`, flag forwarding), document
+  that those features are single-threaded. If concurrent in-process use of
+  any of these debug paths becomes a goal, the minimal fix is a single
+  process-wide mutex that covers the entire capture-set-run-restore body
+  of every function that touches `cl::opt` state (gate under
+  `#ifdef Py_GIL_DISABLED`); per-option locking does not fix scenario B.
+  See `issues/llvm.md` triage notes for the extended discussion.

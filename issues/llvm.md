@@ -4,9 +4,9 @@
 
 | # | Severity | Tier | Component | Issue |
 |---|----------|------|-----------|-------|
-| 1 | SEVERE      | 1/2 | `setLLVMOption` / `restoreLLVMOption` / `ScopedLLVMOption` | Process-global `llvm::cl::opt<>` state mutated from GIL-released compile paths; RAII "original-value" capture interleaves between threads |
-| 2 | SEVERE      | 1/2 | `dumpSchedulingDAG` stderr redirection                     | Process-wide `dup` / `freopen(stderr)` / `dup2` sequence races with other threads and other Python I/O |
-| 3 | Significant | 1/2 | `llvm::TimePassesIsEnabled` / `llvm::TimePassesPerRun`     | Process-global timing flags and `reportAndResetTimings` used from GIL-released `translateLLVMIRToASM` |
+| 1 | Minor       | OOS | `setLLVMOption` / `restoreLLVMOption` / `ScopedLLVMOption` | Process-global `llvm::cl::opt<>` state mutated from GIL-released paths; RAII "original-value" capture interleaves between threads. Pre-existing maintainer-rule violation, out-of-scope per README; only debug features currently do it. |
+| 2 | Minor       | 1/2 | `dumpSchedulingDAG` stderr redirection                     | Process-wide `dup` / `freopen(stderr)` / `dup2` sequence races with other threads and other Python I/O. Debug-only (`TRITON_DUMP_MIR`); no codegen correctness impact, but can permanently corrupt fd 2 after the dump session. |
+| 3 | Minor       | 1/2 | `llvm::TimePassesIsEnabled` / `llvm::TimePassesPerRun`     | Process-global timing flags and `reportAndResetTimings` used from GIL-released `translateLLVMIRToASM`. Debug-only (`LLVM_ENABLE_TIMING`); no codegen correctness impact, only scrambled timing reports. Document as single-threaded. |
 | 4 | Minor       | 2   | `init_targets` — `llvm::parallel::strategy` write          | Unconditional write outside the `std::call_once` block. Concurrent compile threads write the same value (`hardware_concurrency(1)`); technically UB but observable outcome converges. |
 | 5 | Minor (latent) | 2 | `to_module` binding                                        | `py::call_guard<py::gil_scoped_release>` around `translateModuleToLLVMIR` with a user-supplied `mlir::ModuleOp` and `llvm::LLVMContext`. Downgraded: both backends construct fresh per-compile contexts and modules; not reachable today. |
 | 6 | Minor (latent) | 2 | `optimize_module` binding                                  | `py::call_guard<py::gil_scoped_release>` around `PassBuilder` / `ModulePassManager::run` operating on a user-supplied `llvm::Module`. Downgraded: per-compile module, not shared. |
@@ -91,7 +91,16 @@ expose mutators like `add_flag`, `add_fn_attr`, `remove_fn_attr`,
 
 ## Triage notes
 
-### 1. Global LLVM command-line option state (SEVERE)
+### 1. Global LLVM command-line option state (Minor — out of scope)
+
+> Per `README.md` ("Pre-existing rule violations") and `CLAUDE.md`, mutation
+> of `llvm::cl::opt` from runtime code is a pre-existing maintainer-rule
+> violation, not a free-threading bug. The rule is "don't change it
+> per-kernel"; only debug features currently do it, and the race already
+> exists under the GIL build when thread-based compile workers are used.
+> Kept in this file for completeness (and because the failure mode and fix
+> direction are useful to record), but explicitly **not** a tier 1/2 ask
+> on Triton maintainers.
 
 - **Shared state:** `llvm::cl::getRegisteredOptions()` returns a process-wide
   map of option name → `llvm::cl::Option*`. The underlying `llvm::cl::opt<T>`
@@ -131,13 +140,15 @@ expose mutators like `add_flag`, `add_fn_attr`, `remove_fn_attr`,
   scope exits it "restores" to `true`, leaving the option permanently enabled
   after both threads finish. Even without a C++ memory-model race, the
   save/restore pairing is logically wrong under concurrency.
-- **Severity:** SEVERE. Process-wide mutable state, mutated concurrently with
-  no synchronization, from a GIL-released hot compile path. Effect is not just
-  a benign inefficiency: options like `stop-before`, `start-before`,
-  `enable-misched`, and `DISABLE_LLVM_OPT`-forwarded flags directly change
-  which LLVM passes run and therefore affect generated code correctness and
-  output.
-- **Tier:** Tier 1/2. Triggered whenever two threads compile concurrently.
+- **Severity:** Minor (out of scope as a free-threading bug; pre-existing
+  maintainer-rule violation). Were it in scope it would be SEVERE — options
+  like `stop-before`, `start-before`, `enable-misched`, and
+  `DISABLE_LLVM_OPT`-forwarded flags directly change which LLVM passes run
+  and therefore affect generated code. But the maintainers' rule is "don't
+  mutate `cl::opt` per-kernel," only debug features currently do it, and
+  the race exists under the GIL build too.
+- **Tier:** Out-of-scope. Same family as Tier 3 per README — tracked, not
+  proposed for a fix as part of the nogil work.
 - **Fix direction:** see the extended discussion below.
 
 #### Extended fix discussion for issue #1
@@ -240,7 +251,7 @@ Neither is appropriate for an initial, minimal free-threading patch.  A
 comment in the code should note the limitation and point to this issue for
 follow-up.
 
-### 2. `dumpSchedulingDAG` stderr redirection (SEVERE)
+### 2. `dumpSchedulingDAG` stderr redirection (Minor)
 
 - **Shared state:** the process's `stderr` FILE* and file-descriptor 2.
 - **Writer/Reader:** `dumpSchedulingDAG` runs:
@@ -258,17 +269,20 @@ follow-up.
 - **Runs with GIL released** (the `dump_sched_dag` binding opens an
   explicit `py::gil_scoped_release allow_threads;` before calling
   `dumpSchedulingDAG`).
-- **Severity:** SEVERE. Debug/diagnostic path, but still hits real
-  process-global state and corrupts the stderr state for the entire process.
-  Although only active when `TRITON_DUMP_MIR` is set, the consequence is not
-  limited to the thread that enabled it.
+- **Severity:** Minor. Strictly opt-in via the `TRITON_DUMP_MIR` env var;
+  the codegen result is written to a local `raw_string_ostream`, not stderr,
+  so computed/compiled output is unaffected. The race only scrambles dump-file
+  contents and transiently misroutes other stderr writers. The one lingering
+  consequence is that interleaved `dup2`/`close` can leave fd 2 permanently
+  pointing at a stale dump file after the debug session ends, but this still
+  requires an operator to opt into concurrent MIR dumping.
 - **Tier:** Tier 1/2 whenever `TRITON_DUMP_MIR` is on.
 - **Fix direction:** serialize the entire stderr-redirection region under a
   dedicated mutex, or avoid process-wide stderr redirection altogether (e.g.
   capture LLVM diagnostics through an LLVM `raw_ostream` rather than the C
   `stderr` FD). Needs deeper investigation.
 
-### 3. `llvm::TimePassesIsEnabled` / `llvm::TimePassesPerRun` (Significant)
+### 3. `llvm::TimePassesIsEnabled` / `llvm::TimePassesPerRun` (Minor)
 
 - **Shared state:** two process-global flags plus LLVM's internal
   `TimePassesHandler` counters used by `reportAndResetTimings`.
@@ -283,13 +297,17 @@ follow-up.
   `py::gil_scoped_release`).
 - **Tier:** Tier 1 when `LLVM_ENABLE_TIMING` is on; timing results become
   incoherent across threads.
-- **Severity:** Significant rather than SEVERE because the artifact is
-  diagnostic (pass-timing reports) rather than generated code, but the global
-  counters and flags are genuinely raced.
-- **Fix direction:** either serialize the timing-enabled path under the same
-  mutex as issue #1 (logical since both concern process-global compile state),
-  or do not mutate the global timing flags from pybind11 bindings at all and
-  instead set them through LLVM's existing API once during `init_targets`.
+- **Severity:** Minor. Strictly opt-in via `LLVM_ENABLE_TIMING` and
+  expected to be used in single-threaded test/debug situations, not in
+  multi-threaded production work. The artifact is diagnostic (pass-timing
+  reports), not generated code, so there is no codegen correctness impact.
+- **Fix direction:** Document that `LLVM_ENABLE_TIMING` is not safe to use
+  with concurrent in-process compilation and treat it as a single-threaded
+  diagnostic. If a code-level fix is wanted, either serialize the
+  timing-enabled path under the same mutex as issue #1 (both concern
+  process-global compile state), or do not mutate the global timing flags
+  from pybind11 bindings at all and instead set them through LLVM's
+  existing API once during `init_targets`.
 
 ### 4. `init_targets` — `llvm::parallel::strategy` write after `call_once` (Minor)
 

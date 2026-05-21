@@ -1,6 +1,10 @@
 # `_RUNTIME_BOOTSTRAP_CACHE` read-modify-write across `rendezvous()` calls
 
 - **Status:** Open
+- **Patch:** `symmetric-memory-rendezvous-toctou.patch` (the same
+  module-level `threading.Lock` that fixes
+  [[symmetric-memory-rendezvous-toctou]] also covers the
+  read-decide-update on `runtime_bootstrapped_peers`)
 - **Severity:** Significant
 - **Component:** `experimental/gsan/symmetric_memory.py` (`rendezvous`)
 - **Tier:** 2

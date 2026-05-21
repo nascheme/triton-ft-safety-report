@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Neil Schemenauer <nas@arctrix.com>
+Date: Wed, 20 May 2026 15:21:00 -0700
+Subject: [PATCH] [native-helpers] Enable multithreading on the shared
+ LinearLayout MLIRContext
+
+linear_layout.cc keeps a process-wide MLIRContext built via the
+ir.context() factory, which constructs it with Threading::DISABLED.
+That setting forwards into every StorageUniquer on the context and
+causes ParametricStorageUniquer::getOrCreate() to take the
+getOrCreateUnsafe() branch, skipping the per-shard reader/writer
+mutex. Every binding that calls StringAttr::get on this context
+(identity_1d, strided_1d, zeros_1d, from_bases, apply) is then a
+concurrent writer of an unlocked unordered_map under free-threaded
+CPython.
+
+Call enableMultithreading() on the context after construction. The
+uniquer's own per-shard SmartRWMutex then synchronizes inserts and
+lookups, with no extra process-wide lock needed.
+
+Assisted-by: claude-opus-4.7
+---
+ python/src/linear_layout.cc | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/python/src/linear_layout.cc b/python/src/linear_layout.cc
+index 21ad10125..b0b0b0b00 100644
+--- a/python/src/linear_layout.cc
++++ b/python/src/linear_layout.cc
+@@ -21,6 +21,11 @@ mlir::MLIRContext *getLinearLayoutContext() {
+     py::module irMod = py::module::import("triton._C.libtriton.ir");
+     // Keep the Python object alive for the life of the process without running
+     // its destructor during interpreter shutdown (avoids segfaults).
+     py::object ctx = irMod.attr("context")();
++    // The ir.context() factory constructs the MLIRContext with
++    // Threading::DISABLED, which disables locking inside its StorageUniquers.
++    // Re-enable multithreading so concurrent StringAttr::get calls from
++    // free-threaded Python are synchronized by the uniquer's own per-shard
++    // mutex.
++    py::cast<mlir::MLIRContext *>(ctx)->enableMultithreading();
+     return ctx.release().ptr();
+   }();
+   return py::cast<mlir::MLIRContext *>(py::handle(ctxObject));
+--
+2.47.3

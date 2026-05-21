@@ -1,6 +1,10 @@
 # `rendezvous()` check-then-act on `_RENDEZVOUS_CACHE`
 
 - **Status:** Open
+- **Patch:** `symmetric-memory-rendezvous-toctou.patch` (module-level
+  `threading.Lock` held across the `_RENDEZVOUS_CACHE` check, the
+  rendezvous protocol, and the trailing cache write; the same lock
+  covers [[symmetric-memory-bootstrap-cache-rmw]])
 - **Severity:** Significant
 - **Component:** `experimental/gsan/symmetric_memory.py` (`rendezvous`)
 - **Tier:** 2
