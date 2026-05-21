@@ -44,8 +44,8 @@ What remains in this component is:
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | Minor | backends (registry) | 3 | [`backends` dict has no in-tree writer but is reachable for out-of-tree mutation](backends/backends-registry-mutation.md) |
-| 2 | Minor | GPUDriver.__init__ | 1 | [`GPUDriver.__init__` reads `torch.cuda.*` lazily on first construction — cold-start only](backends/gpu-driver-init-torch-attrs.md) |
+| 1 | Minor | backends (registry) | 3 | `backends` dict has no in-tree writer but is reachable for out-of-tree mutation |
+| 2 | Minor | GPUDriver.__init__ | 1 | `GPUDriver.__init__` reads `torch.cuda.*` lazily on first construction — cold-start only |
 
 No Significant or SEVERE issues identified. Both items above are
 documented for completeness; the deep-dive agent may well reclassify

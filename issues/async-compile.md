@@ -31,10 +31,10 @@ mismatch) that did not need to live in the jit writeup.
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | Significant | AsyncCompileMode.submit | 2 | [`submit()` get-then-set TOCTOU on `future_kernels` causes duplicate executor submissions](async-compile/submit-toctou.md) |
-| 2 | Significant | FutureKernel.result | 2 | [`result()` non-atomic first-use causes duplicate `finalize_compile` / duplicate `jit_post_compile_hook`](async-compile/future-kernel-result-race.md) |
-| 3 | Minor | AsyncCompileMode.raw_futures | 2 | [`raw_futures.append` during `as_completed` iteration in `__exit__`](async-compile/raw-futures-list-mutation.md) |
-| 4 | Minor | FutureKernel.__getattr__ | 2 | [`__getattr__` re-enters `result()` from every attribute access, widening the race window](async-compile/getattr-result-reentry.md) |
+| 1 | Significant | AsyncCompileMode.submit | 2 | `submit()` get-then-set TOCTOU on `future_kernels` causes duplicate executor submissions |
+| 2 | Significant | FutureKernel.result | 2 | `result()` non-atomic first-use causes duplicate `finalize_compile` / duplicate `jit_post_compile_hook` |
+| 3 | Minor | AsyncCompileMode.raw_futures | 2 | `raw_futures.append` during `as_completed` iteration in `__exit__` |
+| 4 | Minor | FutureKernel.__getattr__ | 2 | `__getattr__` re-enters `result()` from every attribute access, widening the race window |
 
 All four issues are realistically reachable only in Tier 2 scenarios where
 two threads share either the same `AsyncCompileMode` instance or the same

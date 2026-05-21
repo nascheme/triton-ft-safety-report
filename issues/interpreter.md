@@ -22,9 +22,9 @@ Files in scope:
 | 2 | SEVERE | `_patch_lang` / `_LangPatchScope` | 2 | [Process-wide monkey-patching of `tl.*` with save/restore permanently corrupts `tl` under concurrent runs](interpreter/patch-lang-save-restore-race.md) |
 | 3 | Significant | `FunctionRewriter._compile_and_exec` | 2 | [Mutation of user kernel's `fn.__globals__` during `exec`, shared across threads](interpreter/compile-and-exec-globals-mutation.md) |
 | 4 | Significant | `InterpretedFunction.__call__` | 2 | [`__call__` path applies `_patch_lang` without ever restoring, leaking patches](interpreter/interpreted-fn-call-leaks-patches.md) |
-| 5 | Minor | `InterpretedFunction.rewritten_fn` | 2 | [Class-level rewrite cache is check-then-set; duplicate AST rewrite under concurrent first-use](interpreter/rewritten-fn-cache-toctou.md) |
-| 6 | Minor | `_patch_lang` | 2 | [Iteration over `fn.__globals__.items()` while `_compile_and_exec` mutates the same dict](interpreter/patch-lang-globals-iteration.md) |
-| 7 | Minor | `interpreter.cc` `mem_semantic_map` | 1 | [`std::map` read via non-const `operator[]` on the hot path (insert-on-miss latent risk)](interpreter/mem-semantic-map-operator.md) |
+| 5 | Minor | `InterpretedFunction.rewritten_fn` | 2 | Class-level rewrite cache is check-then-set; duplicate AST rewrite under concurrent first-use |
+| 6 | Minor | `_patch_lang` | 2 | Iteration over `fn.__globals__.items()` while `_compile_and_exec` mutates the same dict |
+| 7 | Minor | `interpreter.cc` `mem_semantic_map` | 1 | `std::map` read via non-const `operator[]` on the hot path (insert-on-miss latent risk) |
 
 `atomic_op_guard`-based serialization in `interpreter.cc` is already
 documented as protected state (see CLAUDE.md and `specialize/` notes). It is

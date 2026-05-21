@@ -28,14 +28,14 @@ Key shared objects:
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | SEVERE | HookChain | 3 | [`HookChain.__call__` iterates `self.calls` under concurrent `add`/`remove`](knobs/hookchain-iteration-race.md) |
-| 2 | Significant | HookChain | 3 | [`HookChain.add` / `HookChain.remove` TOCTOU on membership check](knobs/hookchain-add-remove-toctou.md) |
-| 3 | Significant | runtime hook slots | 3 | [Hot-path callers re-read `knobs.runtime.*_hook` across `is not None` / call](knobs/hook-slot-caller-reread.md) |
+| 1 | SEVERE | HookChain | 3 | `HookChain.__call__` iterates `self.calls` under concurrent `add`/`remove` |
+| 2 | Significant | HookChain | 3 | `HookChain.add` / `HookChain.remove` TOCTOU on membership check |
+| 3 | Significant | runtime hook slots | 3 | Hot-path callers re-read `knobs.runtime.*_hook` across `is not None` / call |
 | 4 | Significant | base_knobs.scope | 3 | [`base_knobs.scope()` corrupts shared knob state / `os.environ` under concurrent use](knobs/scope-context-manager-race.md) |
-| 5 | Significant | env_base.__set__ | 3 | [`env_base.__set__` non-atomic instance-dict vs `os.environ` update](knobs/env-base-set-non-atomic.md) |
-| 6 | Minor | setenv | 3 | [`setenv` check-then-delete TOCTOU on `os.environ`](knobs/setenv-toctou.md) |
-| 7 | Minor | base_knobs.reset | 3 | [`base_knobs.reset()` non-atomic multi-descriptor delete](knobs/reset-non-atomic.md) |
-| 8 | Minor | refresh_knobs | 3 | [`refresh_knobs()` vs concurrent readers on `runtime.debug` / `compilation.instrumentation_mode`](knobs/refresh-knobs-staleness.md) |
+| 5 | Significant | env_base.__set__ | 3 | `env_base.__set__` non-atomic instance-dict vs `os.environ` update |
+| 6 | Minor | setenv | 3 | `setenv` check-then-delete TOCTOU on `os.environ` |
+| 7 | Minor | base_knobs.reset | 3 | `base_knobs.reset()` non-atomic multi-descriptor delete |
+| 8 | Minor | refresh_knobs | 3 | `refresh_knobs()` vs concurrent readers on `runtime.debug` / `compilation.instrumentation_mode` |
 
 Cross-reference:
 [`jit/add-stages-inspection-hook-toctou.md`](jit/add-stages-inspection-hook-toctou.md)

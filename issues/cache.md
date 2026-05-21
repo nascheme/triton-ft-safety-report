@@ -22,10 +22,10 @@ concerns.
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | Minor | FileCacheManager.put | 2 | [`os.removedirs(temp_dir)` ascent can nuke shared parent dirs under concurrent cleanup](cache/put-removedirs-ascent.md) |
-| 2 | Minor | RemoteCacheManager / RedisRemoteCacheBackend | 3 | [Non-atomic multi-read of `knobs.cache.redis.*` / `knobs.cache.remote_manager_class` during construction](cache/remote-cache-construction-reread.md) |
-| 3 | Minor | triton_key | 1 | [`triton_key()` `@functools.lru_cache` cold-start / filesystem-dependent hashing](cache/triton-key-lru-cache.md) |
-| 4 | Minor | FileCacheManager.get_file | 2 | [`get_file` returns a path that can disappear before the caller opens it](cache/get-file-caller-toctou.md) |
+| 1 | Minor | FileCacheManager.put | 2 | `os.removedirs(temp_dir)` ascent can nuke shared parent dirs under concurrent cleanup |
+| 2 | Minor | RemoteCacheManager / RedisRemoteCacheBackend | 3 | Non-atomic multi-read of `knobs.cache.redis.*` / `knobs.cache.remote_manager_class` during construction |
+| 3 | Minor | triton_key | 1 | `triton_key()` `@functools.lru_cache` cold-start / filesystem-dependent hashing |
+| 4 | Minor | FileCacheManager.get_file | 2 | `get_file` returns a path that can disappear before the caller opens it |
 
 All four are Minor. No Significant or SEVERE issues identified in this
 file.
