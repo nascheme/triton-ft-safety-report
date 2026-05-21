@@ -115,6 +115,74 @@ python/
     tools/                      # Disassembly and utility helpers
 ```
 
+## Audit Components
+
+The audit is organized into the components below. Each maps to an
+`issues/<component>.md` file and to a row in the README
+[Audit Progress](README.md#audit-progress) table. Descriptions call out the
+shared mutable state worth inspecting for free-threading.
+
+### Runtime (`python/triton/runtime/`)
+
+| Component | Files | Description |
+|-----------|-------|-------------|
+| **jit** | `jit.py` | `@triton.jit` decorator, `JITFunction` class, kernel dispatch, specialization. Global `_triton_jit_function_registry` dict; per-instance `device_caches` defaultdict; `@cached_property` on `KernelParam`. |
+| **autotuner** | `autotuner.py` | `@autotune` decorator, config benchmarking. Per-instance `cache` and `configs_timings` dicts; disk cache read/write. |
+| **runtime-driver** | `driver.py` | `DriverConfig` singleton managing the active GPU driver. Lazy-init `_default`/`_active` properties without synchronization. |
+| **cache** | `cache.py` | Cache manager abstractions (`CacheManager`, `FileCacheManager`, `RemoteCacheManager`, `RedisRemoteCacheBackend`). LRU-cached `triton_key()`; the Redis backend holds a singleton connection. |
+| **async-compile** | `_async_compile.py` | `AsyncCompileMode` context manager for background compilation via `concurrent.futures`. Uses `ContextVar` (safe), but `FutureKernel` result caching needs review. |
+| **runtime-build** | `build.py`, `_allocation.py` | Dynamic C module compilation for launcher stubs (`build.py`, LRU-cached `platform_key()`); GPU memory allocator interface (`_allocation.py`, `ContextVar`-based, with a mutable `_profile_allocator` wrapper singleton). |
+| **interpreter** | `interpreter.py`, `python/src/interpreter.cc` | CPU interpreter fallback for Triton kernels, plus native interpreter helpers for atomic operations (the native side is protected by `std::mutex atomic_op_guard`). |
+
+### Compiler (`python/triton/compiler/`)
+
+| Component | Files | Description |
+|-----------|-------|-------------|
+| **compiler** | `compiler.py` | Main compilation pipeline orchestration. LRU-cached `max_shared_mem()`; `CompileTimer` accumulates timing data; `LazyDict`/`AsmDict` mutable compilation artifacts. |
+| **compiler-codegen** | `code_generator.py`, `make_launcher.py` | Python AST to MLIR IR translation and launcher C code generation. Per-compilation instance state (`local_defs`, `lscope`). |
+
+### Knobs & configuration
+
+| Component | Files | Description |
+|-----------|-------|-------------|
+| **knobs** | `knobs.py` | Process-global mutable configuration, hook chains, and callback slots. Module-level singletons for `build`, `cache`, `compilation`, `runtime`, `language`, `nvidia`, `amd`, `proton`. Env-var-backed descriptor protocol; `scope()` context manager saves/restores state. |
+
+### Backends (`python/triton/backends/`)
+
+| Component | Files | Description |
+|-----------|-------|-------------|
+| **backends** | `__init__.py`, `compiler.py`, `driver.py` | Backend discovery and abstract interfaces. Global `backends` dict populated at import time. `BaseBackend`, `GPUTarget`, `DriverBase` abstractions; `GPUDriver` caches torch CUDA functions at init. |
+| **nvidia-driver** | `nvidia/driver.py` | NVIDIA backend driver implementation. |
+
+### Language (`python/triton/language/`)
+
+| Component | Files | Description |
+|-----------|-------|-------------|
+| **language** | `core.py`, `semantic.py`, `standard.py`, `math.py` | DSL operations (`tl.load`, `tl.store`, etc.), type system, and language primitives. Mostly declarative/immutable; constexpr operators; global `env` namespace object. |
+
+### Tools (`python/triton/tools/`)
+
+| Component | Files | Description |
+|-----------|-------|-------------|
+| **tools** | `compile.py`, `link.py`, `disasm.py` | Offline compilation, linking, and disassembly utilities. CLI entry points; lower concurrency exposure. |
+
+### Experimental (`python/triton/experimental/`)
+
+| Component | Files | Description |
+|-----------|-------|-------------|
+| **experimental** | `gluon/` | Experimental Gluon features and utilities. |
+
+### C++/pybind11 (`python/src/`)
+
+| Component | Files | Description |
+|-----------|-------|-------------|
+| **specialize** | `specialize.cc` | Kernel argument type specialization. Static global pointers (`constexpr_cls`, etc.), static `dtype_ptr2str`/`dtype2str`/`type_handler_cache` maps; one-shot `init_globals()` without locking. |
+| **ir** | `ir.cc` | MLIR IR construction bindings. `MLIRContext`, dialect registration, operation builders, pass manager. GIL released on long-running MLIR ops via `call_guard`. |
+| **llvm** | `llvm.cc` | LLVM compilation bindings. Module-level optimization, assembly/object emission. Multiple `py::gil_scoped_release` points where C++ runs concurrently with Python threads. |
+| **src-main** | `main.cc` | Module entry point for `triton._C.libtriton`. Submodule wiring and initialization. |
+| **src-passes** | `passes.cc` | MLIR pass-pipeline builder functions and analysis wrappers (`ModuleAllocation`, `ModuleMembarAnalysis`). |
+| **native-helpers** | `linear_layout.cc`, `gluon_ir.cc` | Lower-frequency native bindings for LinearLayout utilities and Gluon IR operations. |
+
 ## Important Runtime Components
 
 | Component | Location | Role |
