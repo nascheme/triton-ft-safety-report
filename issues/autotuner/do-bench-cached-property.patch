@@ -1,8 +1,7 @@
 From e32e6d139ff03924a8b8c68987434b07a5a0b052 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:33:37 -0700
-Subject: [PATCH] [autotuner] Lock do_bench lazy init instead of relying on
- cached_property
+Subject: [PATCH] Replace do_bench cached_property with locked init
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

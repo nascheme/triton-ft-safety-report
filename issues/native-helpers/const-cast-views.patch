@@ -1,8 +1,7 @@
 From ffcd7420273e649a09304a77568e48b8b30ab8ea Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Wed, 20 May 2026 15:23:09 -0700
-Subject: [PATCH] [native-helpers] Drop const_cast in LinearLayout view
- bindings
+Subject: [PATCH] Drop const_cast in LinearLayout view bindings
 
 get_shared_view / get_distributed_view used const_cast<LinearLayout &>
 on a Python-shared layout to call getSharedLayoutStr /

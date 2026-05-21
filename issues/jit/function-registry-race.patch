@@ -1,7 +1,7 @@
 From 845492fcca91653aef3d9a679998105b001b23cf Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:56:58 -0700
-Subject: [PATCH] runtime/jit: register JITFunction in the global registry last
+Subject: [PATCH] Register JITFunction in the global registry last
 
 `_triton_jit_function_registry` is a process-global dict from which
 `JITFunction.preload` resolves instances via `_decode_constant`.

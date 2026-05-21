@@ -1,11 +1,17 @@
 From ca0495fc2db92950bffa80daab91b6fbd0c519bb Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Wed, 15 Apr 2026 00:26:09 -0700
-Subject: [PATCH] [specialize] Lock dtype2str cache in specialize_tensordesc()
+Subject: [PATCH] Lock dtype2str cache in specialize_tensordesc()
 
-specialize_tensordesc() is on the per-argument specialization hot path for tensordesc and Gluon descriptor arguments and mutates a process-global std::unordered_map with no synchronization. Under free-threaded CPython, concurrent kernel launches can race insert/find or insert/insert on the map and corrupt the container.
+specialize_tensordesc() is on the per-argument specialization hot
+path for tensordesc and Gluon descriptor arguments, and mutates a
+process-global std::unordered_map with no synchronization. Under
+free-threaded CPython, concurrent kernel launches can race
+insert/find or insert/insert on the map and corrupt the container.
 
-Guard the cache with a mutex, but keep the Python canonicalize_dtype() call outside the critical section so the native lock is only held while checking or publishing the shared map entry.
+Guard the cache with a mutex, keeping the Python canonicalize_dtype()
+call outside the critical section so the lock is held only while
+checking or publishing the shared map entry.
 
 Assisted-by: claude-opus-4.6
 ---

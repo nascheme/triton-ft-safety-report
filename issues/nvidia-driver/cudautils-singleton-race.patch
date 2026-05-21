@@ -1,7 +1,7 @@
 From f9ed4051582b559df636434a8d035e37f6b1e206 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 11:02:20 -0700
-Subject: [PATCH] nvidia/driver: make CudaUtils a properly-locked singleton
+Subject: [PATCH] Make CudaUtils a properly-locked singleton
 
 `CudaUtils` was written as a singleton with two defects:
 

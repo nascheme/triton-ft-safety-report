@@ -1,15 +1,15 @@
 From 7b294b06397481ddd9420f90a637e8b9bd8e89ad Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Wed, 15 Apr 2026 01:27:39 -0700
-Subject: [PATCH] [specialize] Lock dtype_ptr2str cache in handle_tensor()
+Subject: [PATCH] Lock dtype_ptr2str cache in handle_tensor()
 
 handle_tensor() mutates a process-global unordered_map with no
 synchronization. Under free-threaded CPython, concurrent kernel
 launches can race insert/find or insert/insert on the map.
 
-Guard the cache with a mutex, but keep the Python canonicalize_ptr_dtype()
-call outside the critical section so the native lock is only held while
-checking or publishing the shared map entry.
+Guard the cache with a mutex, keeping the Python
+canonicalize_ptr_dtype() call outside the critical section so the
+lock is held only while checking or publishing the shared map entry.
 
 Assisted-by: claude-opus-4.6
 ---

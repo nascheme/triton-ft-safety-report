@@ -1,8 +1,7 @@
 From c298937592363d2cade2abdf6ea26cecb27abebb Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:38:08 -0700
-Subject: [PATCH] [compiler] Lock CompiledKernel._init_handles and publish _run
- last
+Subject: [PATCH] Lock CompiledKernel._init_handles, publish _run last
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

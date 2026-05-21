@@ -1,7 +1,7 @@
 From 287636e5aecf44e98ba25e7394891d5e93f3c8d3 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Wed, 20 May 2026 15:28:35 -0700
-Subject: [PATCH] [experimental] Serialize gsan symmetric_memory.rendezvous()
+Subject: [PATCH] Serialize gsan symmetric_memory.rendezvous()
 
 The rendezvous protocol does check-then-act on a module-level
 WeakValueDictionary `_RENDEZVOUS_CACHE`, runs a multi-step Unix-socket
@@ -15,11 +15,8 @@ FD (resulting in duplicate `import_runtime_state_handle`).
 
 Hold a module-level `threading.Lock` across the cache check, the
 protocol, and the trailing cache / peer-set update. The rendezvous
-path is a setup-time, blocking I/O path so a single coarse lock is
-acceptable. The body of the protocol is factored into a helper
-`_rendezvous_uncached()` so the lock-and-cache wrapper stays small
-and the diff against the original implementation stays focused on
-the synchronization change.
+path is setup-time blocking I/O, so a single coarse lock is
+acceptable.
 
 Assisted-by: claude-opus-4.7
 ---

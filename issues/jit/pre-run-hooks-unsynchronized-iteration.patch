@@ -1,7 +1,7 @@
 From 10d0d5507ee458abe06e8a03428f9a12c6ce660e Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 11:00:15 -0700
-Subject: [PATCH] runtime/jit: make pre_run_hooks mutation copy-on-write
+Subject: [PATCH] Make pre_run_hooks mutation copy-on-write
 
 `JITFunction.pre_run_hooks` is a plain list iterated on every kernel
 launch from `run()` and mutated by `add_pre_run_hook` via

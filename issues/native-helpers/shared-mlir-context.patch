@@ -1,8 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Wed, 20 May 2026 15:21:00 -0700
-Subject: [PATCH] [native-helpers] Enable multithreading on the shared
- LinearLayout MLIRContext
+Subject: [PATCH] Enable multithreading on shared LinearLayout context
 
 linear_layout.cc keeps a process-wide MLIRContext built via the
 ir.context() factory, which constructs it with Threading::DISABLED.

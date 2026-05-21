@@ -1,7 +1,7 @@
 From a6dd6f79c4cf647fdca443c8c1f17292f7e6079f Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Wed, 15 Apr 2026 10:35:00 -0700
-Subject: [PATCH] [specialize] Serialize native_specialize_impl lazy init
+Subject: [PATCH] Serialize lazy global init in specialize_impl
 
 Under free-threaded CPython, two threads can both observe the plain
 init_called guard as false and enter init_globals() concurrently. That

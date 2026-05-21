@@ -1,7 +1,7 @@
 From 81a0b9c0756455bfb058df2ed297e7359d42a70e Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 11:00:26 -0700
-Subject: [PATCH] runtime/jit: take _hash_lock in _unsafe_update_src
+Subject: [PATCH] Take _hash_lock in _unsafe_update_src
 
 `JITCallable._src` and `JITCallable.hash` must stay in sync: `hash`
 is derived from `_src`. Every path that computes or invalidates the

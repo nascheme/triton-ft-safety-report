@@ -1,8 +1,7 @@
 From 27fbbcfe1390cd30a059449e0ec1d846cb37ece9 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:33:37 -0700
-Subject: [PATCH] [autotuner] Serialize benchmarking per tuning key and
- localize scratch state
+Subject: [PATCH] Serialize autotuner benchmarking per tuning key
 
 Autotuner.run() does a `key not in self.cache` check and, on a miss,
 enters a benchmark path that reads and writes several pieces of scratch
@@ -17,9 +16,8 @@ config.pre_hook mutating the wrong launch state, and configs_timings
 being serialized to the on-disk autotune cache under the wrong key.
 
 Serialize benchmarking per tuning key via a threading.Event installed
-under a cache lock, and keep per-call scratch local to the call
-(parameter-passed nargs, thread-local restore_copies, locally returned
-timings). Matches upstream triton-lang/triton#8437.
+under a cache lock, and keep per-call scratch local to the call.
+Matches upstream triton-lang/triton#8437.
 
 Assisted-by: claude-opus-4.6
 
