@@ -14,7 +14,7 @@ getOrCreateUnsafe() branch, skipping the per-shard reader/writer
 mutex. Every binding that calls StringAttr::get on this context
 (identity_1d, strided_1d, zeros_1d, from_bases, apply) is then a
 concurrent writer of an unlocked unordered_map under free-threaded
-CPython.
+Python.
 
 Call enableMultithreading() on the context after construction. The
 uniquer's own per-shard SmartRWMutex then synchronizes inserts and

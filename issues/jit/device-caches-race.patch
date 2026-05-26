@@ -6,19 +6,9 @@ X-Tier: 2
 X-Severity: SEVERE
 X-Issue-Id: FT020
 
-`JITFunction.device_caches` was a `defaultdict(self.create_binder)`
-populated lazily on first access from `run()`, `preload()`, and
-`_do_compile()`. `defaultdict.__missing__` is not atomic: factory
-call, insert, and return are separate steps. Two threads launching
-the same kernel on the same device for the first time can both invoke
-`create_binder`, producing two separate `(kernel_cache,
-kernel_key_cache, target, backend, binder)` tuples with fresh empty
-caches. One `__setitem__` overwrites the other; the losing thread
-keeps using orphaned cache dicts, so any kernels it compiles stay
-invisible to later calls and get silently recompiled.
-
-Funnel all call sites through a `_get_device_cache` helper with
-double-checked locking on a per-instance lock.
+Avoid using `defaultdict()` for `JITFunction.device_caches`. It risks
+TOCTOU data races under free-threading.  Instead, add a
+`_get_device_cache()` helper function that uses a mutex to avoid races.
 
 Assisted-by: claude-opus-4.6
 

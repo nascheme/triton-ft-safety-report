@@ -1,26 +1,37 @@
-From 7b294b06397481ddd9420f90a637e8b9bd8e89ad Mon Sep 17 00:00:00 2001
+From ef3b58c3760b070ae9b8a243f963d32406d551b8 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
-Date: Wed, 15 Apr 2026 01:27:39 -0700
-Subject: [PATCH] Lock dtype_ptr2str cache in handle_tensor()
+Date: Tue, 26 May 2026 10:10:27 -0700
+Subject: [PATCH] Lock dtype_ptr2str and dtype2str specialization caches
 X-Tier: 2
-X-Severity: SEVERE
+X-Severity: HIGH
 X-Issue-Id: FT042
 
-handle_tensor() mutates a process-global unordered_map with no
-synchronization. Under free-threaded CPython, concurrent kernel
-launches can race insert/find or insert/insert on the map.
+handle_tensor() and specialize_tensordesc() each mutate a
+process-global std::unordered_map (dtype_ptr2str and dtype2str
+respectively) with no synchronization. Both sit on the per-argument
+specialization hot path reached for every kernel launch. Under
+free-threaded Python, concurrent launches can race insert/find or
+insert/insert on these maps and corrupt the container, lose an
+insert, return a dangling PyObject*, or crash.
 
-Guard the cache with a mutex, keeping the Python
-canonicalize_ptr_dtype() call outside the critical section so the
-lock is held only while checking or publishing the shared map entry.
+Guard each cache with its own mutex and use a two-phase miss path
+so the Python canonicalize_*_dtype() call stays outside the
+critical section. Holding a native mutex across an arbitrary
+Python call would risk deadlock if the callee re-entered
+specialization.
 
-Assisted-by: claude-opus-4.6
+The cached PyObject* values are intentionally immortal (process
+lifetime), so on an emplace race the loser's py::object is
+decref'd on scope exit and the winner's entry is observed via the
+emplace result.
+
+Assisted-by: claude-opus-4.7
 ---
- python/src/specialize.cc | 27 ++++++++++++++++++---------
- 1 file changed, 18 insertions(+), 9 deletions(-)
+ python/src/specialize.cc | 49 ++++++++++++++++++++++++++++------------
+ 1 file changed, 34 insertions(+), 15 deletions(-)
 
 diff --git a/python/src/specialize.cc b/python/src/specialize.cc
-index c4bab9fb2..6fdf9cba0 100644
+index c4bab9fb2..d6334ce90 100644
 --- a/python/src/specialize.cc
 +++ b/python/src/specialize.cc
 @@ -4,6 +4,7 @@
@@ -31,15 +42,49 @@ index c4bab9fb2..6fdf9cba0 100644
  #include <pybind11/pybind11.h>
  #include <string>
  #include <string_view>
-@@ -71,6 +72,7 @@ static PyObject *get_tensor_spec_attr = nullptr;
+@@ -71,7 +72,9 @@ static PyObject *get_tensor_spec_attr = nullptr;
  static PyObject *align_kwarg = nullptr;
  
  static DtypePtr2Str dtype_ptr2str;
 +static std::mutex dtype_ptr2str_mutex;
  static Dtype2Str dtype2str;
++static std::mutex dtype2str_mutex;
  static TypeHandlerCache type_handler_cache;
  
-@@ -319,19 +321,26 @@ std::pair<py::object, py::object> handle_tensor(PyObject *backend,
+ // Wrappers to make steal and borrow slightly simpler. We use raw CPython API
+@@ -177,16 +180,25 @@ std::pair<py::object, py::object> specialize_tensordesc(PyObject *arg,
+   if (dtype_hash == -1)
+     return {};
+   DTypeKey dsk{dtype_hash};
+-  auto it = dtype2str.find(dsk);
+-  if (it != dtype2str.end()) {
+-    type_str = it->second;
+-  } else {
++  type_str = nullptr;
++  {
++    std::lock_guard<std::mutex> lock(dtype2str_mutex);
++    auto it = dtype2str.find(dsk);
++    if (it != dtype2str.end()) {
++      type_str = it->second;
++    }
++  }
++  if (!type_str) {
+     auto res = from_new_ref(PyObject_CallFunctionObjArgs(canonicalize_dtype_fn,
+                                                          dtype.ptr(), nullptr));
+     if (!res)
+       return {};
+-    dtype2str[dsk] = res.ptr();
+-    type_str = res.release().ptr();
++    std::lock_guard<std::mutex> lock(dtype2str_mutex);
++    auto [it, inserted] = dtype2str.emplace(dsk, res.ptr());
++    type_str = it->second;
++    if (inserted) {
++      res.release();
++    }
+   }
+ 
+   std::string desc_cstr;
+@@ -319,19 +331,26 @@ std::pair<py::object, py::object> handle_tensor(PyObject *backend,
      return {};
  
    DTypePtrKey dsk{dtype_hash, is_const};

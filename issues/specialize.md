@@ -5,8 +5,8 @@
 | # | Severity | Tier | Component | Issue |
 |---|----------|------|-----------|-------|
 | FT044 | HIGH  | 1 | `init_globals` / `init_called` | [`init_globals()` TOCTOU: plain-bool guard allows concurrent lazy init of all file-scope globals](specialize/init-globals-toctou.md) |
-| FT042 | HIGH  | 2 | `dtype_ptr2str`                | [`dtype_ptr2str` `std::unordered_map` mutated on the hot path without synchronization](specialize/dtype-ptr2str-unordered-map-race.md) |
-| FT043 | HIGH  | 2 | `dtype2str`                    | [`dtype2str` `std::unordered_map` mutated on the hot path without synchronization](specialize/dtype2str-unordered-map-race.md) |
+| FT042 | HIGH  | 2 | `dtype_ptr2str` / `dtype2str`  | [`dtype_ptr2str` and `dtype2str` `std::unordered_map` caches mutated on the specialization hot path](specialize/dtype-ptr2str-unordered-map-race.md) |
+| FT043 | HIGH  | 2 | `dtype2str`                    | [`dtype2str` `std::unordered_map` mutated on the tensordesc specialization path](specialize/dtype2str-unordered-map-race.md) — tracked with FT042, fixed by the FT042 patch |
 | FT045 | HIGH  | 1 | `type_handler_cache`           | [`type_handler_cache` read during / before its population races init and specialize-dispatch](specialize/type-handler-cache-init-race.md) |
 | 5 | MED | 1 | `init_called` memory ordering | `init_called` is a non-atomic `bool`; readers can observe `true` before dependent writes — subsumed by issue FT044, see triage notes |
 | 6 | LOW   | 1 | `torch_tensor_cls` lazy probe  | `torch.Tensor` is only discovered if `torch` is already imported at first specialize call — performance-only note, no separate issue file or patch, see triage notes |
@@ -19,7 +19,9 @@ and read on the hot specialization path.
 
 Individual issue files exist for the HIGH items: `init-globals-toctou.md`,
 `dtype-ptr2str-unordered-map-race.md`, `dtype2str-unordered-map-race.md`, and
-`type-handler-cache-init-race.md`. The last is resolved by
+`type-handler-cache-init-race.md`. FT042 and FT043 are sibling cache races
+in the same file and share one patch (`dtype-ptr2str-unordered-map-race.patch`);
+FT043's issue file is a short pointer to FT042. FT045 is resolved by
 `init-globals-toctou.patch` and has no separate patch. Issue #5 is subsumed
 by issue FT044 and does not get its own issue file or patch. Issue #6 is LOW
 and kept in the table for traceability only — no issue file, no patch.
@@ -149,11 +151,12 @@ HIGH pattern in `CLAUDE.md` — this file is the textbook example.
   argument during specialization.
 - **Note:** Narrower hot path than FT042 (only tensordesc / Gluon descriptor
   args), but the container-safety story is identical.
-- **Fix direction:** protect the map with its own mutex, but avoid holding
-  that mutex while calling `canonicalize_dtype_fn`. The clean shape is a
-  two-phase miss path: lock/check, compute outside the critical section,
-  then re-lock, re-check, and either publish the new `PyObject *` or drop
-  the temporary result if another thread already inserted an entry.
+- **Combined with FT042:** because the hazard, fix shape, and file are
+  identical, FT042 and FT043 are tracked together. The dedicated issue file
+  for FT042 covers both caches and the single combined patch
+  (`dtype-ptr2str-unordered-map-race.patch`) adds a mutex and two-phase
+  miss path for each map. FT043's issue file is kept as a short pointer to
+  FT042 for traceability.
 
 ### 4. `type_handler_cache` — init-time race through lazy init (HIGH)
 

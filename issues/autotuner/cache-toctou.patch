@@ -6,21 +6,12 @@ X-Tier: 2
 X-Severity: SEVERE
 X-Issue-Id: FT002
 
-Autotuner.run() does a `key not in self.cache` check and, on a miss,
-enters a benchmark path that reads and writes several pieces of scratch
-state on the instance (self.nargs, self.restore_copies,
-self.configs_timings, self.bench_time, self.best_config). The Autotuner
-instance is reused across threads, so two concurrent run() calls can
-both observe a cache miss and both enter benchmarking, racing on all of
-that scratch. Concrete consequences include duplicate compile/launch
-work, default restore hooks saving or restoring the wrong tensors
-(silent corruption, KeyError, or an incompatible copy_()),
-config.pre_hook mutating the wrong launch state, and configs_timings
-being serialized to the on-disk autotune cache under the wrong key.
-
-Serialize benchmarking per tuning key via a threading.Event installed
-under a cache lock, and keep per-call scratch local to the call.
-Matches upstream triton-lang/triton#8437.
+The Autotuner.run() method can be entered by two or more threads. The
+state held by self.nargs, self.restore_copies, self.configs_timings,
+self.bench_time, and self.best_config has data races. Serialize
+benchmarking per tuning key via a threading.Event installed under a
+cache lock, and keep per-call scratch local to the call. Matches
+upstream triton-lang/triton#8437.
 
 Assisted-by: claude-opus-4.6
 

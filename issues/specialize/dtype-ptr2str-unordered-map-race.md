@@ -1,4 +1,4 @@
-# `dtype_ptr2str` `std::unordered_map` mutated on the hot specialization path
+# `dtype_ptr2str` and `dtype2str` `std::unordered_map` caches mutated on the specialization hot path
 
 - **Issue-Id:** FT042
 - **Status:** Open
@@ -7,31 +7,46 @@
 - **Tier:** 2
 - **Patch:** [`dtype-ptr2str-unordered-map-race.patch`](dtype-ptr2str-unordered-map-race.patch)
 
-- **Shared state:** `static DtypePtr2Str dtype_ptr2str` in `specialize.cc`,
-  a process-global
-  `std::unordered_map<std::pair<Py_hash_t, bool>, PyObject *, …>`. There is no
-  synchronization protecting it.
-- **Writer(s):** `handle_tensor()` cache-miss path:
-  `dtype_ptr2str[dsk] = canon_res;`. Insertion may rehash the table.
-- **Reader(s):** `handle_tensor()` lookup:
-  `auto it = dtype_ptr2str.find(dsk);`. `handle_tensor()` is reached from
-  `specialize_arg()` on the `native_specialize_impl` hot path for tensor-like
-  arguments, either via the cached `torch.Tensor` type handler or via the
-  fallback `data_ptr` attribute check.
-- **Race scenario:** Two threads specialize tensor arguments concurrently.
-  Thread A takes the miss path for `(dtype_hash, is_const)` and inserts into
-  `dtype_ptr2str` while Thread B concurrently does `find()` or performs its
-  own insert. Concurrent `std::unordered_map` insert/find or insert/insert is
-  undefined behavior: rehash can invalidate buckets observed by the other
-  thread, corrupt the container, lose an insert, or crash the process. This is
-  on the per-argument specialization path used during kernel dispatch.
-- **Suggested fix:** Protect all access to `dtype_ptr2str` with a mutex, but
-  keep `canonicalize_ptr_dtype_fn` — a Python call — outside the critical
-  section. Two-phase miss path: lock and lookup, drop the lock, call Python,
-  re-lock and `emplace`. On a race, the loser's `py::object` is decref'd on
-  scope exit and the winner's entry is observed via the `emplace` result.
-  Holding a native mutex across an arbitrary Python call risks deadlock if the
-  callee re-enters specialization or otherwise tries to take the same mutex.
+Two sibling caches in `specialize.cc` share the same hazard and the same
+fix. They are tracked together here; FT043 covers `dtype2str` and is
+resolved by this patch.
 
-  Apply the same synchronization strategy to `dtype2str` (issue FT043); both
-  caches have the same threading hazard.
+- **Shared state:** two process-global `std::unordered_map`s with no
+  synchronization:
+  - `static DtypePtr2Str dtype_ptr2str` —
+    `std::unordered_map<std::pair<Py_hash_t, bool>, PyObject *, …>`, used
+    in `handle_tensor()`.
+  - `static Dtype2Str dtype2str` —
+    `std::unordered_map<Py_hash_t, PyObject *>`, used in
+    `specialize_tensordesc()`.
+- **Writer(s):** cache-miss path in each function:
+  - `handle_tensor()`: `dtype_ptr2str[dsk] = canon_res;` after calling
+    `canonicalize_ptr_dtype_fn`. Insertion may rehash.
+  - `specialize_tensordesc()`: `dtype2str[dsk] = res.ptr();` after calling
+    `canonicalize_dtype_fn`. Insertion may rehash.
+- **Reader(s):** the matching `find(dsk)` in the same function. Both
+  `handle_tensor()` and `specialize_tensordesc()` are reached from
+  `specialize_arg()` on the `native_specialize_impl` hot path, per
+  argument, on every kernel launch — `handle_tensor` for tensor-like
+  args, `specialize_tensordesc` for tensordesc / Gluon descriptor args.
+- **Race scenario:** Two threads launch kernels concurrently. Thread A
+  takes a miss path and is partway through inserting (possibly rehashing)
+  while Thread B does `find()` or its own insert on the same map.
+  Concurrent `std::unordered_map` insert/find or insert/insert is
+  undefined behavior: bucket corruption, lost insert, infinite loop in
+  the table, a dangling `PyObject *` returned from a stale bucket, or a
+  hard crash. A returned dangling pointer is then dereferenced (e.g.
+  `PyObject_Str(type_str)` in `specialize_tensordesc`) and propagates the
+  corruption to the Python caller. Even without rehashing, the read of
+  the `PyObject *` value via `it->second` races with the bucket's value
+  being written by another thread's insert for the same key — there is
+  no happens-before edge between writer and reader.
+- **Suggested fix:** Give each cache its own `std::mutex` and use a
+  two-phase miss path so the Python `canonicalize_*_dtype` call stays
+  outside the critical section: lock and look up; drop the lock and call
+  Python; re-lock and `emplace`. Holding a native mutex across an
+  arbitrary Python call risks deadlock if the callee re-enters
+  specialization. The cached `PyObject *` values are intentionally
+  immortal, so on a race the losing thread's `py::object` is decref'd on
+  scope exit and the winning thread's entry is observed via the
+  `emplace` result.
