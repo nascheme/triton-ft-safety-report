@@ -18,13 +18,13 @@ Files in scope:
 
 | # | Severity (prelim) | Component | Tier | Issue |
 |---|-------------------|-----------|------|-------|
-| 1 | SEVERE | `interpreter_builder` | 2 | [Global `interpreter_builder.grid_idx` / `grid_dim` trampled by concurrent kernel runs](interpreter/builder-grid-state-race.md) |
-| 2 | SEVERE | `_patch_lang` / `_LangPatchScope` | 2 | [Process-wide monkey-patching of `tl.*` with save/restore permanently corrupts `tl` under concurrent runs](interpreter/patch-lang-save-restore-race.md) |
-| 3 | Significant | `FunctionRewriter._compile_and_exec` | 2 | [Mutation of user kernel's `fn.__globals__` during `exec`, shared across threads](interpreter/compile-and-exec-globals-mutation.md) |
-| 4 | Significant | `InterpretedFunction.__call__` | 2 | [`__call__` path applies `_patch_lang` without ever restoring, leaking patches](interpreter/interpreted-fn-call-leaks-patches.md) |
-| 5 | Minor | `InterpretedFunction.rewritten_fn` | 2 | Class-level rewrite cache is check-then-set; duplicate AST rewrite under concurrent first-use |
-| 6 | Minor | `_patch_lang` | 2 | Iteration over `fn.__globals__.items()` while `_compile_and_exec` mutates the same dict |
-| 7 | Minor | `interpreter.cc` `mem_semantic_map` | 1 | `std::map` read via non-const `operator[]` on the hot path (insert-on-miss latent risk) |
+| 1 | HIGH | `interpreter_builder` | 2 | [Global `interpreter_builder.grid_idx` / `grid_dim` trampled by concurrent kernel runs](interpreter/builder-grid-state-race.md) |
+| 2 | HIGH | `_patch_lang` / `_LangPatchScope` | 2 | [Process-wide monkey-patching of `tl.*` with save/restore permanently corrupts `tl` under concurrent runs](interpreter/patch-lang-save-restore-race.md) |
+| 3 | MED | `FunctionRewriter._compile_and_exec` | 2 | [Mutation of user kernel's `fn.__globals__` during `exec`, shared across threads](interpreter/compile-and-exec-globals-mutation.md) |
+| 4 | MED | `InterpretedFunction.__call__` | 2 | [`__call__` path applies `_patch_lang` without ever restoring, leaking patches](interpreter/interpreted-fn-call-leaks-patches.md) |
+| 5 | LOW | `InterpretedFunction.rewritten_fn` | 2 | Class-level rewrite cache is check-then-set; duplicate AST rewrite under concurrent first-use |
+| 6 | LOW | `_patch_lang` | 2 | Iteration over `fn.__globals__.items()` while `_compile_and_exec` mutates the same dict |
+| 7 | LOW | `interpreter.cc` `mem_semantic_map` | 1 | `std::map` read via non-const `operator[]` on the hot path (insert-on-miss latent risk) |
 
 `atomic_op_guard`-based serialization in `interpreter.cc` is already
 documented as protected state (see CLAUDE.md and `specialize/` notes). It is
@@ -67,7 +67,7 @@ not re-reported, but see the triage notes for a scalability comment.
   - Fix direction: move per-call state (`grid_idx`, `grid_dim`, arguably the
     whole builder) into a `ContextVar` or thread-local, or serialize the
     whole `GridExecutor.__call__` with a process-wide lock.
-- **Tier 2**, SEVERE.
+- **Tier 2**, HIGH.
 
 ### 2. `_patch_lang` save/restore on shared module objects
 
@@ -108,7 +108,7 @@ not re-reported, but see the triage notes for a scalability comment.
   - Full fix likely requires routing `tl.*` dispatch through a
     `ContextVar` / thread-local "semantic" rather than monkey-patching
     shared module state. That is a significant architectural change.
-- **Tier 2**, SEVERE.
+- **Tier 2**, HIGH.
 
 ### 3. `FunctionRewriter._compile_and_exec` mutates `fn.__globals__`
 
@@ -164,7 +164,7 @@ not re-reported, but see the triage notes for a scalability comment.
   - Does CPython 3.14t's dict guarantee forward progress for `exec`
     readers while another thread is `__setitem__`-ing? (Believed yes per
     PEP 703, but verify.)
-- **Tier 2**, Significant (correctness likely survives via single-use caching
+- **Tier 2**, MED (correctness likely survives via single-use caching
   but the shared-state mutation is unsafe and leaks into the user's module).
 
 ### 4. `InterpretedFunction.__call__` leaks patches
@@ -197,7 +197,7 @@ not re-reported, but see the triage notes for a scalability comment.
     installed the patches.
   - Is `InterpretedFunction.__call__` reachable outside a `GridExecutor`
     context? If so, the leak is immediate even under the GIL.
-- **Tier 2**, Significant.
+- **Tier 2**, MED.
 
 ### 5. `InterpretedFunction.rewritten_fn` class-level cache
 
@@ -226,7 +226,7 @@ not re-reported, but see the triage notes for a scalability comment.
     to different line numbers)? Probably no.
   - Fix direction: per-kernel lock, or `functools.lru_cache`-style coalescing
     keyed on `self.fn`.
-- **Tier 2**, Minor.
+- **Tier 2**, LOW.
 
 ### 6. `_patch_lang` iterates `fn.__globals__.items()`
 
@@ -252,7 +252,7 @@ not re-reported, but see the triage notes for a scalability comment.
 - **Likelihood:** realistic only on first-ever call (the only time
   `_compile_and_exec` mutates `fn_globals`), and the mutation window is
   small. Still a real window.
-- **Tier 2**, Minor.
+- **Tier 2**, LOW.
 
 ### 7. `mem_semantic_map` read via non-const `operator[]`
 
@@ -270,14 +270,14 @@ not re-reported, but see the triage notes for a scalability comment.
   future maintainer extends `MemSemantic` without updating the map, two
   threads both reach the binding with the missing key and both try to
   insert — that is concurrent mutation of a non-thread-safe container
-  (SEVERE if it ever happens).
-- **Classification today:** Minor / latent-hazard. The current enum values
+  (HIGH if it ever happens).
+- **Classification today:** LOW / latent-hazard. The current enum values
   are all pre-inserted, so there is no *present* bug — only a footgun.
 - **Deep-dive questions:**
   - Switch to `at(sem)` (throws on miss) or a `switch` / `constexpr` map.
   - Or mark the global `const` so the non-const `operator[]` overload is
     not available.
-- **Tier 1**, Minor.
+- **Tier 1**, LOW.
 
 ## Triage notes, continued
 

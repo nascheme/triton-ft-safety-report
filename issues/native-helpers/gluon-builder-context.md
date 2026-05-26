@@ -1,7 +1,7 @@
 # Gluon IR bindings race on a shared, threading-disabled `MLIRContext`
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `python/src/gluon_ir.cc`
 - **Tier:** 2
 - **Patch:** [`gluon-builder-context.patch`](gluon-builder-context.patch)

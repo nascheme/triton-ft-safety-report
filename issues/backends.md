@@ -44,10 +44,10 @@ What remains in this component is:
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | Minor | backends (registry) | 3 | `backends` dict has no in-tree writer but is reachable for out-of-tree mutation |
-| 2 | Minor | GPUDriver.__init__ | 1 | `GPUDriver.__init__` reads `torch.cuda.*` lazily on first construction — cold-start only |
+| 1 | LOW | backends (registry) | 3 | `backends` dict has no in-tree writer but is reachable for out-of-tree mutation |
+| 2 | LOW | GPUDriver.__init__ | 1 | `GPUDriver.__init__` reads `torch.cuda.*` lazily on first construction — cold-start only |
 
-No Significant or SEVERE issues identified. Both items above are
+No MED or HIGH issues identified. Both items above are
 documented for completeness; the deep-dive agent may well reclassify
 them as "not worth reporting."
 
@@ -81,7 +81,7 @@ them as "not worth reporting."
   `len(actives)`/`len(x)` checks — a concurrent insert can split the
   iteration so that a newly-registered backend is seen twice or
   missed.
-- **Severity:** Minor. No in-tree code mutates `backends` post-import
+- **Severity:** LOW. No in-tree code mutates `backends` post-import
   and the intended extension mechanism (entry points) runs at import
   time too. The deep-dive agent should confirm (a) that no callback
   registered by an entry point ever re-registers into `backends`, and
@@ -118,7 +118,7 @@ them as "not worth reporting."
 - **Concrete consequence:** nothing. `import torch` is protected by
   the import lock, and the subsequent attribute reads are single
   attribute loads on already-initialized modules.
-- **Severity:** Minor. Primarily a "benign cold-start" note.
+- **Severity:** LOW. Primarily a "benign cold-start" note.
 - **Tier:** 1.
 - **Suggested fix direction:** none required. The deep-dive agent
   should double-check that no torch attribute involved here (`cuda.

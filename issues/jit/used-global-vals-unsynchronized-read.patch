@@ -2,6 +2,8 @@ From 2df81c5fa7c7ac77b3a5f8fde7eb2ce87de88feb Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 11:00:37 -0700
 Subject: [PATCH] Force cache_key in run() before kernel_cache lookup
+X-Tier: 2
+X-Severity: Significant
 
 `JITCallable.used_global_vals` starts empty and is rebound inside
 `cache_key` (under `_hash_lock`) to record the captured globals at

@@ -15,12 +15,12 @@ codebase, including a description of each audit component.
 
 Each issue below has a patch file along with an issue file
 (`issues/<component>/<issue>.patch`). This list is scoped to the Tier 1–2
-findings at SEVERE or Significant severity — the issues that block the Tier 1
-and Tier 2 goals. Minor issues and Tier 3 issues are tracked in the
+findings at HIGH or MED severity — the issues that block the Tier 1
+and Tier 2 goals. LOW issues and Tier 3 issues are tracked in the
 per-component issue files but are not listed here.  See below for defintions of
 the tier and severity classifications.
 
-### Severity: SEVERE
+### Severity: HIGH
 
 - [`specialize/init-globals-toctou`](issues/specialize/init-globals-toctou.md) (Tier 1) —
   A plain-bool guard lets two threads run `init_globals()` at once, racing
@@ -46,7 +46,7 @@ the tier and severity classifications.
   `handle_tensor()` mutates the global `dtype_ptr2str` `unordered_map` with
   no lock — container corruption under concurrent launches.
 
-### Severity: Significant
+### Severity: MED
 
 - [`compiler/code-generator-gscope-iteration-race`](issues/compiler/code-generator-gscope-iteration-race.md) (Tier 1) —
   `get_capture_scope()` returns the module `__dict__` by identity and the
@@ -87,7 +87,7 @@ the tier and severity classifications.
 
 ## Audit Progress
 
-| Component | Status | SEVERE | Significant | Minor | Total |
+| Component | Status | HIGH | MED | LOW | Total |
 |-----------|--------|--------|-------------|-------|-------|
 | [jit](issues/jit.md) | In-review | 1 | 7 | 0 | 8 |
 | [autotuner](issues/autotuner.md) | In-review | 1 | 4 | 2 | 7 |

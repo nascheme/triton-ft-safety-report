@@ -1,7 +1,7 @@
 # `PyCUtensorMap` / `PyKernelArg` / `ARG_*` module globals lazy init race
 
 - **Status:** Open
-- **Severity:** Minor
+- **Severity:** LOW
 - **Component:** `third_party/nvidia/backend/driver.py`
 - **Tier:** 1
 - **Patch:** [`cudautils-singleton-race.patch`](cudautils-singleton-race.patch)

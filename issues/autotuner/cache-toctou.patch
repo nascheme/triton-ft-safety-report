@@ -2,6 +2,8 @@ From 27fbbcfe1390cd30a059449e0ec1d846cb37ece9 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:33:37 -0700
 Subject: [PATCH] Serialize autotuner benchmarking per tuning key
+X-Tier: 2
+X-Severity: SEVERE
 
 Autotuner.run() does a `key not in self.cache` check and, on a miss,
 enters a benchmark path that reads and writes several pieces of scratch

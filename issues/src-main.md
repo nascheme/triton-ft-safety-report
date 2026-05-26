@@ -4,7 +4,7 @@
 
 | # | Severity | Tier | Component | Issue |
 |---|----------|------|-----------|-------|
-| 1 | Minor | 1 | `init_triton_stacktrace_hook` → `llvm::sys::AddSignalHandler` | Process-global LLVM signal handler registered at import; env var `TRITON_ENABLE_PYTHON_STACKTRACE` is sampled once and the handler list is process-wide mutable state that other LLVM code may also write — worth a spot-check during the deeper pass but not expected to be a race under normal use |
+| 1 | LOW | 1 | `init_triton_stacktrace_hook` → `llvm::sys::AddSignalHandler` | Process-global LLVM signal handler registered at import; env var `TRITON_ENABLE_PYTHON_STACKTRACE` is sampled once and the handler list is process-wide mutable state that other LLVM code may also write — worth a spot-check during the deeper pass but not expected to be a race under normal use |
 | 2 | Not worth reporting | — | `PYBIND11_MODULE(libtriton, m)` body | All submodule wiring (`init_triton_ir`, `init_triton_llvm`, `init_native_specialize`, `init_triton_interpreter`, `init_triton_passes`, `init_gluon_ir`, `init_gsan_testing`, `init_linear_layout`, per-backend `init_triton_<name>`) runs under Python's import lock — write-once module init, covered by CLAUDE.md "low-value patterns" |
 
 Issues in `python/src/main.cc` — the top-level pybind11 module entry point
@@ -82,7 +82,7 @@ each callee belongs to a separate audit report:
 
 ## Triage notes
 
-### 1. `init_triton_stacktrace_hook` — `llvm::sys::AddSignalHandler` (Minor)
+### 1. `init_triton_stacktrace_hook` — `llvm::sys::AddSignalHandler` (LOW)
 
 - **Shared state:** (a) the process-wide LLVM signal-handler list that
   `llvm::sys::AddSignalHandler` appends to, and (b) the ambient
@@ -93,7 +93,7 @@ each callee belongs to a separate audit report:
   `PYBIND11_MODULE` body, under the import lock.
 - **Reader / invoker:** LLVM's signal-handling machinery, fired from
   process signal context — not from free-threaded Python paths.
-- **Why this is only Minor:** the registration itself is write-once under
+- **Why this is only LOW:** the registration itself is write-once under
   the import lock, so registration is not racing anything. The handler list
   mutation is a concern only if some *other* code path later calls
   `AddSignalHandler` / `RemoveSignalHandler` / `RunSignalHandlers` from a

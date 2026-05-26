@@ -1,7 +1,7 @@
 # `self.restore_copies` pre/post hook race
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
 - **Patch:** [`cache-toctou.patch`](cache-toctou.patch)

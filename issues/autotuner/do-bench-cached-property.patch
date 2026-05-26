@@ -2,6 +2,8 @@ From e32e6d139ff03924a8b8c68987434b07a5a0b052 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:33:37 -0700
 Subject: [PATCH] Replace do_bench cached_property with locked init
+X-Tier: 2
+X-Severity: Minor
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

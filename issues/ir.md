@@ -4,14 +4,14 @@
 
 | # | Severity | Tier | Component | Issue |
 |---|----------|------|-----------|-------|
-| 1 | Minor       | 2   | `PassManager::run` — `::llvm::DebugFlag` / `setCurrentDebugTypes` | Process-global LLVM debug flag and debug-type registry mutated inside a `py::gil_scoped_release` binding body. Debug/diagnostic-only; does not affect codegen. |
-| 2 | Minor       | 2   | `PassManager::run` — `context->disableMultithreading()`           | Latent only: per-compile context, not shared across threads in the shipping codebase |
-| 3 | Minor       | 2   | `load_dialects` binding                                           | Latent only: per-compile context, not shared across threads in the shipping codebase |
-| 4 | Minor       | 2   | Operation-building bindings (`TritonOpBuilder`, `OpBuilder`, `IntegerType::get`, `StringAttr::get`, …) | Latent only: per-compile context, not shared across threads in the shipping codebase |
-| 5 | Minor       | 1   | `plugin::loadPlugins()` TOCTOU (transitive via `load_dialects` and init) | `static bool pluginsLoaded` + `static std::vector<TritonPlugin> plugins` guarded only by a plain bool (in `lib/Tools/PluginUtils.cpp`). Pattern is unsound but not currently reachable: `init_triton_ir` and `init_plugin_passes` both call `loadPlugins()` at module init under the import lock, so `pluginsLoaded == true` by the time any user thread can call `load_dialects`. Latent risk only. |
-| 6 | Minor       | 2   | `PassManager::run` — `enableCrashReproducerGeneration` / `enableTiming` / `enableIRPrinting` / diagnostic-handler install | Per-call mutations on `self` and `mod.getContext()`. Backends create `PassManager` and `MLIRContext` fresh per compile, so these mutate per-compile objects, not shared state. Only residual race is the reproducer file write when `TRITON_REPRODUCER_PATH` is set — debug-only. |
-| 7 | Significant | 3   | `setupTritonDiagnosticHandler` — `llvm::errs()` sink                | All diagnostic output goes to the process-wide `llvm::errs()`; concurrent emissions interleave |
-| 8 | Minor       | 3   | `py_getenv` / `py_getenv_bool` / `get_cache_invalidating_env_vars` | POSIX `getenv` is not thread-safe against `setenv`; these helpers are reachable from any thread |
+| 1 | LOW       | 2   | `PassManager::run` — `::llvm::DebugFlag` / `setCurrentDebugTypes` | Process-global LLVM debug flag and debug-type registry mutated inside a `py::gil_scoped_release` binding body. Debug/diagnostic-only; does not affect codegen. |
+| 2 | LOW       | 2   | `PassManager::run` — `context->disableMultithreading()`           | Latent only: per-compile context, not shared across threads in the shipping codebase |
+| 3 | LOW       | 2   | `load_dialects` binding                                           | Latent only: per-compile context, not shared across threads in the shipping codebase |
+| 4 | LOW       | 2   | Operation-building bindings (`TritonOpBuilder`, `OpBuilder`, `IntegerType::get`, `StringAttr::get`, …) | Latent only: per-compile context, not shared across threads in the shipping codebase |
+| 5 | LOW       | 1   | `plugin::loadPlugins()` TOCTOU (transitive via `load_dialects` and init) | `static bool pluginsLoaded` + `static std::vector<TritonPlugin> plugins` guarded only by a plain bool (in `lib/Tools/PluginUtils.cpp`). Pattern is unsound but not currently reachable: `init_triton_ir` and `init_plugin_passes` both call `loadPlugins()` at module init under the import lock, so `pluginsLoaded == true` by the time any user thread can call `load_dialects`. Latent risk only. |
+| 6 | LOW       | 2   | `PassManager::run` — `enableCrashReproducerGeneration` / `enableTiming` / `enableIRPrinting` / diagnostic-handler install | Per-call mutations on `self` and `mod.getContext()`. Backends create `PassManager` and `MLIRContext` fresh per compile, so these mutate per-compile objects, not shared state. Only residual race is the reproducer file write when `TRITON_REPRODUCER_PATH` is set — debug-only. |
+| 7 | MED | 3   | `setupTritonDiagnosticHandler` — `llvm::errs()` sink                | All diagnostic output goes to the process-wide `llvm::errs()`; concurrent emissions interleave |
+| 8 | LOW       | 3   | `py_getenv` / `py_getenv_bool` / `get_cache_invalidating_env_vars` | POSIX `getenv` is not thread-safe against `setenv`; these helpers are reachable from any thread |
 
 Issues in `python/src/ir.cc` — the pybind11 surface that wraps
 `mlir::MLIRContext`, MLIR/Triton operation builders, and the MLIR
@@ -20,8 +20,8 @@ audit plan: `PassManager::run` is the main GIL-release site, and the
 dialect-registration and op-building bindings effectively decide whether an
 `MLIRContext` can be shared across threads at all.
 
-No individual issue files are warranted at this time. The Tier 2 SEVERE
-candidates #2/#3/#4 were downgraded to Minor after verifying that
+No individual issue files are warranted at this time. The Tier 2 HIGH
+candidates #2/#3/#4 were downgraded to LOW after verifying that
 `mlir::MLIRContext` is constructed fresh per `compile()` call and is
 never shared across Python threads in the shipping codebase. The unsafe
 patterns remain real and would become live races if a future refactor
@@ -104,7 +104,7 @@ Organized by what they do with shared state:
 
 ## Triage notes
 
-### 1. `::llvm::DebugFlag` and `setCurrentDebugTypes` mutation with GIL released (Minor)
+### 1. `::llvm::DebugFlag` and `setCurrentDebugTypes` mutation with GIL released (LOW)
 
 - **Shared state:** `::llvm::DebugFlag` (a plain non-atomic `bool` in LLVM)
   and the LLVM debug-type registry managed by `setCurrentDebugTypes`.
@@ -133,7 +133,7 @@ Organized by what they do with shared state:
   internal debug-type container (upstream LLVM copies the strings into a
   `std::vector<std::string>`, so there is no UAF on the caller's storage,
   but the vector itself is mutated unlocked).
-- **Severity:** Minor.
+- **Severity:** LOW.
   - The flags only gate `LLVM_DEBUG(...)` stderr output; they do not affect
     codegen, cache state, or kernel correctness. This matches the
     "benign debug/print flag staleness" exclusion in `CLAUDE.md`.
@@ -151,7 +151,7 @@ Organized by what they do with shared state:
   or guard the mutation with a dedicated mutex. Low priority given the
   diagnostic-only impact.
 
-### 2. `context->disableMultithreading()` from `PassManager::run` (Minor — latent only)
+### 2. `context->disableMultithreading()` from `PassManager::run` (LOW — latent only)
 
 - **Shared state (candidate):** the Python-exposed `mlir::MLIRContext`
   passed to `PassManager::run` via `mod.getContext()`.
@@ -167,8 +167,8 @@ Organized by what they do with shared state:
   `Threading::DISABLED` already (in `ir.cc`), so the per-call
   `disableMultithreading()` is a same-value write even on the owning
   thread.
-- **Severity:** Minor — the pattern of mutating context state inside a
-  GIL-released binding body is unsound and would be a SEVERE race the
+- **Severity:** LOW — the pattern of mutating context state inside a
+  GIL-released binding body is unsound and would be a HIGH race the
   moment any path caches or pools `MLIRContext` objects, but it is not
   reachable in the current code.
 - **Tier:** Tier 2 in shape, but unreachable.
@@ -176,7 +176,7 @@ Organized by what they do with shared state:
   from `PassManager::run` — the context is already constructed in that
   mode. Low priority defensively.
 
-### 3. `load_dialects` on a shared `MLIRContext` (Minor — latent only)
+### 3. `load_dialects` on a shared `MLIRContext` (LOW — latent only)
 
 - **Shared state (candidate):** the Python-wrapped `MLIRContext`'s
   dialect registry and its loaded-dialect map.
@@ -197,16 +197,16 @@ Organized by what they do with shared state:
 
   No path shares the resulting context with another thread, so the
   per-context mutations cannot race.
-- **Severity:** Minor — the binding does not release the GIL itself, but
+- **Severity:** LOW — the binding does not release the GIL itself, but
   the GIL is no longer a serializer under free-threading. If a future
   change ever exposes a context for cross-thread reuse, this becomes a
-  SEVERE race on the dialect registry. Worth a watcher.
+  HIGH race on the dialect registry. Worth a watcher.
 - **Fix direction:** if shared contexts are ever introduced, either
   enforce single-threaded `load_dialects` per context (e.g. eager load
   at context construction) or guard the mutation with a context-scoped
   mutex. No fix needed today.
 
-### 4. MLIR op / attribute / type construction on a shared context (Minor — latent only)
+### 4. MLIR op / attribute / type construction on a shared context (LOW — latent only)
 
 - **Shared state (candidate):** `MLIRContext`'s type-uniquing and
   attribute-uniquing tables. Calls like `IntegerType::get(ctx, 32)`,
@@ -225,10 +225,10 @@ Organized by what they do with shared state:
   but no further op construction happens against that retained context
   after `compile()` returns — it is effectively frozen. Two concurrent
   compiles operate on disjoint contexts and disjoint uniquing tables.
-- **Severity:** Minor — the unsafe pattern (uniquing-table mutation
+- **Severity:** LOW — the unsafe pattern (uniquing-table mutation
   with no lock) is real, but unreachable while contexts are
   per-compile. The day a context cache or pool is introduced, this
-  becomes a SEVERE race against MLIR's internal containers and against
+  becomes a HIGH race against MLIR's internal containers and against
   borrowed type/attribute pointers.
 - **Fix direction:** when shared contexts are introduced, either pin
   one context per thread or rebuild the context with
@@ -236,7 +236,7 @@ Organized by what they do with shared state:
   interacts with the explicit `Threading::DISABLED` choice made for
   diagnostic reasons). No fix needed today.
 
-### 5. `plugin::loadPlugins()` plain-bool TOCTOU (Minor — latent only)
+### 5. `plugin::loadPlugins()` plain-bool TOCTOU (LOW — latent only)
 
 - **Shared state:** `static std::vector<TritonPlugin> plugins;` and
   `static bool pluginsLoaded = false;` in `lib/Tools/PluginUtils.cpp`.
@@ -255,7 +255,7 @@ Organized by what they do with shared state:
   binding, `pluginsLoaded == true` and every caller takes the
   `if (pluginsLoaded) return plugins;` fast path. The race window is
   closed.
-- **Severity:** Minor — the TOCTOU pattern is unsound, but unreachable in
+- **Severity:** LOW — the TOCTOU pattern is unsound, but unreachable in
   the current binding layout. Worth tracking as a latent risk only: if
   either module-init call to `loadPlugins()` is removed in a refactor,
   the race becomes live (two compile threads racing through
@@ -265,7 +265,7 @@ Organized by what they do with shared state:
   convert the flag to `std::atomic<bool>` with acquire/release and guard
   the slow path with a mutex. Fix lives in `lib/Tools/PluginUtils.cpp`.
 
-### 6. PassManager-wide mutation during `run()` (Minor)
+### 6. PassManager-wide mutation during `run()` (LOW)
 
 - **Shared state (candidate):** the `PassManager self` and the
   `mod.getContext()` configuration (crash-reproducer / timing /
@@ -288,7 +288,7 @@ Organized by what they do with shared state:
   - So the per-call mutations modify per-compile objects, not shared
     state. No cross-thread race on the PassManager or context fields
     themselves.
-- **Residual concern (Minor):** `makeReproducer(..., reproducerPath)`
+- **Residual concern (LOW):** `makeReproducer(..., reproducerPath)`
   writes a file when `TRITON_REPRODUCER_PATH` is set. The path is
   suffixed with `repro_pipeline_tag`, so two concurrent compiles at the
   same pipeline stage with the same env var collide on the same file.
@@ -298,7 +298,7 @@ Organized by what they do with shared state:
 - **Fix direction:** if the reproducer file race ever matters, include a
   pid/thread-id in the path. Lower priority.
 
-### 7. `setupTritonDiagnosticHandler` — `llvm::errs()` sink (Significant)
+### 7. `setupTritonDiagnosticHandler` — `llvm::errs()` sink (MED)
 
 - **Shared state:** the process-wide `llvm::errs()` stream.
 - **Writer:** every `TritonSourceMgrDiagnosticHandler` constructed in this
@@ -309,19 +309,19 @@ Organized by what they do with shared state:
   overlapping diagnostics both write to `llvm::errs()`. MLIR's
   `SourceMgrDiagnosticHandler` serializes per-handler, but `llvm::errs()`
   is a singleton and concurrent writes from independent handlers interleave.
-- **Severity:** Significant. The consequence is interleaved error output,
+- **Severity:** MED. The consequence is interleaved error output,
   not memory corruption (LLVM's `raw_fd_ostream` is flush-per-write for
   `errs`). But under free-threading the output is no longer deterministic
   and may be hard to debug.
 - **Fix direction:** route per-run diagnostics to a per-thread stream and
   emit a copy to `errs` only after the pipeline finishes. Lower priority.
 
-### 8. `py_getenv` / `py_getenv_bool` / `get_cache_invalidating_env_vars` (Minor)
+### 8. `py_getenv` / `py_getenv_bool` / `get_cache_invalidating_env_vars` (LOW)
 
 - **Shared state:** the process environment.
 - **Writer/Reader:** these helpers call POSIX `getenv`. Triton does not
   `setenv` anywhere in its own code, but the user might.
-- **Severity:** Minor. POSIX `getenv` is not thread-safe against `setenv`.
+- **Severity:** LOW. POSIX `getenv` is not thread-safe against `setenv`.
   If the user mutates env vars from another thread, readers can see torn
   strings or a freed buffer. This is a user-contract issue more than a
   Triton bug; list it only to track the surface.
@@ -391,7 +391,7 @@ Organized by what they do with shared state:
   construction, dialect loading, or `PassManager::run` runs against
   that retained context after `compile()` returns.
 
-  Consequence: issues #2, #3, #4 were downgraded from SEVERE to Minor
+  Consequence: issues #2, #3, #4 were downgraded from HIGH to LOW
   (latent only). They are real patterns of unsafe context mutation that
   would fire immediately if any path ever cached or pooled contexts.
 - **Is there an existing process-wide compile lock?** If `_async_compile.py`
@@ -404,7 +404,7 @@ Organized by what they do with shared state:
   and readers.
 - **Confirm that `setCurrentDebugTypes` stores the caller's pointer rather
   than copying.** Upstream LLVM appears to copy into a
-  `std::vector<std::string>`, which is why issue #1 is currently Minor (no
+  `std::vector<std::string>`, which is why issue #1 is currently LOW (no
   UAF, just a diagnostic-only race). Worth confirming for the LLVM revision
   Triton vendors.
 - **Confirm `plugin::loadPlugins()` callers.** Currently two module-init

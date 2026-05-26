@@ -1,7 +1,7 @@
 # `interpreter_builder.grid_idx` / `grid_dim` trampled by concurrent kernel runs
 
 - **Status:** Open
-- **Severity:** SEVERE
+- **Severity:** HIGH
 - **Component:** `runtime/interpreter.py` (`InterpreterBuilder`, `GridExecutor`)
 - **Tier:** 2
 

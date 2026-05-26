@@ -1,7 +1,7 @@
 # `JITFunction.pre_run_hooks` unsynchronized iteration during concurrent mutation
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `runtime/jit.py`
 - **Tier:** 3
 - **Patch:** [`pre-run-hooks-unsynchronized-iteration.patch`](pre-run-hooks-unsynchronized-iteration.patch)

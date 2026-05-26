@@ -1,7 +1,7 @@
 # `get_shared_view` / `get_distributed_view` `const_cast` away const on `LinearLayout`
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `python/src/linear_layout.cc`
 - **Tier:** 2
 - **Patch:** [`const-cast-views.patch`](const-cast-views.patch)

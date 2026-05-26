@@ -31,10 +31,10 @@ mismatch) that did not need to live in the jit writeup.
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | Significant | AsyncCompileMode.submit | 2 | `submit()` get-then-set TOCTOU on `future_kernels` causes duplicate executor submissions |
-| 2 | Significant | FutureKernel.result | 2 | `result()` non-atomic first-use causes duplicate `finalize_compile` / duplicate `jit_post_compile_hook` |
-| 3 | Minor | AsyncCompileMode.raw_futures | 2 | `raw_futures.append` during `as_completed` iteration in `__exit__` |
-| 4 | Minor | FutureKernel.__getattr__ | 2 | `__getattr__` re-enters `result()` from every attribute access, widening the race window |
+| 1 | MED | AsyncCompileMode.submit | 2 | `submit()` get-then-set TOCTOU on `future_kernels` causes duplicate executor submissions |
+| 2 | MED | FutureKernel.result | 2 | `result()` non-atomic first-use causes duplicate `finalize_compile` / duplicate `jit_post_compile_hook` |
+| 3 | LOW | AsyncCompileMode.raw_futures | 2 | `raw_futures.append` during `as_completed` iteration in `__exit__` |
+| 4 | LOW | FutureKernel.__getattr__ | 2 | `__getattr__` re-enters `result()` from every attribute access, widening the race window |
 
 All four issues are realistically reachable only in Tier 2 scenarios where
 two threads share either the same `AsyncCompileMode` instance or the same
@@ -152,7 +152,7 @@ the ones to care about; #3 and #4 are minor follow-ups.
   already cleared in the current thread's context. The window exists
   only if some other thread still holds a reference to this
   `AsyncCompileMode` and continues to call `submit`.
-- **Severity:** Minor. The typical user pattern is one thread entering
+- **Severity:** LOW. The typical user pattern is one thread entering
   and exiting the `with AsyncCompileMode(...)` block, so this race
   requires a somewhat pathological sharing of the mode across threads.
 - **Follow-up for the deep-dive agent:** verify that
@@ -177,7 +177,7 @@ the ones to care about; #3 and #4 are minor follow-ups.
   `finalize_compile` callback (which writes `kernel_cache[key]` and
   fires a user hook) can be triggered as a side effect of apparently
   read-only code elsewhere in the runtime.
-- **Severity:** Minor on its own — it is the same race as #2, but it
+- **Severity:** LOW on its own — it is the same race as #2, but it
   widens the set of triggering code paths that a deep-dive agent must
   keep in mind when reasoning about when `finalize_compile` actually
   fires. Fixing #2 fixes this.

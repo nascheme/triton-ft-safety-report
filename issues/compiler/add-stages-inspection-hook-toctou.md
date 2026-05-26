@@ -1,7 +1,7 @@
 # `knobs.runtime.add_stages_inspection_hook` TOCTOU in `compile()`
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `python/triton/compiler/compiler.py`
 - **Tier:** 3
 - **Patch:** [`add-stages-inspection-hook-toctou.patch`](add-stages-inspection-hook-toctou.patch)

@@ -1,7 +1,7 @@
 # `kernel_load_start_hook` / `kernel_load_end_hook` — `HookChain` iteration race
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `python/triton/knobs.py` (`HookChain`),
   `python/triton/compiler/compiler.py`
 - **Tier:** 3

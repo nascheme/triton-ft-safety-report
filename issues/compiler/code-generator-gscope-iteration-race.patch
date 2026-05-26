@@ -2,6 +2,8 @@ From 013ab78232c3fc5fd8ca9d7f6c2ae2907f575f79 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:38:08 -0700
 Subject: [PATCH] Snapshot fn.__globals__ in get_capture_scope
+X-Tier: 1
+X-Severity: Significant
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

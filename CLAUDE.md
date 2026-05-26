@@ -279,7 +279,7 @@ Prefer a short, flat format like this:
 # `<short issue title>`
 
 - **Status:** Open
-- **Severity:** SEVERE | Significant | Minor
+- **Severity:** HIGH | MED | LOW
 - **Tier:** <n>
 - **Component:** `<file or subsystem>`
 
@@ -320,16 +320,16 @@ detailed severity justification, move that material into the component
 
 ## Severity guide
 
-- **SEVERE:** Concurrent access to a non-thread-safe container
+- **HIGH:** Concurrent access to a non-thread-safe container
   (`unordered_map`, `vector`, `dict`, `defaultdict`), use-after-free,
   borrowed-reference invalidation, or corrupted runtime/compiler state.
   Plausible crash or wrong-kernel execution.
 
-- **Significant:** TOCTOU on lazy init, duplicate compile/finalization,
+- **MED:** TOCTOU on lazy init, duplicate compile/finalization,
   incorrect cache behavior, wrong config/backend/driver selection, or unsafe
   shared mutable instance state. Causes incorrect behavior.
 
-- **Minor:** Duplicate computation, low-impact first-use races, or stale reads
+- **LOW:** Duplicate computation, low-impact first-use races, or stale reads
   where the consequence is limited.
 
 - **Not worth reporting:** Import-time one-shot state, `ContextVar` state,

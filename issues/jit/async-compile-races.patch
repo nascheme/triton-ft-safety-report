@@ -2,6 +2,8 @@ From cd6c33542592efcdc50d5f0ff6fc6d5752a4d095 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:57:23 -0700
 Subject: [PATCH] Lock AsyncCompileMode submit and finalize_compile
+X-Tier: 2
+X-Severity: Significant
 
 `AsyncCompileMode` and `FutureKernel` memoize compile work by
 `cache_key`, but the bookkeeping is not thread-safe:

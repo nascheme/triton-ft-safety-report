@@ -1,7 +1,7 @@
 # `self.configs_timings` clobbered across concurrent tuning keys
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
 - **Patch:** [`cache-toctou.patch`](cache-toctou.patch)

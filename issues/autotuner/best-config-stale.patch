@@ -2,6 +2,8 @@ From f451406ed3908adcd92b37a29c382231e1771dbd Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:33:37 -0700
 Subject: [PATCH] Print autotuner benchmark log line from locals
+X-Tier: 2
+X-Severity: Minor
 
 Autotuner.run() prints the post-benchmark diagnostic line using
 self.bench_time and self.best_config. Both are per-call writes on an

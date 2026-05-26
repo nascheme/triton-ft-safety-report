@@ -1,7 +1,7 @@
 # `JITFunction.device_caches` defaultdict auto-vivification race
 
 - **Status:** Open
-- **Severity:** SEVERE
+- **Severity:** HIGH
 - **Component:** `runtime/jit.py`
 - **Tier:** 2
 - **Patch:** [`device-caches-race.patch`](device-caches-race.patch)

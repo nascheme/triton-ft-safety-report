@@ -1,7 +1,7 @@
 # `JITCallable.used_global_vals` unsynchronized read skips global-changed safety check
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `runtime/jit.py`
 - **Tier:** 2
 - **Patch:** [`used-global-vals-unsynchronized-read.patch`](used-global-vals-unsynchronized-read.patch)

@@ -28,14 +28,14 @@ Key shared objects:
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | SEVERE | HookChain | 3 | `HookChain.__call__` iterates `self.calls` under concurrent `add`/`remove` |
-| 2 | Significant | HookChain | 3 | `HookChain.add` / `HookChain.remove` TOCTOU on membership check |
-| 3 | Significant | runtime hook slots | 3 | Hot-path callers re-read `knobs.runtime.*_hook` across `is not None` / call |
-| 4 | Significant | base_knobs.scope | 3 | [`base_knobs.scope()` corrupts shared knob state / `os.environ` under concurrent use](knobs/scope-context-manager-race.md) |
-| 5 | Significant | env_base.__set__ | 3 | `env_base.__set__` non-atomic instance-dict vs `os.environ` update |
-| 6 | Minor | setenv | 3 | `setenv` check-then-delete TOCTOU on `os.environ` |
-| 7 | Minor | base_knobs.reset | 3 | `base_knobs.reset()` non-atomic multi-descriptor delete |
-| 8 | Minor | refresh_knobs | 3 | `refresh_knobs()` vs concurrent readers on `runtime.debug` / `compilation.instrumentation_mode` |
+| 1 | HIGH | HookChain | 3 | `HookChain.__call__` iterates `self.calls` under concurrent `add`/`remove` |
+| 2 | MED | HookChain | 3 | `HookChain.add` / `HookChain.remove` TOCTOU on membership check |
+| 3 | MED | runtime hook slots | 3 | Hot-path callers re-read `knobs.runtime.*_hook` across `is not None` / call |
+| 4 | MED | base_knobs.scope | 3 | [`base_knobs.scope()` corrupts shared knob state / `os.environ` under concurrent use](knobs/scope-context-manager-race.md) |
+| 5 | MED | env_base.__set__ | 3 | `env_base.__set__` non-atomic instance-dict vs `os.environ` update |
+| 6 | LOW | setenv | 3 | `setenv` check-then-delete TOCTOU on `os.environ` |
+| 7 | LOW | base_knobs.reset | 3 | `base_knobs.reset()` non-atomic multi-descriptor delete |
+| 8 | LOW | refresh_knobs | 3 | `refresh_knobs()` vs concurrent readers on `runtime.debug` / `compilation.instrumentation_mode` |
 
 Cross-reference:
 [`jit/add-stages-inspection-hook-toctou.md`](jit/add-stages-inspection-hook-toctou.md)
@@ -94,7 +94,7 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
   unregistering the same hook can both see `in` as True; the second
   `list.remove` raises `ValueError`.
 - **Tier:** 3.
-- **Severity:** Significant. The duplicate-add case silently doubles
+- **Severity:** MED. The duplicate-add case silently doubles
   profiling/tracing output; the duplicate-remove case raises an exception
   on a configuration path.
 - **Suggested fix direction:** lock the membership check together with
@@ -129,7 +129,7 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
   The same argument applies to every `compiler.py` site in this section
   and should be resolved together.
 - **Tier:** 3.
-- **Severity:** Significant. `None()` raises on hot paths.
+- **Severity:** MED. `None()` raises on hot paths.
 - **Suggested fix direction:** single-load into a local at the top of
   each reader, then operate on the local — identical to the fix
   prescribed for jit.py issue #12.
@@ -175,7 +175,7 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
     `with triton.knobs.compilation.scope():`
   - `tools/triton_to_gluon_translator/slice_kernel.py`
 - **Tier:** 3.
-- **Severity:** Significant. A caller that uses `scope()` to temporarily
+- **Severity:** MED. A caller that uses `scope()` to temporarily
   force a compiler flag for a single compile can silently have that
   override erased by a concurrent `scope()` exit on another thread.
 - **Suggested fix direction:** either document `scope()` as
@@ -215,9 +215,9 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
      the Python value and the env string pointing at different
      underlying values.
 - **Tier:** 3.
-- **Severity:** Significant (for knobs whose native counterparts read
-  env directly), Minor otherwise. Probably worth reporting as
-  Significant because `libtriton` and backend shared objects *do* read
+- **Severity:** MED (for knobs whose native counterparts read
+  env directly), LOW otherwise. Probably worth reporting as
+  MED because `libtriton` and backend shared objects *do* read
   env vars directly, so a Python-side `True` with an env-side `"0"` is
   a real divergence.
 - **Suggested fix direction:** lock the pair, or explicitly document
@@ -241,7 +241,7 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
   also sees True, and runs `del os.environ["X"]`. Thread A's
   subsequent `del os.environ["X"]` raises `KeyError`.
 - **Tier:** 3.
-- **Severity:** Minor. Only fires on a concurrent clear-to-None of the
+- **Severity:** LOW. Only fires on a concurrent clear-to-None of the
   same env var; consequence is a raised `KeyError` from a user-facing
   knob setter.
 - **Suggested fix direction:** `os.environ.pop(key, None)` instead of
@@ -263,7 +263,7 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
   Also races with a concurrent writer that re-sets a knob; the writer
   can be observed as "half-applied" after reset completes.
 - **Tier:** 3.
-- **Severity:** Minor. Only meaningful in test/tooling harnesses that
+- **Severity:** LOW. Only meaningful in test/tooling harnesses that
   call `reset()` while other threads are still active on the knob
   object.
 - **Suggested fix direction:** lock around the whole `reset()`, or
@@ -285,7 +285,7 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
   intermediate state — but a reader that re-reads the value across
   multiple statements can observe a change mid-flow.
 - **Tier:** 3.
-- **Severity:** Minor. These two knobs are the "benign debug-flag
+- **Severity:** LOW. These two knobs are the "benign debug-flag
   staleness" carve-out from CLAUDE.md. Report only if a concrete
   correctness consequence can be established for the
   `instrumentation_mode` change (which routes to a different

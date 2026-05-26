@@ -1,7 +1,7 @@
 # `InterpretedFunction.__call__` leaks `_patch_lang` patches
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `runtime/interpreter.py` (`InterpretedFunction.__call__`)
 - **Tier:** 2
 

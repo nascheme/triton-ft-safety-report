@@ -1,7 +1,7 @@
 # `do_bench` `@cached_property` duplicate execution
 
 - **Status:** Open
-- **Severity:** Minor
+- **Severity:** LOW
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
 - **Patch:** [`do-bench-cached-property.patch`](do-bench-cached-property.patch)

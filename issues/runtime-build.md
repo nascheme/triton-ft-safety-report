@@ -18,14 +18,14 @@ Files in scope:
 
 | # | Severity (prelim) | Component | Tier | Issue |
 |---|-------------------|-----------|------|-------|
-| 1 | Significant | `_profile_allocator` | 3 | `has_profile_allocator()` / `_profile_allocator.get()` TOCTOU in launch hot path |
-| 2 | Minor | `_profile_allocator` | 3 | `_AllocatorWrapper._allocator` unsynchronized read/write (plain attribute, not `ContextVar`) |
-| 3 | Minor | `_compile_so` | 2 | Duplicate compile / `cache.put` write race for the same cache key |
-| 4 | Minor | `_compile_so` | 3 | Non-atomic multi-read of `knobs.build.impl` / `knobs.build.backend_dirs` / `knobs.build.cc`/`cxx` during `_build` |
-| 5 | Minor | `_find_compiler` | 1 | `@functools.lru_cache` on `_find_compiler` freezes first-seen `CC` / `CXX` / `PATH` resolution |
-| 6 | Minor | `_load_module_from_path` | 2 | Concurrent `exec_module` of the same `.so` cache file — extension-module init race under free-threading |
+| 1 | MED | `_profile_allocator` | 3 | `has_profile_allocator()` / `_profile_allocator.get()` TOCTOU in launch hot path |
+| 2 | LOW | `_profile_allocator` | 3 | `_AllocatorWrapper._allocator` unsynchronized read/write (plain attribute, not `ContextVar`) |
+| 3 | LOW | `_compile_so` | 2 | Duplicate compile / `cache.put` write race for the same cache key |
+| 4 | LOW | `_compile_so` | 3 | Non-atomic multi-read of `knobs.build.impl` / `knobs.build.backend_dirs` / `knobs.build.cc`/`cxx` during `_build` |
+| 5 | LOW | `_find_compiler` | 1 | `@functools.lru_cache` on `_find_compiler` freezes first-seen `CC` / `CXX` / `PATH` resolution |
+| 6 | LOW | `_load_module_from_path` | 2 | Concurrent `exec_module` of the same `.so` cache file — extension-module init race under free-threading |
 
-Nothing SEVERE surfaced on the shallow pass. All six are candidates for a
+Nothing HIGH surfaced on the shallow pass. All six are candidates for a
 closer look; the notes below flag the specific questions a deep dive should
 answer.
 
@@ -203,7 +203,7 @@ answer.
      is stored — each thread runs `shutil.which("clang")` / `shutil.which("gcc")`.
      `shutil.which` walks `PATH` and performs `os.access` syscalls; duplicating
      is benign.
-- **Likely classification:** Minor / already-GIL-era behavior. Tier 1.
+- **Likely classification:** LOW / already-GIL-era behavior. Tier 1.
 - **Deep-dive questions:**
   - Does `shutil.which` itself touch any shared mutable state? (Believed
     purely read-only.)

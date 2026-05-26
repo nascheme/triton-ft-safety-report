@@ -1,7 +1,7 @@
 # `AsyncCompileMode` / `FutureKernel` are not thread-safe
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `runtime/_async_compile.py`
 - **Tier:** 2
 - **Patch:** [`async-compile-races.patch`](async-compile-races.patch)

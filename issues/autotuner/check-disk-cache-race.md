@@ -1,7 +1,7 @@
 # `check_disk_cache` compound race on shared instance state and disk
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
 - **Patch:** [`cache-toctou.patch`](cache-toctou.patch)

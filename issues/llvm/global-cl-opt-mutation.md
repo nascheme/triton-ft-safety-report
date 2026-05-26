@@ -7,7 +7,7 @@ type: issue
 # Global LLVM `cl::opt<>` mutation from GIL-released compile paths
 
 - **Status:** Open
-- **Severity:** Minor (pre-existing maintainer-rule violation, not a free-threading bug)
+- **Severity:** LOW (pre-existing maintainer-rule violation, not a free-threading bug)
 - **Component:** `python/src/llvm.cc` — `setLLVMOption` / `restoreLLVMOption` / `ScopedLLVMOption`
 - **Tier:** Out-of-scope (see README "Pre-existing rule violations" /
   Tier 3 family)

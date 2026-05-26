@@ -2,6 +2,8 @@ From 261785cc4f26cc38e6700e71aa4815782220998d Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:42:53 -0700
 Subject: [PATCH] Serialize DriverConfig lazy init and set_active/reset_active
+X-Tier: 1
+X-Severity: Significant
 
 DriverConfig is the module-level lazy singleton exposing the active
 and default backend DriverBase. Its `default` and `active` properties

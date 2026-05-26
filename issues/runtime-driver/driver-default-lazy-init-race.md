@@ -1,7 +1,7 @@
 # `DriverConfig.default` lazy init race creates duplicate driver instances
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `runtime/driver.py` (`DriverConfig.default`)
 - **Tier:** 1
 - **Patch:** [`driver-default-lazy-init-race.patch`](driver-default-lazy-init-race.patch)

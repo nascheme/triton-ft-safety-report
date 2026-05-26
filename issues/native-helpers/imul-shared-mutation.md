@@ -1,7 +1,7 @@
 # `LinearLayout.__imul__` mutates a shared Python object in place
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `python/src/linear_layout.cc`
 - **Tier:** 2
 - **Patch:** [`imul-shared-mutation.patch`](imul-shared-mutation.patch)

@@ -1,7 +1,7 @@
 # `CompiledKernel._init_handles` lazy handle initialization race
 
 - **Status:** Open
-- **Severity:** SEVERE
+- **Severity:** HIGH
 - **Component:** `python/triton/compiler/compiler.py`
 - **Tier:** 2
 - **Patch:** [`compiled-kernel-init-handles-race.patch`](compiled-kernel-init-handles-race.patch)

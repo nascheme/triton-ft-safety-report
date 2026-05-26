@@ -1,7 +1,7 @@
 # `self.nargs` clobbered by concurrent `run()` calls
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
 - **Patch:** [`cache-toctou.patch`](cache-toctou.patch)

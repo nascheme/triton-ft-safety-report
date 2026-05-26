@@ -1,7 +1,7 @@
 # `Autotuner.run()` cache-miss TOCTOU on shared benchmark state
 
 - **Status:** Open
-- **Severity:** SEVERE
+- **Severity:** HIGH
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
 

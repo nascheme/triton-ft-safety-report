@@ -1,7 +1,7 @@
 # `_RUNTIME_BOOTSTRAP_CACHE` read-modify-write across `rendezvous()` calls
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `experimental/gsan/symmetric_memory.py` (`rendezvous`)
 - **Tier:** 2
 - **Patch:** [`symmetric-memory-rendezvous-toctou.patch`](symmetric-memory-rendezvous-toctou.patch)

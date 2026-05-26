@@ -4,12 +4,12 @@
 
 | # | Severity | Tier | Component | Issue |
 |---|----------|------|-----------|-------|
-| 1 | SEVERE  | 1 | `init_globals` / `init_called` | [`init_globals()` TOCTOU: plain-bool guard allows concurrent lazy init of all file-scope globals](specialize/init-globals-toctou.md) |
-| 2 | SEVERE  | 2 | `dtype_ptr2str`                | [`dtype_ptr2str` `std::unordered_map` mutated on the hot path without synchronization](specialize/dtype-ptr2str-unordered-map-race.md) |
-| 3 | SEVERE  | 2 | `dtype2str`                    | [`dtype2str` `std::unordered_map` mutated on the hot path without synchronization](specialize/dtype2str-unordered-map-race.md) |
-| 4 | SEVERE  | 1 | `type_handler_cache`           | [`type_handler_cache` read during / before its population races init and specialize-dispatch](specialize/type-handler-cache-init-race.md) |
-| 5 | Significant | 1 | `init_called` memory ordering | `init_called` is a non-atomic `bool`; readers can observe `true` before dependent writes — subsumed by issue #1, see triage notes |
-| 6 | Minor   | 1 | `torch_tensor_cls` lazy probe  | `torch.Tensor` is only discovered if `torch` is already imported at first specialize call — performance-only note, no separate issue file or patch, see triage notes |
+| 1 | HIGH  | 1 | `init_globals` / `init_called` | [`init_globals()` TOCTOU: plain-bool guard allows concurrent lazy init of all file-scope globals](specialize/init-globals-toctou.md) |
+| 2 | HIGH  | 2 | `dtype_ptr2str`                | [`dtype_ptr2str` `std::unordered_map` mutated on the hot path without synchronization](specialize/dtype-ptr2str-unordered-map-race.md) |
+| 3 | HIGH  | 2 | `dtype2str`                    | [`dtype2str` `std::unordered_map` mutated on the hot path without synchronization](specialize/dtype2str-unordered-map-race.md) |
+| 4 | HIGH  | 1 | `type_handler_cache`           | [`type_handler_cache` read during / before its population races init and specialize-dispatch](specialize/type-handler-cache-init-race.md) |
+| 5 | MED | 1 | `init_called` memory ordering | `init_called` is a non-atomic `bool`; readers can observe `true` before dependent writes — subsumed by issue #1, see triage notes |
+| 6 | LOW   | 1 | `torch_tensor_cls` lazy probe  | `torch.Tensor` is only discovered if `torch` is already imported at first specialize call — performance-only note, no separate issue file or patch, see triage notes |
 
 Issues in `python/src/specialize.cc` — the native argument-specialization
 helper that backs `JITFunction` specialization. This is the highest-priority
@@ -17,11 +17,11 @@ C++ file per `CLAUDE.md`: it has lazy process-global initialization guarded
 only by a plain boolean, and several process-global native caches populated
 and read on the hot specialization path.
 
-Individual issue files exist for the SEVERE items: `init-globals-toctou.md`,
+Individual issue files exist for the HIGH items: `init-globals-toctou.md`,
 `dtype-ptr2str-unordered-map-race.md`, `dtype2str-unordered-map-race.md`, and
 `type-handler-cache-init-race.md`. The last is resolved by
 `init-globals-toctou.patch` and has no separate patch. Issue #5 is subsumed
-by issue #1 and does not get its own issue file or patch. Issue #6 is Minor
+by issue #1 and does not get its own issue file or patch. Issue #6 is LOW
 and kept in the table for traceability only — no issue file, no patch.
 
 See the triage notes below for the reasoning behind each entry and for items
@@ -65,11 +65,11 @@ All three maps are plain `std::unordered_map`, which is **not** thread-safe
 for concurrent insert or concurrent insert+lookup.
 
 The file already flags `lru_cache` / `unordered_map` as the prototypical
-SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
+HIGH pattern in `CLAUDE.md` — this file is the textbook example.
 
 ## Triage notes
 
-### 1. `init_globals()` TOCTOU on `init_called` (SEVERE)
+### 1. `init_globals()` TOCTOU on `init_called` (HIGH)
 
 - **Shared state:** every file-scope global listed in the Context section
   above, plus the `init_called` flag itself.
@@ -107,7 +107,7 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
   the existing retry-on-failure behavior if an import/lookup raises.
 - **Tier:** Tier 1/2 (first call from any thread can trigger it).
 
-### 2. `dtype_ptr2str` — `std::unordered_map` mutated on hot path (SEVERE)
+### 2. `dtype_ptr2str` — `std::unordered_map` mutated on hot path (HIGH)
 
 - **Shared state:** `static DtypePtr2Str dtype_ptr2str`
   (`std::unordered_map<std::pair<Py_hash_t,bool>, PyObject*, …>`), file
@@ -126,7 +126,7 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
   own insert. `std::unordered_map` concurrent insert/insert or insert/find
   is undefined behavior: possible crash, corrupted buckets, or lost insert.
   This sits directly on the per-argument specialization hot path.
-- **Severity:** SEVERE — matches the "non-thread-safe container on hot
+- **Severity:** HIGH — matches the "non-thread-safe container on hot
   path" pattern from `CLAUDE.md` severity guide.
 - **Fix direction:** the safe baseline is to protect the entire access with
   a mutex. That is also the simplest patch: lock around the `find` plus the
@@ -140,7 +140,7 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
 - **Tier:** Tier 2 (two threads calling the same or different kernels with
   tensor args).
 
-### 3. `dtype2str` — `std::unordered_map` mutated on hot path (SEVERE)
+### 3. `dtype2str` — `std::unordered_map` mutated on hot path (HIGH)
 
 - **Shared state:** `static Dtype2Str dtype2str`
   (`std::unordered_map<Py_hash_t, PyObject*>`), file scope, never locked.
@@ -155,7 +155,7 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
   then re-lock, re-check, and either publish the new `PyObject *` or drop
   the temporary result if another thread already inserted an entry.
 
-### 4. `type_handler_cache` — init-time race through lazy init (SEVERE)
+### 4. `type_handler_cache` — init-time race through lazy init (HIGH)
 
 - **Shared state:** `static TypeHandlerCache type_handler_cache`
   (`std::unordered_map<PyTypeObject*, TypeHandler>`).
@@ -184,7 +184,7 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
   before any read, this map becomes effectively immutable for the life of
   the process and is safe to read without locks.
 
-### 5. `init_called` memory ordering (Significant)
+### 5. `init_called` memory ordering (MED)
 
 - **Shared state:** the `init_called` flag is a plain non-atomic `bool`.
 - **Concern:** even if the TOCTOU in issue #1 were resolved by an
@@ -201,7 +201,7 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
   a mutex around `init_globals()` without making the flag read acquire-ordered,
   the memory-ordering hole remains.
 
-### 6. `torch_tensor_cls` first-use capture (Minor)
+### 6. `torch_tensor_cls` first-use capture (LOW)
 
 - **Shared state:** `torch_tensor_cls` is looked up inside
   `init_globals()` only if `torch` is already present in
@@ -218,7 +218,7 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
   mutates `type_handler_cache` later would be risky and could regress the
   no-torch dispatch behavior covered by Triton's tests. Keep this only as a
   traceability note in this file.
-- **Severity:** Minor and not worth reporting under the `CLAUDE.md`
+- **Severity:** LOW and not worth reporting under the `CLAUDE.md`
   guidance.
 
 ## Rejected / low-value observations
@@ -259,8 +259,8 @@ SEVERE pattern in `CLAUDE.md` — this file is the textbook example.
   `native_specialize_impl` (e.g., through some JIT-level lock in
   `runtime/jit.py`) that would make the init TOCTOU unreachable in
   practice? If so, severity of issue #1 may be tier-dependent rather
-  than "SEVERE" in the absolute sense. The hot-path cache races
-  (issues #2–#4) remain SEVERE either way.
+  than "HIGH" in the absolute sense. The hot-path cache races
+  (issues #2–#4) remain HIGH either way.
 - Are these caches reachable from any `py::gil_scoped_release` region?
   Spot check says no — this file does not declare any GIL-release
   scopes — but confirm during the deeper audit.

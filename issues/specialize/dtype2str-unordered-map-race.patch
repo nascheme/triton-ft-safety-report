@@ -2,6 +2,8 @@ From ca0495fc2db92950bffa80daab91b6fbd0c519bb Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Wed, 15 Apr 2026 00:26:09 -0700
 Subject: [PATCH] Lock dtype2str cache in specialize_tensordesc()
+X-Tier: 2
+X-Severity: SEVERE
 
 specialize_tensordesc() is on the per-argument specialization hot
 path for tensordesc and Gluon descriptor arguments, and mutates a

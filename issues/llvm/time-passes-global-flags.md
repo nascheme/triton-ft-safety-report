@@ -7,7 +7,7 @@ type: issue
 # LLVM `TimePasses` global flags and `reportAndResetTimings` raced by concurrent compiles
 
 - **Status:** Open
-- **Severity:** Minor
+- **Severity:** LOW
 - **Component:** `python/src/llvm.cc` — `translateLLVMIRToASM` (only active
   when `LLVM_ENABLE_TIMING` is set)
 - **Tier:** 1/2

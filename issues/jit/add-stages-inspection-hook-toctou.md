@@ -1,7 +1,7 @@
 # `knobs.runtime.add_stages_inspection_hook` TOCTOU in `run()`
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `runtime/jit.py`
 - **Tier:** 3
 - **Patch:** [`add-stages-inspection-hook-toctou.patch`](add-stages-inspection-hook-toctou.patch)

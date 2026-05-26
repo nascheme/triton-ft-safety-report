@@ -1,7 +1,7 @@
 # Hot-path callers re-read `driver.active` across multiple statements
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `compiler/compiler.py` (`_init_handles`),
   `runtime/jit.py` (`JITFunction.run`), `runtime/autotuner.py`
 - **Tier:** 3

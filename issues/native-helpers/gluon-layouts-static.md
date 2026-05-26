@@ -1,7 +1,7 @@
 # `layoutToGluon` static `GluonLayouts` cache
 
 - **Status:** Open
-- **Severity:** Minor
+- **Severity:** LOW
 - **Component:** `python/src/gluon_ir.cc`
 - **Tier:** 1
 

@@ -1,7 +1,7 @@
 # `init_globals()` TOCTOU on plain-bool guard races every file-scope global
 
 - **Status:** Open
-- **Severity:** SEVERE
+- **Severity:** HIGH
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 1
 - **Patch:** [`init-globals-toctou.patch`](init-globals-toctou.patch)

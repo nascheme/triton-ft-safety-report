@@ -1,7 +1,7 @@
 # `linear_layout.cc` shares one process-wide MLIRContext across all calls
 
 - **Status:** Open
-- **Severity:** SEVERE
+- **Severity:** HIGH
 - **Component:** `python/src/linear_layout.cc`
 - **Tier:** 2
 - **Patch:** [`shared-mlir-context.patch`](shared-mlir-context.patch)

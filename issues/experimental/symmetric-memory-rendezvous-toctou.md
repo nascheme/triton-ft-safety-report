@@ -1,7 +1,7 @@
 # `rendezvous()` check-then-act on `_RENDEZVOUS_CACHE`
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `experimental/gsan/symmetric_memory.py` (`rendezvous`)
 - **Tier:** 2
 - **Patch:** [`symmetric-memory-rendezvous-toctou.patch`](symmetric-memory-rendezvous-toctou.patch)

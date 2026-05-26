@@ -1,7 +1,7 @@
 # `JITCallable._unsafe_update_src` unsynchronized hash invalidation
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `runtime/jit.py`
 - **Tier:** 2
 - **Patch:** [`unsafe-update-src-race.patch`](unsafe-update-src-race.patch)

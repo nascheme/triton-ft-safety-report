@@ -1,7 +1,7 @@
 # `self.best_config` and `self.bench_time` stale across concurrent calls
 
 - **Status:** Open
-- **Severity:** Minor
+- **Severity:** LOW
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
 

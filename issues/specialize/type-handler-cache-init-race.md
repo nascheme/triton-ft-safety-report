@@ -1,7 +1,7 @@
 # `type_handler_cache` init-time race through unsynchronized lazy init
 
 - **Status:** Open
-- **Severity:** SEVERE
+- **Severity:** HIGH
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 1
 - **Patch:** [`init-globals-toctou.patch`](init-globals-toctou.patch)
@@ -23,7 +23,7 @@
   reached from `specialize_impl`, the `native_specialize_impl`
   METH_FASTCALL exposed to Python and called on the per-argument
   specialization hot path from `runtime/jit.py`.
-- **Race scenario:** This is a SEVERE consequence of issue #1's
+- **Race scenario:** This is a HIGH consequence of issue #1's
   unsynchronized lazy init. Two threads can both observe the plain
   `init_called` guard as false and both enter `init_globals()`, which in
   turn calls `init_type_handler_cache()`. Both threads then issue

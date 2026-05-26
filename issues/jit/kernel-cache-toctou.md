@@ -1,7 +1,7 @@
 # `kernel_cache` / `kernel_key_cache` TOCTOU causes duplicate compilation
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `runtime/jit.py`
 - **Tier:** 2
 - **Patch:** [`kernel-cache-toctou.patch`](kernel-cache-toctou.patch)

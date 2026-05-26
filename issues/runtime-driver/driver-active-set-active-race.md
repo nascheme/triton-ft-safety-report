@@ -1,7 +1,7 @@
 # `DriverConfig.active` lazy init / `set_active` ordering race
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `runtime/driver.py` (`DriverConfig.active` /
   `set_active` / `reset_active`)
 - **Tier:** 3

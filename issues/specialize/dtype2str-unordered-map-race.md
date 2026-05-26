@@ -1,7 +1,7 @@
 # `dtype2str` `std::unordered_map` mutated on the tensordesc specialization path
 
 - **Status:** Open
-- **Severity:** SEVERE
+- **Severity:** HIGH
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 2
 - **Patch:** [`dtype2str-unordered-map-race.patch`](dtype2str-unordered-map-race.patch)

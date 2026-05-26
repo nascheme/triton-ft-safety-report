@@ -12,11 +12,11 @@ Lower-frequency native pybind11 bindings:
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | SEVERE | `linear_layout.cc` | 2 | [Process-wide shared MLIRContext used for every `LinearLayout` operation](native-helpers/shared-mlir-context.md) |
-| 2 | Significant | `linear_layout.cc` | 2 | [`__imul__` mutates a shared `LinearLayout` Python object in place](native-helpers/imul-shared-mutation.md) |
-| 3 | Significant | `linear_layout.cc` | 2 | [`get_shared_view` / `get_distributed_view` use `const_cast` to call non-const methods on a shared `LinearLayout`](native-helpers/const-cast-views.md) |
-| 4 | Significant | `gluon_ir.cc` | 2 | [Bindings call `*Attr::get(ctx, …)` on a shared, threading-disabled `MLIRContext`](native-helpers/gluon-builder-context.md) |
-| 5 | Minor | `gluon_ir.cc` | 1 | [`layoutToGluon` static `GluonLayouts` cache: first-call import latency, leaked refs](native-helpers/gluon-layouts-static.md) |
+| 1 | HIGH | `linear_layout.cc` | 2 | [Process-wide shared MLIRContext used for every `LinearLayout` operation](native-helpers/shared-mlir-context.md) |
+| 2 | MED | `linear_layout.cc` | 2 | [`__imul__` mutates a shared `LinearLayout` Python object in place](native-helpers/imul-shared-mutation.md) |
+| 3 | MED | `linear_layout.cc` | 2 | [`get_shared_view` / `get_distributed_view` use `const_cast` to call non-const methods on a shared `LinearLayout`](native-helpers/const-cast-views.md) |
+| 4 | MED | `gluon_ir.cc` | 2 | [Bindings call `*Attr::get(ctx, …)` on a shared, threading-disabled `MLIRContext`](native-helpers/gluon-builder-context.md) |
+| 5 | LOW | `gluon_ir.cc` | 1 | [`layoutToGluon` static `GluonLayouts` cache: first-call import latency, leaked refs](native-helpers/gluon-layouts-static.md) |
 
 ## Triage notes
 
@@ -122,7 +122,7 @@ Magic-static initialization is thread-safe per C++11. Concerns are minor:
    so they outlive the process — fine in practice.
 
 This pattern is on the boundary of what CLAUDE.md flags as a write-once
-global. Listed here as Minor because the lambda runs Python C API code under
+global. Listed here as LOW because the lambda runs Python C API code under
 the magic-static lock, which is a slightly unusual interleaving point, but no
 concrete corruption scenario has been identified.
 

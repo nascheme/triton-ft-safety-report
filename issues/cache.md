@@ -22,12 +22,12 @@ concerns.
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | Minor | FileCacheManager.put | 2 | `os.removedirs(temp_dir)` ascent can nuke shared parent dirs under concurrent cleanup |
-| 2 | Minor | RemoteCacheManager / RedisRemoteCacheBackend | 3 | Non-atomic multi-read of `knobs.cache.redis.*` / `knobs.cache.remote_manager_class` during construction |
-| 3 | Minor | triton_key | 1 | `triton_key()` `@functools.lru_cache` cold-start / filesystem-dependent hashing |
-| 4 | Minor | FileCacheManager.get_file | 2 | `get_file` returns a path that can disappear before the caller opens it |
+| 1 | LOW | FileCacheManager.put | 2 | `os.removedirs(temp_dir)` ascent can nuke shared parent dirs under concurrent cleanup |
+| 2 | LOW | RemoteCacheManager / RedisRemoteCacheBackend | 3 | Non-atomic multi-read of `knobs.cache.redis.*` / `knobs.cache.remote_manager_class` during construction |
+| 3 | LOW | triton_key | 1 | `triton_key()` `@functools.lru_cache` cold-start / filesystem-dependent hashing |
+| 4 | LOW | FileCacheManager.get_file | 2 | `get_file` returns a path that can disappear before the caller opens it |
 
-All four are Minor. No Significant or SEVERE issues identified in this
+All four are LOW. No MED or HIGH issues identified in this
 file.
 
 ## Triage notes
@@ -73,7 +73,7 @@ file.
      `EEXIST` but will surface other errors, so in principle B can see
      a transient `FileNotFoundError` / `ENOENT` on an ancestor that A
      just removed, even though A's ancestor removal is "benign".
-- **Severity:** Minor. Real users do not run external `rm -rf` against
+- **Severity:** LOW. Real users do not run external `rm -rf` against
   `~/.triton/cache` while Triton is active; the scenario requires
   either a buggy cleanup thread or a tight test harness. Still worth a
   note because the pattern is slightly anti-social: a single put's
@@ -110,7 +110,7 @@ file.
   resulting backend captures a mix of old and new configuration:
   new `key_format` with old `host`, new `remote_manager_class` paired
   with old `dir`, etc.
-- **Severity:** Minor. Knob mutation during a compile is a documented
+- **Severity:** LOW. Knob mutation during a compile is a documented
   unsupported workflow, but the construction is already "pull a
   consistent snapshot" by intent. Consequence is wrong-backend
   routing for the lifetime of the constructed manager.
@@ -149,7 +149,7 @@ file.
   result is ultimately stored. But under free-threading, the lock
   surface may allow duplicate computation before the first result is
   stored.
-- **Severity:** Minor. Worst case is duplicate cold-start hashing
+- **Severity:** LOW. Worst case is duplicate cold-start hashing
   (seconds, not correctness). Safe-by-construction for the cache entry.
 - **Tier:** 1 (bring-up).
 - **Suggested fix direction:** none required. If duplicate cold-start
@@ -191,7 +191,7 @@ file.
     — a concurrent `cache.put` that overwrites via `os.replace` is
     atomic, so the reader sees either the old or the new complete
     JSON. Safe.
-- **Severity:** Minor. Current callers either handle the race
+- **Severity:** LOW. Current callers either handle the race
   explicitly (build.py) or rely on atomic replace to bound the damage.
 - **Tier:** 2.
 - **Suggested fix direction:** document the API contract ("return value

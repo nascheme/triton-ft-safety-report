@@ -2,6 +2,8 @@ From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Wed, 20 May 2026 15:21:00 -0700
 Subject: [PATCH] Enable multithreading on shared LinearLayout context
+X-Tier: 2
+X-Severity: SEVERE
 
 linear_layout.cc keeps a process-wide MLIRContext built via the
 ir.context() factory, which constructs it with Threading::DISABLED.

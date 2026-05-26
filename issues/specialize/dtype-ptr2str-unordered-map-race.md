@@ -1,7 +1,7 @@
 # `dtype_ptr2str` `std::unordered_map` mutated on the hot specialization path
 
 - **Status:** Open
-- **Severity:** SEVERE
+- **Severity:** HIGH
 - **Component:** `python/src/specialize.cc`
 - **Tier:** 2
 - **Patch:** [`dtype-ptr2str-unordered-map-race.patch`](dtype-ptr2str-unordered-map-race.patch)

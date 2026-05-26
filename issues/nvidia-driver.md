@@ -20,9 +20,9 @@ Related out-of-scope file (referenced but not audited here):
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | Minor       | module globals         | 1 | [`PyCUtensorMap` / `PyKernelArg` / `ARG_*` module globals rewritten on every `CudaUtils()` call, but values are equivalent — benign staleness only](nvidia-driver/module-globals-lazy-init-race.md) |
-| 2 | Minor       | `CudaUtils` singleton  | 1 | [Broken singleton pattern: `__init__` re-runs on every call, causing duplicate `compile_module_from_src` and `dlopen` under concurrent driver bring-up](nvidia-driver/cudautils-singleton-race.md) |
-| 3 | Minor       | `CudaDriver.__init__`  | 1 | Every `CudaDriver()` instantiation triggers the full `CudaUtils()` bring-up via `self.utils = CudaUtils()`. Under the `DriverConfig.default` race in `runtime-driver/` issue #1, two concurrent default-driver constructions therefore double up the entire native init. No separate writeup; this is covered by issues #1 and #2 above. |
+| 1 | LOW       | module globals         | 1 | [`PyCUtensorMap` / `PyKernelArg` / `ARG_*` module globals rewritten on every `CudaUtils()` call, but values are equivalent — benign staleness only](nvidia-driver/module-globals-lazy-init-race.md) |
+| 2 | LOW       | `CudaUtils` singleton  | 1 | [Broken singleton pattern: `__init__` re-runs on every call, causing duplicate `compile_module_from_src` and `dlopen` under concurrent driver bring-up](nvidia-driver/cudautils-singleton-race.md) |
+| 3 | LOW       | `CudaDriver.__init__`  | 1 | Every `CudaDriver()` instantiation triggers the full `CudaUtils()` bring-up via `self.utils = CudaUtils()`. Under the `DriverConfig.default` race in `runtime-driver/` issue #1, two concurrent default-driver constructions therefore double up the entire native init. No separate writeup; this is covered by issues #1 and #2 above. |
 
 ## Triage notes
 
@@ -70,7 +70,7 @@ objects of interest:
   inputs produces functionally equivalent results, so old and new values
   are interchangeable. The consequence is benign.
 - **Tier:** 1 (concurrent `CudaDriver` construction during import-time Triton bring-up).
-- **Triage:** Downgraded from SEVERE to Minor. The original scenario
+- **Triage:** Downgraded from HIGH to LOW. The original scenario
   assumed a thread could reach `annotate_arguments` with `None` globals,
   but this is not reachable through normal code paths. The residual race
   involves equivalent values only. Written up in
@@ -112,7 +112,7 @@ objects of interest:
      `cache.put(...)` concurrently on the same key; this is the cache
      layer's problem, but the broken singleton is the trigger.
 - **Tier:** 1 (concurrent `CudaDriver` construction during import-time Triton bring-up).
-- **Triage:** Minor — the duplicate work produces equivalent results from
+- **Triage:** LOW — the duplicate work produces equivalent results from
   deterministic inputs, so the consequence is wasted computation, not
   corruption. Still worth fixing as it's the root cause of issue #1 and
   eliminates an entire class of potential problems. Written up in
@@ -128,7 +128,7 @@ objects of interest:
   bug; rather, this line is the *trigger* that turns the issue #1 and #2
   hazards into a real race whenever two threads build a `CudaDriver`
   concurrently, which happens under `runtime-driver/` issue #1.
-- **Triage:** Minor. No separate writeup. Fix is to make `utils` a class
+- **Triage:** LOW. No separate writeup. Fix is to make `utils` a class
   attribute or lazy-cached singleton populated under a lock.
 
 ## Relationship to the gh-6721 segfault

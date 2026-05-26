@@ -15,10 +15,10 @@ Files in scope (Pass 1/Pass 4 per `AUDIT_PLAN.md`):
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | SEVERE | CompiledKernel | 2 | [`CompiledKernel._init_handles` lazy handle initialization race](compiler/compiled-kernel-init-handles-race.md) |
-| 2 | Significant | compile() | 3 | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `compile()`](compiler/add-stages-inspection-hook-toctou.md) |
-| 3 | Significant | HookChain | 3 | [`kernel_load_start_hook` / `kernel_load_end_hook` — `HookChain` iteration race in `_init_handles`](compiler/kernel-load-hook-chain-race.md) |
-| 4 | Significant | code_generator | 1 | [`CodeGenerator.__init__` iterates live `fn.__globals__` via `get_capture_scope`](compiler/code-generator-gscope-iteration-race.md) |
+| 1 | HIGH | CompiledKernel | 2 | [`CompiledKernel._init_handles` lazy handle initialization race](compiler/compiled-kernel-init-handles-race.md) |
+| 2 | MED | compile() | 3 | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `compile()`](compiler/add-stages-inspection-hook-toctou.md) |
+| 3 | MED | HookChain | 3 | [`kernel_load_start_hook` / `kernel_load_end_hook` — `HookChain` iteration race in `_init_handles`](compiler/kernel-load-hook-chain-race.md) |
+| 4 | MED | code_generator | 1 | [`CodeGenerator.__init__` iterates live `fn.__globals__` via `get_capture_scope`](compiler/code-generator-gscope-iteration-race.md) |
 
 ## Triage notes
 
@@ -44,11 +44,11 @@ initialization, receives the launcher, then reads `self.function`
 Additional hazards: the `self.module is None` guard TOCTOU on the entry
 into `_init_handles` causing duplicate `load_binary` and duplicate
 `kernel_load_*_hook` calls, and a non-atomic multi-target tuple-unpack
-that can publish `self.module` before `self.function`. Tier 2 SEVERE.
+that can publish `self.module` before `self.function`. Tier 2 HIGH.
 
 #### Detailed scenarios
 
-**Scenario A — published-but-empty launcher (SEVERE).** Two threads launch
+**Scenario A — published-but-empty launcher (HIGH).** Two threads launch
 the same kernel for the first time:
 
 | Time | Thread A | Thread B |
@@ -61,13 +61,13 @@ the same kernel for the first time:
 | t5 | | returns `self._run`, reads `kernel.function` (still `None`) |
 | t6 | | launcher invoked with `function=None` |
 
-**Scenario B — guard TOCTOU, duplicate load (Significant).** Entry through
+**Scenario B — guard TOCTOU, duplicate load (MED).** Entry through
 `__getitem__` or `launch_metadata` uses the `self.module is None` guard.
 Two threads both pass the guard and run full init in parallel: duplicate
 `launcher_cls(...)`, duplicate `load_binary(...)`, duplicate hook
 invocations. Last writer wins; loser's GPU module handle is leaked.
 
-**Scenario C — non-atomic tuple-unpack (SEVERE).** The five-target
+**Scenario C — non-atomic tuple-unpack (HIGH).** The five-target
 assignment from the `load_binary` result compiles to five sequential
 `STORE_ATTR` opcodes. A reader racing via the `self.module is None`
 guard can observe `self.module` set while `self.function` is still
@@ -164,7 +164,7 @@ shape as the jit.py writeup ([`jit/add-stages-inspection-hook-toctou.md`](jit/ad
 but independent: `compile()` is reachable from `_do_compile`,
 `warmup`, and external callers of `triton.compiler.compile`, so
 fixing only the jit.py site leaves this one racey. Tier 3
-Significant. Fix: single load into a local.
+MED. Fix: single load into a local.
 
 Side note: `inspect_stages_hash` is assigned but never read within
 `compile()` (unlike the jit.py site where it is folded into the
@@ -203,7 +203,7 @@ compounds (dedup check followed by append; membership check
 followed by remove) that allow duplicate adds and a `ValueError`
 on racing removes — minor relative to the iteration race.
 
-Tier 3 Significant. Fix: a single ~25-line copy-on-write edit in
+Tier 3 MED. Fix: a single ~25-line copy-on-write edit in
 `HookChain` (one lock for writers, snapshot-load in `__call__`)
 repairs all four hook slots at once.
 
@@ -635,7 +635,7 @@ spurious `NameError` compile failures, or a constexpr global being
 read *after* a rebind in thread B while `used_global_vals` / cache
 key was computed against the old value, producing a stale-keyed
 compiled kernel. The same iteration site runs again per callee in
-`visit_Call`. Tier 1 Significant.
+`visit_Call`. Tier 1 MED.
 
 Note on the closure branch: when `fn.__closure__` is not `None`,
 `get_capture_scope` returns `self.__globals__ | nonlocals`, which

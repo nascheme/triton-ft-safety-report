@@ -6,17 +6,17 @@ Issues in `python/triton/runtime/autotuner.py` affecting free-threaded Python 3.
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | SEVERE | Autotuner.cache | 2 | [`run()` cache-miss TOCTOU enables duplicate benchmarking and cross-thread hook-state contamination](autotuner/cache-toctou.md) |
-| 2 | Significant | Autotuner.nargs | 2 | [`self.nargs` clobbered by concurrent `run()` calls, corrupting hook/pruning context](autotuner/nargs-clobber.md) |
-| 3 | Significant | Autotuner.configs_timings | 2 | [`self.configs_timings` clobbered across concurrent tuning keys](autotuner/configs-timings-clobber.md) |
-| 4 | Significant | Autotuner.restore_copies | 2 | [`self.restore_copies` pre/post hook race restores wrong snapshot or raises](autotuner/restore-copies-race.md) |
-| 5 | Minor | Autotuner.best_config | 2 | [`self.best_config` and `self.bench_time` stale across concurrent calls](autotuner/best-config-stale.md) |
-| 6 | Minor | Autotuner.do_bench | 2 | [`@cached_property` `do_bench` duplicate execution on shared instance](autotuner/do-bench-cached-property.md) |
-| 7 | Significant | check_disk_cache | 2 | [`check_disk_cache` compound race on shared instance state and disk](autotuner/check-disk-cache-race.md) |
+| 1 | HIGH | Autotuner.cache | 2 | [`run()` cache-miss TOCTOU enables duplicate benchmarking and cross-thread hook-state contamination](autotuner/cache-toctou.md) |
+| 2 | MED | Autotuner.nargs | 2 | [`self.nargs` clobbered by concurrent `run()` calls, corrupting hook/pruning context](autotuner/nargs-clobber.md) |
+| 3 | MED | Autotuner.configs_timings | 2 | [`self.configs_timings` clobbered across concurrent tuning keys](autotuner/configs-timings-clobber.md) |
+| 4 | MED | Autotuner.restore_copies | 2 | [`self.restore_copies` pre/post hook race restores wrong snapshot or raises](autotuner/restore-copies-race.md) |
+| 5 | LOW | Autotuner.best_config | 2 | [`self.best_config` and `self.bench_time` stale across concurrent calls](autotuner/best-config-stale.md) |
+| 6 | LOW | Autotuner.do_bench | 2 | [`@cached_property` `do_bench` duplicate execution on shared instance](autotuner/do-bench-cached-property.md) |
+| 7 | MED | check_disk_cache | 2 | [`check_disk_cache` compound race on shared instance state and disk](autotuner/check-disk-cache-race.md) |
 
 ## Triage notes
 
-### 1. `self.cache` — cache-miss TOCTOU races the whole benchmark path (SEVERE)
+### 1. `self.cache` — cache-miss TOCTOU races the whole benchmark path (HIGH)
 
 - **Shared state:** the miss path is not just `self.cache: Dict[Tuple, Config]`;
   it also uses shared per-call scratch state on the same
@@ -54,7 +54,7 @@ Issues in `python/triton/runtime/autotuner.py` affecting free-threaded Python 3.
   This matches upstream PR `triton-lang/triton#8437`, which passes `nargs`
   explicitly and uses a per-key future/event for cache population. Tier 2.
 
-### 2. `self.nargs` — clobbered by concurrent callers (Significant)
+### 2. `self.nargs` — clobbered by concurrent callers (MED)
 
 - **Shared state:** `self.nargs`, set at the start of `run()` and
   read throughout `_bench()`, `prune_configs()`, and hook callbacks.
@@ -72,7 +72,7 @@ Issues in `python/triton/runtime/autotuner.py` affecting free-threaded Python 3.
   in some interleavings `None` reads after another thread clears the attribute.
   Tier 2.
 
-### 3. `self.configs_timings` — unsynchronized shared write (Significant)
+### 3. `self.configs_timings` — unsynchronized shared write (MED)
 
 - **Shared state:** `self.configs_timings` — set inside `benchmark()`
   and inside `check_disk_cache()`.
@@ -84,7 +84,7 @@ Issues in `python/triton/runtime/autotuner.py` affecting free-threaded Python 3.
   overwrites it. Thread A's `check_disk_cache` then serializes Thread B's
   timings to disk under Thread A's cache key. Or vice versa. Tier 2.
 
-### 4. `self.restore_copies` — pre/post hook race (Significant)
+### 4. `self.restore_copies` — pre/post hook race (MED)
 
 - **Shared state:** `self.restore_copies` — written by the `_pre_hook`
   closure and read/cleared by the `_post_hook` closure.
@@ -99,7 +99,7 @@ Issues in `python/triton/runtime/autotuner.py` affecting free-threaded Python 3.
   cross-thread `copy_()` rather than a direct native memory-safety crash.
   Tier 2.
 
-### 5. `self.best_config` and `self.bench_time` — per-call writes (Significant)
+### 5. `self.best_config` and `self.bench_time` — per-call writes (MED)
 
 - **Shared state:** `self.best_config`, `self.bench_time`.
 - **Writer:** `run()` writes `self.best_config`; `benchmark()` writes
@@ -108,13 +108,13 @@ Issues in `python/triton/runtime/autotuner.py` affecting free-threaded Python 3.
 - **Race scenario:** Thread A sets `self.best_config` for key K1, Thread B
   then sets it for key K2. Thread A's print statement may print Thread B's
   config; `self.bench_time` can also be stale. Tier 2.
-- **Severity downgrade:** Originally listed as Significant. On review,
+- **Severity downgrade:** Originally listed as MED. On review,
   `self.best_config` has no readers outside the diagnostic print (confirmed
   by grep across `triton/python/triton/`). The actual kernel launch uses the
-  local `config` variable, not `self.best_config`. Downgraded to Minor —
+  local `config` variable, not `self.best_config`. Downgraded to LOW —
   wrong diagnostic output only.
 
-### 6. `do_bench` `@cached_property` — duplicate execution (Minor)
+### 6. `do_bench` `@cached_property` — duplicate execution (LOW)
 
 - **Shared state:** `self.do_bench` backed by `@cached_property`.
 - **Writer:** First access triggers `driver.active.get_benchmarker()`.
@@ -124,9 +124,9 @@ Issues in `python/triton/runtime/autotuner.py` affecting free-threaded Python 3.
   free-threaded CPython, `cached_property` has no lock (removed in 3.12).
   The getter is pure and the result is identical, so duplicate execution is
   benign — same pattern as `KernelParam` cached properties in the jit audit.
-  Tier 2. Minor because the result is functionally identical.
+  Tier 2. LOW because the result is functionally identical.
 
-### 7. `check_disk_cache` — compound races on shared instance state (Significant)
+### 7. `check_disk_cache` — compound races on shared instance state (MED)
 
 - **Shared state:** `self.cache[tuning_key]`, `self.configs_timings`,
   the disk cache itself.

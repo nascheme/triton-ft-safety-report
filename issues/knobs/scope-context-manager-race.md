@@ -1,7 +1,7 @@
 # `base_knobs.scope()` corrupts shared knob state and `os.environ` under concurrent use
 
 - **Status:** Open
-- **Severity:** Significant
+- **Severity:** MED
 - **Component:** `python/triton/knobs.py` (`base_knobs.scope`)
 - **Tier:** 3
 

@@ -6,15 +6,15 @@ Issues in `python/triton/runtime/jit.py` affecting free-threaded Python 3.14t.
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | Significant | function_registry | 1 | [`_triton_jit_function_registry` publishes partially-initialized `JITFunction`](jit/function-registry-race.md) |
-| 2 | SEVERE | device_caches | 2 | [`JITFunction.device_caches` defaultdict auto-vivification race](jit/device-caches-race.md) |
-| 4 | Significant | kernel_cache | 2 | [`kernel_cache` / `kernel_key_cache` TOCTOU causes duplicate compilation](jit/kernel-cache-toctou.md) |
-| 6 | Significant | used_global_vals | 2 | [`JITCallable.used_global_vals` unsynchronized read skips global-changed safety check](jit/used-global-vals-unsynchronized-read.md) |
-| 7 | Significant | pre_run_hooks | 2 | [`JITFunction.pre_run_hooks` unsynchronized iteration during concurrent mutation](jit/pre-run-hooks-unsynchronized-iteration.md) |
+| 1 | MED | function_registry | 1 | [`_triton_jit_function_registry` publishes partially-initialized `JITFunction`](jit/function-registry-race.md) |
+| 2 | HIGH | device_caches | 2 | [`JITFunction.device_caches` defaultdict auto-vivification race](jit/device-caches-race.md) |
+| 4 | MED | kernel_cache | 2 | [`kernel_cache` / `kernel_key_cache` TOCTOU causes duplicate compilation](jit/kernel-cache-toctou.md) |
+| 6 | MED | used_global_vals | 2 | [`JITCallable.used_global_vals` unsynchronized read skips global-changed safety check](jit/used-global-vals-unsynchronized-read.md) |
+| 7 | MED | pre_run_hooks | 2 | [`JITFunction.pre_run_hooks` unsynchronized iteration during concurrent mutation](jit/pre-run-hooks-unsynchronized-iteration.md) |
 | 8 | (covered by #4) | compute_cache_key | 2 | [`compute_cache_key` read-then-write race on `kernel_key_cache`](jit/kernel-cache-toctou.md) |
-| 9 | Significant | async_compile | 2 | [`_do_compile` async path — `AsyncCompileMode`/`FutureKernel` races](jit/async-compile-races.md) |
-| 11 | Significant | _unsafe_update_src | 2 | [`JITCallable._unsafe_update_src` unsynchronized hash invalidation](jit/unsafe-update-src-race.md) |
-| 12 | Significant | add_stages_inspection_hook | 3 | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `run()`](jit/add-stages-inspection-hook-toctou.md) |
+| 9 | MED | async_compile | 2 | [`_do_compile` async path — `AsyncCompileMode`/`FutureKernel` races](jit/async-compile-races.md) |
+| 11 | MED | _unsafe_update_src | 2 | [`JITCallable._unsafe_update_src` unsynchronized hash invalidation](jit/unsafe-update-src-race.md) |
+| 12 | MED | add_stages_inspection_hook | 3 | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `run()`](jit/add-stages-inspection-hook-toctou.md) |
 
 ## Triage notes
 
@@ -108,7 +108,7 @@ Written up in [pre-run-hooks-unsynchronized-iteration.md](jit/pre-run-hooks-unsy
 ### 9. `_do_compile` async path — `AsyncCompileMode`/`FutureKernel` races
 
 Written up in [async-compile-races.md](jit/async-compile-races.md). Investigation
-downgraded from SEVERE to Significant: the concrete bugs are (1) a TOCTOU in
+downgraded from HIGH to MED: the concrete bugs are (1) a TOCTOU in
 `AsyncCompileMode.submit` causing duplicate executor submissions for the same
 `cache_key`, (2) non-atomic `FutureKernel.result` causing duplicate
 `finalize_compile` and therefore duplicate `jit_post_compile_hook`

@@ -24,13 +24,13 @@ whatever the `jit` component finds. Listed here only for completeness.
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | Significant | `experimental/gsan/_stream_sync.py` | 3 | `_compile_without_gsan()` mutates global `knobs.compilation.instrumentation_mode` via `knobs.compilation.scope()`; concurrent compilations on other threads will observe the cleared value |
-| 2 | Significant | `experimental/gsan/symmetric_memory.py` | 2 | [`rendezvous()` does check-then-act on `_RENDEZVOUS_CACHE` (WeakValueDictionary) and drives a Unix-socket FD-exchange protocol; two threads rendezvousing the same (ptr, storage, group) key can double-import peer FDs](experimental/symmetric-memory-rendezvous-toctou.md) |
-| 3 | Significant | `experimental/gsan/symmetric_memory.py` | 2 | [`_RUNTIME_BOOTSTRAP_CACHE[key]` returns a plain `set` that is later read-modified-written (`peer in …`, `.update(…)`) across concurrent `rendezvous()` calls](experimental/symmetric-memory-bootstrap-cache-rmw.md) |
-| 4 | Minor | `experimental/gsan/_allocator.py` | 1 | Three `@functools.lru_cache()` functions (`_load_gsan_module`, `_compile_gsan_allocator`, `get_allocator`) do lazy native-module compile + CUDA allocator init |
-| 5 | Minor | `experimental/gsan/_stream_sync.py` | 1 | `_runtime_state_layout`, `_compiled_sync_kernel` `@functools.lru_cache()` on hot sync path |
-| 6 | Minor | `experimental/gsan/symmetric_memory.py` | 1 | `_get_mem_pool` `@functools.lru_cache()` on first-`empty()` path |
-| 7 | Minor | `experimental/gsan/_utils.py` | 2 | Module-level `_DLPACK_STATE: dict[int, object]` keeps DLPack metadata alive; written from Python, popped from a C callback (deleter) |
+| 1 | MED | `experimental/gsan/_stream_sync.py` | 3 | `_compile_without_gsan()` mutates global `knobs.compilation.instrumentation_mode` via `knobs.compilation.scope()`; concurrent compilations on other threads will observe the cleared value |
+| 2 | MED | `experimental/gsan/symmetric_memory.py` | 2 | [`rendezvous()` does check-then-act on `_RENDEZVOUS_CACHE` (WeakValueDictionary) and drives a Unix-socket FD-exchange protocol; two threads rendezvousing the same (ptr, storage, group) key can double-import peer FDs](experimental/symmetric-memory-rendezvous-toctou.md) |
+| 3 | MED | `experimental/gsan/symmetric_memory.py` | 2 | [`_RUNTIME_BOOTSTRAP_CACHE[key]` returns a plain `set` that is later read-modified-written (`peer in …`, `.update(…)`) across concurrent `rendezvous()` calls](experimental/symmetric-memory-bootstrap-cache-rmw.md) |
+| 4 | LOW | `experimental/gsan/_allocator.py` | 1 | Three `@functools.lru_cache()` functions (`_load_gsan_module`, `_compile_gsan_allocator`, `get_allocator`) do lazy native-module compile + CUDA allocator init |
+| 5 | LOW | `experimental/gsan/_stream_sync.py` | 1 | `_runtime_state_layout`, `_compiled_sync_kernel` `@functools.lru_cache()` on hot sync path |
+| 6 | LOW | `experimental/gsan/symmetric_memory.py` | 1 | `_get_mem_pool` `@functools.lru_cache()` on first-`empty()` path |
+| 7 | LOW | `experimental/gsan/_utils.py` | 2 | Module-level `_DLPACK_STATE: dict[int, object]` keeps DLPack metadata alive; written from Python, popped from a C callback (deleter) |
 
 ## Triage notes
 
@@ -143,7 +143,7 @@ under a first-call race:
   index runs `create_mem_pool()` (which itself goes through
   `get_allocator()` in #4).
 
-All listed Minor; consequence is duplicate compile/work, not corruption.
+All listed LOW; consequence is duplicate compile/work, not corruption.
 
 ### 7. `_DLPACK_STATE` module dict written from Python, popped from C deleter
 
@@ -168,7 +168,7 @@ class _DLPackCudaPtrView:
   `_dl_managed_tensor_deleter` C callback, which is called by PyTorch and
   may run on any thread (including a CUDA cleanup thread).
 - Both operations are single dict ops (`d[k] = v`, `d.pop(k, None)`) which
-  are safe on free-threaded CPython. Listed as Minor for visibility: if
+  are safe on free-threaded CPython. Listed as LOW for visibility: if
   this dict gains iteration or check-then-act mutation later (e.g. a size
   cap, eviction, or a `"key in d"` guard), the safety disappears.
 
