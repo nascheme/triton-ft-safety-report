@@ -4,6 +4,7 @@ Date: Tue, 14 Apr 2026 10:57:23 -0700
 Subject: [PATCH] Lock AsyncCompileMode submit and finalize_compile
 X-Tier: 2
 X-Severity: Significant
+X-Issue-Id: FT019
 
 `AsyncCompileMode` and `FutureKernel` memoize compile work by
 `cache_key`, but the bookkeeping is not thread-safe:

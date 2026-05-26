@@ -25,8 +25,8 @@ whatever the `jit` component finds. Listed here only for completeness.
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
 | 1 | MED | `experimental/gsan/_stream_sync.py` | 3 | `_compile_without_gsan()` mutates global `knobs.compilation.instrumentation_mode` via `knobs.compilation.scope()`; concurrent compilations on other threads will observe the cleared value |
-| 2 | MED | `experimental/gsan/symmetric_memory.py` | 2 | [`rendezvous()` does check-then-act on `_RENDEZVOUS_CACHE` (WeakValueDictionary) and drives a Unix-socket FD-exchange protocol; two threads rendezvousing the same (ptr, storage, group) key can double-import peer FDs](experimental/symmetric-memory-rendezvous-toctou.md) |
-| 3 | MED | `experimental/gsan/symmetric_memory.py` | 2 | [`_RUNTIME_BOOTSTRAP_CACHE[key]` returns a plain `set` that is later read-modified-written (`peer in …`, `.update(…)`) across concurrent `rendezvous()` calls](experimental/symmetric-memory-bootstrap-cache-rmw.md) |
+| FT013 | MED | `experimental/gsan/symmetric_memory.py` | 2 | [`rendezvous()` does check-then-act on `_RENDEZVOUS_CACHE` (WeakValueDictionary) and drives a Unix-socket FD-exchange protocol; two threads rendezvousing the same (ptr, storage, group) key can double-import peer FDs](experimental/symmetric-memory-rendezvous-toctou.md) |
+| FT012 | MED | `experimental/gsan/symmetric_memory.py` | 2 | [`_RUNTIME_BOOTSTRAP_CACHE[key]` returns a plain `set` that is later read-modified-written (`peer in …`, `.update(…)`) across concurrent `rendezvous()` calls](experimental/symmetric-memory-bootstrap-cache-rmw.md) |
 | 4 | LOW | `experimental/gsan/_allocator.py` | 1 | Three `@functools.lru_cache()` functions (`_load_gsan_module`, `_compile_gsan_allocator`, `get_allocator`) do lazy native-module compile + CUDA allocator init |
 | 5 | LOW | `experimental/gsan/_stream_sync.py` | 1 | `_runtime_state_layout`, `_compiled_sync_kernel` `@functools.lru_cache()` on hot sync path |
 | 6 | LOW | `experimental/gsan/symmetric_memory.py` | 1 | `_get_mem_pool` `@functools.lru_cache()` on first-`empty()` path |
@@ -201,7 +201,7 @@ class _DLPackCudaPtrView:
   Each `rendezvous()` call allocates its own `socket.socket`, its own
   `received_fds` / `pending` dicts, and a token-derived socket path. All
   per-call state. The concern there is the two shared module-level caches
-  (#2, #3), not the socket dance itself.
+  (FT013, FT012), not the socket dance itself.
 - **`experimental/gsan/src/` (GSanAllocator.cc / GSanLibrary.cu /
   GSan.h)**. Native / CUDA sources. Out of scope per CLAUDE.md: MLIR /
   LLVM / CUDA kernels are only flagged when they touch Python-visible

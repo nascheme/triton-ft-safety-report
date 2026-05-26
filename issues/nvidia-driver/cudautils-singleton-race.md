@@ -1,5 +1,6 @@
 # `CudaUtils` broken singleton pattern
 
+- **Issue-Id:** FT036
 - **Status:** Open
 - **Severity:** LOW
 - **Component:** `third_party/nvidia/backend/driver.py`
@@ -8,7 +9,7 @@
 
 - **Shared state:** `CudaUtils.instance` class attribute; all `self.*`
   instance attributes set in `__init__`; the five module globals from
-  [issue #1](module-globals-lazy-init-race.md).
+  [FT037](module-globals-lazy-init-race.md).
 - **Writer(s):** `CudaUtils()` — `__new__` has a TOCTOU on
   `hasattr(cls, "instance")`, and `__init__` re-runs on every call
   because `type.__call__` always invokes `__init__` on the returned

@@ -1,5 +1,6 @@
 # Upstream issue: segfault on Python 3.13t during Triton import
 
+- **Issue-Id:** FT041
 **Upstream link:** [triton-lang/triton#6721](https://github.com/triton-lang/triton/issues/6721)
 
 - **Status:** Open (upstream)

@@ -20,9 +20,9 @@ Related out-of-scope file (referenced but not audited here):
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | LOW       | module globals         | 1 | [`PyCUtensorMap` / `PyKernelArg` / `ARG_*` module globals rewritten on every `CudaUtils()` call, but values are equivalent — benign staleness only](nvidia-driver/module-globals-lazy-init-race.md) |
-| 2 | LOW       | `CudaUtils` singleton  | 1 | [Broken singleton pattern: `__init__` re-runs on every call, causing duplicate `compile_module_from_src` and `dlopen` under concurrent driver bring-up](nvidia-driver/cudautils-singleton-race.md) |
-| 3 | LOW       | `CudaDriver.__init__`  | 1 | Every `CudaDriver()` instantiation triggers the full `CudaUtils()` bring-up via `self.utils = CudaUtils()`. Under the `DriverConfig.default` race in `runtime-driver/` issue #1, two concurrent default-driver constructions therefore double up the entire native init. No separate writeup; this is covered by issues #1 and #2 above. |
+| FT037 | LOW       | module globals         | 1 | [`PyCUtensorMap` / `PyKernelArg` / `ARG_*` module globals rewritten on every `CudaUtils()` call, but values are equivalent — benign staleness only](nvidia-driver/module-globals-lazy-init-race.md) |
+| FT036 | LOW       | `CudaUtils` singleton  | 1 | [Broken singleton pattern: `__init__` re-runs on every call, causing duplicate `compile_module_from_src` and `dlopen` under concurrent driver bring-up](nvidia-driver/cudautils-singleton-race.md) |
+| 3 | LOW       | `CudaDriver.__init__`  | 1 | Every `CudaDriver()` instantiation triggers the full `CudaUtils()` bring-up via `self.utils = CudaUtils()`. Under the `DriverConfig.default` race in `runtime-driver/` FT040, two concurrent default-driver constructions therefore double up the entire native init. No separate writeup; this is covered by FT037 and FT036 above. |
 
 ## Triage notes
 
@@ -47,7 +47,7 @@ objects of interest:
 - **Shared state:** `PyCUtensorMap`, `PyKernelArg`, `ARG_CONSTEXPR`,
   `ARG_KERNEL`, `ARG_TUPLE`. Initialized to `None`.
 - **Writers:** `CudaUtils.__init__`. Rewritten on *every* `CudaUtils()`
-  call (see issue #2).
+  call (see FT036).
 - **Readers:** `annotate_arguments()` reads `PyKernelArg`, `ARG_TUPLE`,
   `ARG_KERNEL`, `ARG_CONSTEXPR` unconditionally. Called from
   `CudaLauncher.__init__`, which runs when *any* `CompiledKernel` is
@@ -63,7 +63,7 @@ objects of interest:
   but `CudaDriver.__init__` blocks on the full `CudaUtils()` call
   (including `__init__`), so this does not create a window where the
   globals are `None`.
-- **Residual race:** Because the singleton pattern is broken (issue #2),
+- **Residual race:** Because the singleton pattern is broken (FT036),
   `__init__` re-runs on every `CudaUtils()` call. Thread A could be
   mid-way through overwriting the five globals while Thread B reads them.
   However, every `compile_module_from_src` call for the same deterministic
@@ -80,7 +80,7 @@ objects of interest:
 
 - **Shared state:** `CudaUtils.instance` class attribute; all the instance
   attributes assigned in `__init__` (`self.load_binary`, `self.launch`,
-  …); the five module globals from issue #1.
+  …); the five module globals from FT037.
 - **The `__new__` TOCTOU:** Two threads arriving simultaneously can both
   observe `not hasattr(cls, "instance")` and both allocate; one
   `cls.instance` assignment wins. However, `cls.instance` is set to a bare
@@ -114,20 +114,20 @@ objects of interest:
 - **Tier:** 1 (concurrent `CudaDriver` construction during import-time Triton bring-up).
 - **Triage:** LOW — the duplicate work produces equivalent results from
   deterministic inputs, so the consequence is wasted computation, not
-  corruption. Still worth fixing as it's the root cause of issue #1 and
+  corruption. Still worth fixing as it's the root cause of FT037 and
   eliminates an entire class of potential problems. Written up in
   [cudautils-singleton-race.md](nvidia-driver/cudautils-singleton-race.md).
 
 ### 3. `CudaDriver.__init__` does not guard `self.utils = CudaUtils()`
 
-- **Shared state:** the singleton state inside `CudaUtils` (see #2).
+- **Shared state:** the singleton state inside `CudaUtils` (see FT036).
 - **Writer/reader:** `CudaDriver.__init__`. Every driver instance
   unconditionally calls `CudaUtils()`, even if one has already been
   built. The `# TODO: make static` comment flags this.
-- **Race scenario:** Covered entirely by issues #1 and #2. Not a separate
-  bug; rather, this line is the *trigger* that turns the issue #1 and #2
+- **Race scenario:** Covered entirely by FT037 and FT036. Not a separate
+  bug; rather, this line is the *trigger* that turns the FT037 and FT036
   hazards into a real race whenever two threads build a `CudaDriver`
-  concurrently, which happens under `runtime-driver/` issue #1.
+  concurrently, which happens under `runtime-driver/` FT040.
 - **Triage:** LOW. No separate writeup. Fix is to make `utils` a class
   attribute or lazy-cached singleton populated under a lock.
 
@@ -136,9 +136,9 @@ objects of interest:
 The story threads together as:
 
 1. Two Python threads reach `triton.runtime.driver.active` for the first
-   time with no GIL to serialize them. (`runtime-driver/` issue #1 / #2.)
+   time with no GIL to serialize them. (`runtime-driver/` FT040 / FT039.)
 2. Both enter `_create_driver()` → `CudaDriver()` → `CudaUtils()`.
-3. Because `CudaUtils` uses a broken singleton pattern (issue #2), both
+3. Because `CudaUtils` uses a broken singleton pattern (FT036), both
    threads run `compile_module_from_src` to completion and both `dlopen`
    the produced extension. Any non-thread-safe state inside the cache
    layer or the extension's static initializers is exposed to concurrent
@@ -153,7 +153,7 @@ import machinery when it handles a non-declared extension — none of
 which are in the scope of this file.
 
 The minimum fix inside *this* file is to replace the broken singleton
-with a proper locked-init-once pattern (see issue #2 suggested fix).
+with a proper locked-init-once pattern (see FT036 suggested fix).
 This eliminates the duplicate `compile_module_from_src` calls, the
 duplicate `dlopen`, and the globals rewrite race in one change.
 
@@ -179,7 +179,7 @@ unverified.
 - **`expand_signature`, `make_kernel_signature`, `make_tensordesc_arg`,
   `wrap_handle_tensordesc`.** Pure functions over their arguments; the
   only shared state they touch is `triton.runtime.driver.active.utils.*`,
-  which is covered by the `runtime-driver/` writeups and by issues #1/#2.
+  which is covered by the `runtime-driver/` writeups and by FT037/FT036.
 - **`CudaLauncher` instance attributes.** Written in `__init__` on a
   per-kernel object; not shared between kernels.
 - **`CudaDriver.get_current_target` / `get_active_torch_device` / etc.**

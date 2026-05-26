@@ -1,5 +1,6 @@
 # `CodeGenerator.__init__` iterates live `fn.__globals__`
 
+- **Issue-Id:** FT009
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `python/triton/compiler/code_generator.py`

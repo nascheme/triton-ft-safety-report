@@ -4,6 +4,7 @@ Date: Wed, 20 May 2026 15:23:09 -0700
 Subject: [PATCH] Drop const_cast in LinearLayout view bindings
 X-Tier: 2
 X-Severity: Significant
+X-Issue-Id: FT031
 
 get_shared_view / get_distributed_view used const_cast<LinearLayout &>
 on a Python-shared layout to call getSharedLayoutStr /

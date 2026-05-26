@@ -1,5 +1,6 @@
 # `Autotuner.run()` cache-miss TOCTOU on shared benchmark state
 
+- **Issue-Id:** FT002
 - **Status:** Open
 - **Severity:** HIGH
 - **Component:** `python/triton/runtime/autotuner.py`

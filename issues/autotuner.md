@@ -6,13 +6,13 @@ Issues in `python/triton/runtime/autotuner.py` affecting free-threaded Python 3.
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | HIGH | Autotuner.cache | 2 | [`run()` cache-miss TOCTOU enables duplicate benchmarking and cross-thread hook-state contamination](autotuner/cache-toctou.md) |
-| 2 | MED | Autotuner.nargs | 2 | [`self.nargs` clobbered by concurrent `run()` calls, corrupting hook/pruning context](autotuner/nargs-clobber.md) |
-| 3 | MED | Autotuner.configs_timings | 2 | [`self.configs_timings` clobbered across concurrent tuning keys](autotuner/configs-timings-clobber.md) |
-| 4 | MED | Autotuner.restore_copies | 2 | [`self.restore_copies` pre/post hook race restores wrong snapshot or raises](autotuner/restore-copies-race.md) |
-| 5 | LOW | Autotuner.best_config | 2 | [`self.best_config` and `self.bench_time` stale across concurrent calls](autotuner/best-config-stale.md) |
-| 6 | LOW | Autotuner.do_bench | 2 | [`@cached_property` `do_bench` duplicate execution on shared instance](autotuner/do-bench-cached-property.md) |
-| 7 | MED | check_disk_cache | 2 | [`check_disk_cache` compound race on shared instance state and disk](autotuner/check-disk-cache-race.md) |
+| FT002 | HIGH | Autotuner.cache | 2 | [`run()` cache-miss TOCTOU enables duplicate benchmarking and cross-thread hook-state contamination](autotuner/cache-toctou.md) |
+| FT006 | MED | Autotuner.nargs | 2 | [`self.nargs` clobbered by concurrent `run()` calls, corrupting hook/pruning context](autotuner/nargs-clobber.md) |
+| FT004 | MED | Autotuner.configs_timings | 2 | [`self.configs_timings` clobbered across concurrent tuning keys](autotuner/configs-timings-clobber.md) |
+| FT007 | MED | Autotuner.restore_copies | 2 | [`self.restore_copies` pre/post hook race restores wrong snapshot or raises](autotuner/restore-copies-race.md) |
+| FT001 | LOW | Autotuner.best_config | 2 | [`self.best_config` and `self.bench_time` stale across concurrent calls](autotuner/best-config-stale.md) |
+| FT005 | LOW | Autotuner.do_bench | 2 | [`@cached_property` `do_bench` duplicate execution on shared instance](autotuner/do-bench-cached-property.md) |
+| FT003 | MED | check_disk_cache | 2 | [`check_disk_cache` compound race on shared instance state and disk](autotuner/check-disk-cache-race.md) |
 
 ## Triage notes
 
@@ -137,13 +137,13 @@ Issues in `python/triton/runtime/autotuner.py` affecting free-threaded Python 3.
   in-memory state (`self.cache`, `self.configs_timings`) gets written from
   two paths with different data. The disk-write path reads
   `self.configs_timings` which may have been set by the other thread's
-  `benchmark()` (issue #3). Tier 2.
+  `benchmark()` (issue FT004). Tier 2.
 - **Relationship to other issues:** This is a compound issue. It requires the
-  cache-miss TOCTOU from issue #1 to allow two threads into `check_disk_cache`
-  concurrently, and the `self.configs_timings` clobber from issue #3 to
+  cache-miss TOCTOU from issue FT002 to allow two threads into `check_disk_cache`
+  concurrently, and the `self.configs_timings` clobber from issue FT004 to
   produce cross-key contamination. The distinct element here is that the
   contaminated data is serialized to disk, making the corruption
-  persistent across process restarts. Fixing either #1 (per-key sync) or #3
+  persistent across process restarts. Fixing either FT002 (per-key sync) or FT004
   (local `configs_timings`) would break the chain, but both are needed for a
   complete fix.
 

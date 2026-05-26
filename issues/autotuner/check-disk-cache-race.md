@@ -1,5 +1,6 @@
 # `check_disk_cache` compound race on shared instance state and disk
 
+- **Issue-Id:** FT003
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `python/triton/runtime/autotuner.py`
@@ -15,18 +16,18 @@
 - **Reader(s):** The disk-write path in `check_disk_cache` reads
   `self.configs_timings.items()`.
 - **Race scenario:** Two threads with the same tuning key both pass the
-  `key not in self.cache` check in `run()` (issue #1) and both enter
+  `key not in self.cache` check in `run()` (issue FT002) and both enter
   `check_disk_cache`. Both call `cache.get_file()` and both miss. Both run
-  `bench_fn()`, both write `self.configs_timings` (issue #3), and both call
+  `bench_fn()`, both write `self.configs_timings` (issue FT004), and both call
   `cache.put()`. The `cache.put()` call reads `self.configs_timings`
   which may already have been overwritten by the other thread — serializing
   the wrong timings under this key's disk entry. With different keys, the
-  cross-contamination from issue #3 flows directly into a persistent disk
+  cross-contamination from issue FT004 flows directly into a persistent disk
   write.
 - **Consequences:** Corrupted disk cache entries that persist across process
   restarts. A poisoned entry causes suboptimal or wrong config selection on
   every subsequent cold start for the affected kernel specialization.
-- **Suggested fix:** Make `configs_timings` local (same as issue #3 fix) and
+- **Suggested fix:** Make `configs_timings` local (same as FT004 fix) and
   pass it into the disk-write path. Add per-key synchronization so only one
-  thread populates a given tuning key (same as issue #1 fix). Both fixes are
+  thread populates a given tuning key (same as FT002 fix). Both fixes are
   needed to fully resolve this compound race.

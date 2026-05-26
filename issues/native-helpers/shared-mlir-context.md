@@ -1,5 +1,6 @@
 # `linear_layout.cc` shares one process-wide MLIRContext across all calls
 
+- **Issue-Id:** FT035
 - **Status:** Open
 - **Severity:** HIGH
 - **Component:** `python/src/linear_layout.cc`

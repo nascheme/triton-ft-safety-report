@@ -1,5 +1,6 @@
 # `dtype2str` `std::unordered_map` mutated on the tensordesc specialization path
 
+- **Issue-Id:** FT043
 - **Status:** Open
 - **Severity:** HIGH
 - **Component:** `python/src/specialize.cc`

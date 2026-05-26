@@ -4,9 +4,9 @@
 
 | # | Severity | Tier | Component | Issue |
 |---|----------|------|-----------|-------|
-| 1 | LOW       | OOS | `setLLVMOption` / `restoreLLVMOption` / `ScopedLLVMOption` | [Process-global `llvm::cl::opt<>` state mutated from GIL-released paths; RAII "original-value" capture interleaves between threads. Pre-existing maintainer-rule violation, out-of-scope per README; only debug features currently do it.](llvm/global-cl-opt-mutation.md) |
-| 2 | LOW       | 1/2 | `dumpSchedulingDAG` stderr redirection                     | [Process-wide `dup` / `freopen(stderr)` / `dup2` sequence races with other threads and other Python I/O. Debug-only (`TRITON_DUMP_MIR`); no codegen correctness impact, but can permanently corrupt fd 2 after the dump session.](llvm/dump-sched-dag-stderr-redirection.md) |
-| 3 | LOW       | 1/2 | `llvm::TimePassesIsEnabled` / `llvm::TimePassesPerRun`     | [Process-global timing flags and `reportAndResetTimings` used from GIL-released `translateLLVMIRToASM`. Debug-only (`LLVM_ENABLE_TIMING`); no codegen correctness impact, only scrambled timing reports. Document as single-threaded.](llvm/time-passes-global-flags.md) |
+| FT029 | LOW       | OOS | `setLLVMOption` / `restoreLLVMOption` / `ScopedLLVMOption` | [Process-global `llvm::cl::opt<>` state mutated from GIL-released paths; RAII "original-value" capture interleaves between threads. Pre-existing maintainer-rule violation, out-of-scope per README; only debug features currently do it.](llvm/global-cl-opt-mutation.md) |
+| FT028 | LOW       | 1/2 | `dumpSchedulingDAG` stderr redirection                     | [Process-wide `dup` / `freopen(stderr)` / `dup2` sequence races with other threads and other Python I/O. Debug-only (`TRITON_DUMP_MIR`); no codegen correctness impact, but can permanently corrupt fd 2 after the dump session.](llvm/dump-sched-dag-stderr-redirection.md) |
+| FT030 | LOW       | 1/2 | `llvm::TimePassesIsEnabled` / `llvm::TimePassesPerRun`     | [Process-global timing flags and `reportAndResetTimings` used from GIL-released `translateLLVMIRToASM`. Debug-only (`LLVM_ENABLE_TIMING`); no codegen correctness impact, only scrambled timing reports. Document as single-threaded.](llvm/time-passes-global-flags.md) |
 | 4 | LOW       | 2   | `init_targets` — `llvm::parallel::strategy` write          | Unconditional write outside the `std::call_once` block. Concurrent compile threads write the same value (`hardware_concurrency(1)`); technically UB but observable outcome converges. |
 | 5 | LOW (latent) | 2 | `to_module` binding                                        | `py::call_guard<py::gil_scoped_release>` around `translateModuleToLLVMIR` with a user-supplied `mlir::ModuleOp` and `llvm::LLVMContext`. Downgraded: both backends construct fresh per-compile contexts and modules; not reachable today. |
 | 6 | LOW (latent) | 2 | `optimize_module` binding                                  | `py::call_guard<py::gil_scoped_release>` around `PassBuilder` / `ModulePassManager::run` operating on a user-supplied `llvm::Module`. Downgraded: per-compile module, not shared. |
@@ -22,8 +22,8 @@ explicitly (`translate_to_asm`, `translate_to_mir`, `translate_mir_to_asm`,
 (`to_module`, `optimize_module`), and those regions touch process-global LLVM
 state.
 
-Individual issue files exist for the HIGH items (#1, #2) and for the
-MED item #3. Issues #5/#6/#7 were downgraded to LOW (latent) on
+Individual issue files exist for the HIGH items (FT029, FT028) and for the
+MED item FT030. Issues #5/#6/#7 were downgraded to LOW (latent) on
 the deeper-audit pass — see the per-compile-vs-shared resolution in the
 "Open questions" section at the bottom of this file. Issues #4 and #8
 remain as triage notes only.
@@ -151,7 +151,7 @@ expose mutators like `add_flag`, `add_fn_attr`, `remove_fn_attr`,
   proposed for a fix as part of the nogil work.
 - **Fix direction:** see the extended discussion below.
 
-#### Extended fix discussion for issue #1
+#### Extended fix discussion for FT029
 
 ##### Why a per-option or split-lock approach does not work
 
@@ -304,7 +304,7 @@ follow-up.
 - **Fix direction:** Document that `LLVM_ENABLE_TIMING` is not safe to use
   with concurrent in-process compilation and treat it as a single-threaded
   diagnostic. If a code-level fix is wanted, either serialize the
-  timing-enabled path under the same mutex as issue #1 (both concern
+  timing-enabled path under the same mutex as FT029 (both concern
   process-global compile state), or do not mutate the global timing flags
   from pybind11 bindings at all and instead set them through LLVM's
   existing API once during `init_targets`.
@@ -373,7 +373,7 @@ follow-up.
   IR. No code path reuses the `llvm::Module` across threads.
 - **Downgrade:** LOW. The remaining global-state risk in the binding
   body — flag forwarding into `cl::opt<>` — is already covered by
-  issue #1. Re-promote if any caller ever shares an `llvm::Module`.
+  FT029. Re-promote if any caller ever shares an `llvm::Module`.
 
 ### 7. `llvm::Module` mutation bindings on shared module objects (LOW, latent)
 
@@ -405,10 +405,10 @@ follow-up.
 - **Race scenario B:** Two threads call `optimize_module` on different
   modules that share an `LLVMContext`. The context's interning tables and
   metadata uniquing maps are mutated concurrently.
-- **Also touches issue #1** via the flags-forwarding block at the top.
+- **Also touches FT029** via the flags-forwarding block at the top.
 - **Severity:** MED. Depends on the actual Python-side usage; if
   each compile uses its own module and its own context, only the option-globals
-  issue (#1) bites. If a context is reused across threads, this becomes a
+  issue (FT029) bites. If a context is reused across threads, this becomes a
   real container race in LLVM's internals.
 - **Fix direction:** confirm the Python-side model. If contexts are reused,
   either serialize or redesign.
@@ -496,14 +496,14 @@ follow-up.
   were downgraded to LOW.
 - Is there already a process-wide compile lock in Python (e.g. in
   `compiler.py` or `_async_compile.py`) that would implicitly serialize these
-  calls? If so, the severity of #1–#3 drops until that lock is removed.
+  calls? If so, the severity of FT029–FT030 drops until that lock is removed.
 - Does `llvm::cl::opt<>` have any LLVM-side documentation or test coverage
   for concurrent `addOccurrence` / `setValue`? A quick pass through LLVM's
   own usage would confirm whether a single mutex over the entire compile body
   is sufficient or whether a broader invariant is needed.
 - Is `TRITON_DUMP_MIR` / `LLVM_ENABLE_TIMING` / `LLVM_PASS_PLUGIN_PATH` /
   `TRITON_ENABLE_ASAN` ever expected to be enabled in production? If these
-  are strictly developer-only, issues #2 and #3 can be triaged as
+  are strictly developer-only, FT028 and FT030 can be triaged as
   lower-priority dev-only races.
 - Confirm by reading LLVM headers that `llvm::parallel::strategy` is indeed a
   plain non-atomic global, and not (for instance) an

@@ -1,5 +1,6 @@
 # `JITCallable.hash` placeholder visibility -- not a bug
 
+- **Issue-Id:** FT022
 - **Status:** Not a bug
 - **Severity:** None
 - **Component:** `runtime/jit.py`

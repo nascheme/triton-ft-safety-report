@@ -1,5 +1,6 @@
 # `JITCallable._unsafe_update_src` unsynchronized hash invalidation
 
+- **Issue-Id:** FT025
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `runtime/jit.py`

@@ -22,66 +22,66 @@ the tier and severity classifications.
 
 ### Severity: HIGH
 
-- [`specialize/init-globals-toctou`](issues/specialize/init-globals-toctou.md) (Tier 1) —
+- FT044: [`specialize/init-globals-toctou`](issues/specialize/init-globals-toctou.md) (Tier 1) —
   A plain-bool guard lets two threads run `init_globals()` at once, racing
   file-scope `PyObject*` assignments and `type_handler_cache`.
-- [`autotuner/cache-toctou`](issues/autotuner/cache-toctou.md) (Tier 2) —
+- FT002: [`autotuner/cache-toctou`](issues/autotuner/cache-toctou.md) (Tier 2) —
   Concurrent `run()` calls both miss the config cache and benchmark in
   parallel, racing shared scratch state — wrong-tensor restores, disk cache
   keyed wrong.
-- [`compiler/compiled-kernel-init-handles-race`](issues/compiler/compiled-kernel-init-handles-race.md) (Tier 2) —
+- FT010: [`compiler/compiled-kernel-init-handles-race`](issues/compiler/compiled-kernel-init-handles-race.md) (Tier 2) —
   `_init_handles` publishes `_run` before `module`/`function` are set; a
   second thread skips init and launches with a null function handle.
-- [`jit/device-caches-race`](issues/jit/device-caches-race.md) (Tier 2) —
+- FT020: [`jit/device-caches-race`](issues/jit/device-caches-race.md) (Tier 2) —
   Non-atomic `defaultdict` fill of `device_caches` lets two threads build
   separate cache tuples; the loser uses orphaned caches and silently
   recompiles.
-- [`native-helpers/shared-mlir-context`](issues/native-helpers/shared-mlir-context.md) (Tier 2) —
+- FT035: [`native-helpers/shared-mlir-context`](issues/native-helpers/shared-mlir-context.md) (Tier 2) —
   Process-wide LinearLayout `MLIRContext` is built `Threading::DISABLED`;
   concurrent `StringAttr::get` races an unlocked `unordered_map`.
-- [`specialize/dtype2str-unordered-map-race`](issues/specialize/dtype2str-unordered-map-race.md) (Tier 2) —
+- FT043: [`specialize/dtype2str-unordered-map-race`](issues/specialize/dtype2str-unordered-map-race.md) (Tier 2) —
   `specialize_tensordesc()` mutates the global `dtype2str` `unordered_map`
   with no lock — container corruption under concurrent launches.
-- [`specialize/dtype-ptr2str-unordered-map-race`](issues/specialize/dtype-ptr2str-unordered-map-race.md) (Tier 2) —
+- FT042: [`specialize/dtype-ptr2str-unordered-map-race`](issues/specialize/dtype-ptr2str-unordered-map-race.md) (Tier 2) —
   `handle_tensor()` mutates the global `dtype_ptr2str` `unordered_map` with
   no lock — container corruption under concurrent launches.
 
 ### Severity: MED
 
-- [`compiler/code-generator-gscope-iteration-race`](issues/compiler/code-generator-gscope-iteration-race.md) (Tier 1) —
+- FT009: [`compiler/code-generator-gscope-iteration-race`](issues/compiler/code-generator-gscope-iteration-race.md) (Tier 1) —
   `get_capture_scope()` returns the module `__dict__` by identity and the
   compiler iterates it; a concurrent global rebind yields a skipped global
   (`NameError`) or a stale-keyed kernel.
-- [`jit/function-registry-race`](issues/jit/function-registry-race.md) (Tier 1) —
+- FT021: [`jit/function-registry-race`](issues/jit/function-registry-race.md) (Tier 1) —
   `__init__` publishes `self` to the global registry before populating
   attributes; another thread sees a half-built `JITFunction` and raises
   `AttributeError`.
-- [`runtime-driver/driver-default-lazy-init-race`](issues/runtime-driver/driver-default-lazy-init-race.md) (Tier 1) —
+- FT040: [`runtime-driver/driver-default-lazy-init-race`](issues/runtime-driver/driver-default-lazy-init-race.md) (Tier 1) —
   `DriverConfig.default`/`active` do unlocked check-then-assign; two threads
   build duplicate backend drivers and one is leaked (likely root of
   triton#6721).
-- [`experimental/symmetric-memory-rendezvous-toctou`](issues/experimental/symmetric-memory-rendezvous-toctou.md) (Tier 2) —
+- FT013: [`experimental/symmetric-memory-rendezvous-toctou`](issues/experimental/symmetric-memory-rendezvous-toctou.md) (Tier 2) —
   `rendezvous()` check-then-act on `_RENDEZVOUS_CACHE` lets both threads run
   the full protocol — double-freed handle, duplicate runtime-state import.
-- [`jit/async-compile-races`](issues/jit/async-compile-races.md) (Tier 2) —
+- FT019: [`jit/async-compile-races`](issues/jit/async-compile-races.md) (Tier 2) —
   Unlocked `AsyncCompileMode.submit` and `FutureKernel` finalize defeat
   memoization and fire post-compile hooks twice per compile.
-- [`jit/kernel-cache-toctou`](issues/jit/kernel-cache-toctou.md) (Tier 2) —
+- FT023: [`jit/kernel-cache-toctou`](issues/jit/kernel-cache-toctou.md) (Tier 2) —
   Lock-free `kernel_cache` get/compile/set in `run()` lets two threads
   recompile the same kernel; the async path can leave a stale `FutureKernel`.
-- [`jit/unsafe-update-src-race`](issues/jit/unsafe-update-src-race.md) (Tier 2) —
+- FT025: [`jit/unsafe-update-src-race`](issues/jit/unsafe-update-src-race.md) (Tier 2) —
   `_unsafe_update_src` writes `_src`/`hash` without `_hash_lock`; a lost
   invalidation makes later compiles reuse the old source's cache entry.
-- [`jit/used-global-vals-unsynchronized-read`](issues/jit/used-global-vals-unsynchronized-read.md) (Tier 2) —
+- FT026: [`jit/used-global-vals-unsynchronized-read`](issues/jit/used-global-vals-unsynchronized-read.md) (Tier 2) —
   Unordered `kernel_cache` and `used_global_vals` writes let a cache hit
   observe empty `used_global_vals` and skip the global-changed safety check.
-- [`native-helpers/const-cast-views`](issues/native-helpers/const-cast-views.md) (Tier 2) —
+- FT031: [`native-helpers/const-cast-views`](issues/native-helpers/const-cast-views.md) (Tier 2) —
   `get_*_view` `const_cast`s a shared `LinearLayout` to non-const; concurrent
   view calls write through aliased mutable references.
-- [`native-helpers/gluon-builder-context`](issues/native-helpers/gluon-builder-context.md) (Tier 2) —
+- FT032: [`native-helpers/gluon-builder-context`](issues/native-helpers/gluon-builder-context.md) (Tier 2) —
   The per-compile `MLIRContext` is built `Threading::DISABLED`; concurrent
   `*Attr::get`/`*Type::get` race the unsynchronized `StorageUniquer`.
-- [`native-helpers/imul-shared-mutation`](issues/native-helpers/imul-shared-mutation.md) (Tier 2) —
+- FT034: [`native-helpers/imul-shared-mutation`](issues/native-helpers/imul-shared-mutation.md) (Tier 2) —
   `LinearLayout.__imul__` (`operator*=`) mutates the receiver in place,
   racing concurrent readers of the same Python object.
 

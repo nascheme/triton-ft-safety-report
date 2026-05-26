@@ -1,5 +1,6 @@
 # `init_globals()` TOCTOU on plain-bool guard races every file-scope global
 
+- **Issue-Id:** FT044
 - **Status:** Open
 - **Severity:** HIGH
 - **Component:** `python/src/specialize.cc`

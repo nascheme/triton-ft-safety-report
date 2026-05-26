@@ -1,5 +1,6 @@
 # `self.configs_timings` clobbered across concurrent tuning keys
 
+- **Issue-Id:** FT004
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `python/triton/runtime/autotuner.py`
@@ -25,4 +26,4 @@
   specialization.
 - **Suggested fix:** Make `configs_timings` a local variable returned from
   `benchmark()` and passed into the disk-cache write path, rather than storing
-  it on `self`. Same direction as the `nargs` fix (issue #2).
+  it on `self`. Same direction as the `nargs` fix (issue FT006).

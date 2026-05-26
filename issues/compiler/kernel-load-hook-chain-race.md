@@ -1,5 +1,6 @@
 # `kernel_load_start_hook` / `kernel_load_end_hook` — `HookChain` iteration race
 
+- **Issue-Id:** FT011
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `python/triton/knobs.py` (`HookChain`),

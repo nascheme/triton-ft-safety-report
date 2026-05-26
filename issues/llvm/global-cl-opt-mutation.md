@@ -6,6 +6,7 @@ type: issue
 
 # Global LLVM `cl::opt<>` mutation from GIL-released compile paths
 
+- **Issue-Id:** FT029
 - **Status:** Open
 - **Severity:** LOW (pre-existing maintainer-rule violation, not a free-threading bug)
 - **Component:** `python/src/llvm.cc` — `setLLVMOption` / `restoreLLVMOption` / `ScopedLLVMOption`

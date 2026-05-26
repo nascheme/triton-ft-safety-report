@@ -1,5 +1,6 @@
 # `interpreter_builder.grid_idx` / `grid_dim` trampled by concurrent kernel runs
 
+- **Issue-Id:** FT014
 - **Status:** Open
 - **Severity:** HIGH
 - **Component:** `runtime/interpreter.py` (`InterpreterBuilder`, `GridExecutor`)

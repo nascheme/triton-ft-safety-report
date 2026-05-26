@@ -31,7 +31,7 @@ Key shared objects:
 | 1 | HIGH | HookChain | 3 | `HookChain.__call__` iterates `self.calls` under concurrent `add`/`remove` |
 | 2 | MED | HookChain | 3 | `HookChain.add` / `HookChain.remove` TOCTOU on membership check |
 | 3 | MED | runtime hook slots | 3 | Hot-path callers re-read `knobs.runtime.*_hook` across `is not None` / call |
-| 4 | MED | base_knobs.scope | 3 | [`base_knobs.scope()` corrupts shared knob state / `os.environ` under concurrent use](knobs/scope-context-manager-race.md) |
+| FT027 | MED | base_knobs.scope | 3 | [`base_knobs.scope()` corrupts shared knob state / `os.environ` under concurrent use](knobs/scope-context-manager-race.md) |
 | 5 | MED | env_base.__set__ | 3 | `env_base.__set__` non-atomic instance-dict vs `os.environ` update |
 | 6 | LOW | setenv | 3 | `setenv` check-then-delete TOCTOU on `os.environ` |
 | 7 | LOW | base_knobs.reset | 3 | `base_knobs.reset()` non-atomic multi-descriptor delete |
@@ -132,7 +132,7 @@ the rest of the hook slots (launch/kernel-load/kernel-unload/jit_cache).
 - **Severity:** MED. `None()` raises on hot paths.
 - **Suggested fix direction:** single-load into a local at the top of
   each reader, then operate on the local — identical to the fix
-  prescribed for jit.py issue #12.
+  prescribed for jit.py issue FT018.
 
 
 ### 4. `base_knobs.scope()` context manager is not thread-safe

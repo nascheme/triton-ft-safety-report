@@ -6,6 +6,7 @@ type: issue
 
 # LLVM `TimePasses` global flags and `reportAndResetTimings` raced by concurrent compiles
 
+- **Issue-Id:** FT030
 - **Status:** Open
 - **Severity:** LOW
 - **Component:** `python/src/llvm.cc` — `translateLLVMIRToASM` (only active

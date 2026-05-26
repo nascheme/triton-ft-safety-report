@@ -1,5 +1,6 @@
 # `DriverConfig.active` lazy init / `set_active` ordering race
 
+- **Issue-Id:** FT039
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `runtime/driver.py` (`DriverConfig.active` /

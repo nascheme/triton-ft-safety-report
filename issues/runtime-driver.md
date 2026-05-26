@@ -13,13 +13,12 @@ File in scope:
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | MED | DriverConfig.default | 1 | [`DriverConfig.default` lazy init race creates duplicate driver instances](runtime-driver/driver-default-lazy-init-race.md) |
-| 2 | MED | DriverConfig.active  | 3 | [`DriverConfig.active` lazy init / `set_active` ordering race](runtime-driver/driver-active-set-active-race.md) |
-| 3 | MED | hot-path callers     | 3 | [Hot-path callers re-read `driver.active` across multiple statements](runtime-driver/driver-active-caller-reread.md) |
-| 4 | HIGH      | upstream import      | 1 | [Upstream segfault on Python 3.13t during Triton import](runtime-driver/seg-fault-gh-6721.md) |
-
-Issue #4 is an upstream segfault report under Python 3.13t that is a
-plausible downstream consequence of issue #1.
+| FT040 | MED | DriverConfig.default | 1 | [`DriverConfig.default` lazy init race creates duplicate driver instances](runtime-driver/driver-default-lazy-init-race.md) |
+| FT039 | MED | DriverConfig.active  | 3 | [`DriverConfig.active` lazy init / `set_active` ordering race](runtime-driver/driver-active-set-active-race.md) |
+| FT038 | MED | hot-path callers     | 3 | [Hot-path callers re-read `driver.active` across multiple statements](runtime-driver/driver-active-caller-reread.md) |
+| FT041 | HIGH      | upstream import      | 1 | [Upstream segfault on Python 3.13t during Triton import](runtime-driver/seg-fault-gh-6721.md) |
+FT041 is an upstream segfault report under Python 3.13t that is a
+plausible downstream consequence of FT040.
 
 ## Triage notes
 
@@ -130,7 +129,7 @@ afterwards.
 - **Race scenarios:**
   1. *Lazy init vs concurrent reader.* Thread A in `active` reads
      `self._active is None` and begins evaluating `self.default`, which
-     (per issue #1) may itself race. Thread B reading `driver.active`
+     (per FT040) may itself race. Thread B reading `driver.active`
      at the same moment can either observe the still-`None` slot (and
      kick off its own `self.default` evaluation) or observe a
      freshly-installed instance.
@@ -141,7 +140,7 @@ afterwards.
      `set_active`. Wrong-driver selection on a hot path.
   3. *`reset_active` re-enters lazy `default` init.* `reset_active`
      does `self._active = self.default`. `self.default` is a property
-     that may trigger `_create_driver()` (issue #1). Concurrent
+     that may trigger `_create_driver()` (FT040). Concurrent
      callers of `reset_active` can re-enter `_create_driver()` in
      parallel.
 - **Why the GIL previously hid this:** Under the GIL, scenario A
@@ -179,7 +178,7 @@ afterwards.
 ### 3. Hot-path callers re-read `driver.active`
 
 - **Shared state:** `DriverConfig._active`. Locking `DriverConfig`
-  internally (issue #2) makes individual `driver.active` reads and
+  internally (FT039) makes individual `driver.active` reads and
   `set_active` writes consistent, but does not protect a caller that
   reads `driver.active` twice: each read is individually consistent,
   but two reads can see different drivers.
@@ -200,7 +199,7 @@ afterwards.
   then hands a `D2`-loaded handle to a `D1`-bound launcher. For unrelated
   backends, the native launch call receives a handle from the wrong
   address space.
-- **Relationship to other issues:** Independent of issues #1 and #2 —
+- **Relationship to other issues:** Independent of FT040 and FT039 —
   even after the lazy-init races are closed, `set_active` is still a
   legitimate API and can fire between any two `driver.active` reads.
   Compounds
@@ -249,4 +248,4 @@ afterwards.
 - **`DriverConfig.default` property returning a stale-but-consistent
   instance after the race window closes.** Once `self._default` has
   been written, subsequent readers all observe the same instance.
-  Only the initial race window (issue #1) is a real hazard.
+  Only the initial race window (FT040) is a real hazard.

@@ -1,5 +1,6 @@
 # `AsyncCompileMode` / `FutureKernel` are not thread-safe
 
+- **Issue-Id:** FT019
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `runtime/_async_compile.py`

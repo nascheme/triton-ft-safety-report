@@ -15,10 +15,10 @@ Files in scope (Pass 1/Pass 4 per `AUDIT_PLAN.md`):
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | HIGH | CompiledKernel | 2 | [`CompiledKernel._init_handles` lazy handle initialization race](compiler/compiled-kernel-init-handles-race.md) |
-| 2 | MED | compile() | 3 | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `compile()`](compiler/add-stages-inspection-hook-toctou.md) |
-| 3 | MED | HookChain | 3 | [`kernel_load_start_hook` / `kernel_load_end_hook` — `HookChain` iteration race in `_init_handles`](compiler/kernel-load-hook-chain-race.md) |
-| 4 | MED | code_generator | 1 | [`CodeGenerator.__init__` iterates live `fn.__globals__` via `get_capture_scope`](compiler/code-generator-gscope-iteration-race.md) |
+| FT010 | HIGH | CompiledKernel | 2 | [`CompiledKernel._init_handles` lazy handle initialization race](compiler/compiled-kernel-init-handles-race.md) |
+| FT008 | MED | compile() | 3 | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `compile()`](compiler/add-stages-inspection-hook-toctou.md) |
+| FT011 | MED | HookChain | 3 | [`kernel_load_start_hook` / `kernel_load_end_hook` — `HookChain` iteration race in `_init_handles`](compiler/kernel-load-hook-chain-race.md) |
+| FT009 | MED | code_generator | 1 | [`CodeGenerator.__init__` iterates live `fn.__globals__` via `get_capture_scope`](compiler/code-generator-gscope-iteration-race.md) |
 
 ## Triage notes
 
@@ -177,7 +177,7 @@ Written up in
 [kernel-load-hook-chain-race.md](compiler/kernel-load-hook-chain-race.md).
 
 Summary: The initial triage framed this as the same slot-reassignment
-TOCTOU as #2, but closer reading shows the real bug is different.
+TOCTOU as FT008, but closer reading shows the real bug is different.
 `kernel_load_start_hook` and `kernel_load_end_hook` are declared as
 `HookChain[InitHandleHook]` instances on `RuntimeKnobs` in `knobs.py`,
 not `Optional[callable]`, and are **never reassigned** anywhere in the
@@ -187,12 +187,12 @@ effectively dead and the slot-TOCTOU is moot in practice.
 
 The actual race is **inside `HookChain.__call__`**: it iterates
 `self.calls` — a plain `list` — while concurrent `.add` / `.remove`
-mutate that same list. Same class of bug as jit.py #7 (`pre_run_hooks`),
+mutate that same list. Same class of bug as jit.py FT024 (`pre_run_hooks`),
 same fix pattern, but worse in scope: `HookChain` here is
 process-global, so any concurrent `_init_handles` on *any*
 `CompiledKernel` collides with any concurrent profiler start/stop.
 Consequences: silently skipping or double-invoking a kernel-load hook,
-wrong/missing profiler attribution. Compounds with issue #1: when two
+wrong/missing profiler attribution. Compounds with FT010: when two
 threads race `_init_handles`, each duplicate hook invocation is
 independently vulnerable to the iteration race. The same bug also
 affects `launch_enter_hook` / `launch_exit_hook` on the launch path
@@ -256,7 +256,7 @@ changes required at the call sites in `compiler.py` or
   ```
 - **Call site:** `CompiledKernel._init_handles`, i.e. the Tier 2 hot path
   where two threads can concurrently first-launch the same `CompiledKernel`
-  (see issue #1).
+  (see FT010).
 - **Deeper analysis:**
   1. **Cache container safety.** On free-threaded CPython 3.13+, the
      `_functools` C implementation of `lru_cache` guards the underlying
@@ -515,7 +515,7 @@ changes required at the call sites in `compiler.py` or
      separate `knobs.py` writeup; `compile()`'s own usage is clean.
   6. **Double-read check.** The only knob in `compile()` that is
      read twice is `knobs.runtime.add_stages_inspection_hook`, which
-     is issue #2 (already written up). No other `knobs.*` attribute
+     is FT008 (already written up). No other `knobs.*` attribute
      is loaded more than once per call.
 - **Verdict: not a bug.** No issue file created. The knobs reads
   follow a consistent single-load-into-local pattern inside
@@ -655,7 +655,7 @@ covers it.
 
 - **File:** `compiler.py` — `ASTSource.hash` reads `self.fn.cache_key`.
 - **Concern:** `cache_key` on `JITFunction` is protected by `_hash_lock`
-  (covered in the jit.py audit, issue #11). `ASTSource` itself is
+  (covered in the jit.py audit, FT025). `ASTSource` itself is
   constructed per-call by `JITFunction._do_compile`, so there is no
   `ASTSource`-level shared-state race. **Not a bug.**
 
@@ -736,9 +736,9 @@ covers it.
      initial `data` dict captures `self.function` at construction
      time. `_init_handles` is called immediately before the LazyDict
      is built, so `self.function` is expected to be populated. If
-     `_init_handles` races per issue #1, a second thread could
+     `_init_handles` races per FT010, a second thread could
      observe `self.function is None` at LazyDict construction — but
-     that is the #1 consequence, not a new LazyDict bug. The
+     that is the FT010 consequence, not a new LazyDict bug. The
      LazyDict itself stores whatever value was visible at construction
      and propagates it to hooks unchanged.
   7. **Dict merge operator under free-threading.** `self.data |
@@ -758,7 +758,7 @@ covers it.
   because no other thread can observe the mid-launch state of the
   same LazyDict. The downstream `HookChain` iteration-while-mutation
   hazard on the `launch_enter_hook` / `launch_exit_hook` slots is
-  already covered by issue #3 — that is a hazard on the `HookChain`
+  already covered by FT011 — that is a hazard on the `HookChain`
   `.calls` list, not on the `LazyDict` argument threaded through it.
 
 ## Near-miss notes

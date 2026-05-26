@@ -6,15 +6,14 @@ Issues in `python/triton/runtime/jit.py` affecting free-threaded Python 3.14t.
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | MED | function_registry | 1 | [`_triton_jit_function_registry` publishes partially-initialized `JITFunction`](jit/function-registry-race.md) |
-| 2 | HIGH | device_caches | 2 | [`JITFunction.device_caches` defaultdict auto-vivification race](jit/device-caches-race.md) |
-| 4 | MED | kernel_cache | 2 | [`kernel_cache` / `kernel_key_cache` TOCTOU causes duplicate compilation](jit/kernel-cache-toctou.md) |
-| 6 | MED | used_global_vals | 2 | [`JITCallable.used_global_vals` unsynchronized read skips global-changed safety check](jit/used-global-vals-unsynchronized-read.md) |
-| 7 | MED | pre_run_hooks | 2 | [`JITFunction.pre_run_hooks` unsynchronized iteration during concurrent mutation](jit/pre-run-hooks-unsynchronized-iteration.md) |
-| 8 | (covered by #4) | compute_cache_key | 2 | [`compute_cache_key` read-then-write race on `kernel_key_cache`](jit/kernel-cache-toctou.md) |
-| 9 | MED | async_compile | 2 | [`_do_compile` async path — `AsyncCompileMode`/`FutureKernel` races](jit/async-compile-races.md) |
-| 11 | MED | _unsafe_update_src | 2 | [`JITCallable._unsafe_update_src` unsynchronized hash invalidation](jit/unsafe-update-src-race.md) |
-| 12 | MED | add_stages_inspection_hook | 3 | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `run()`](jit/add-stages-inspection-hook-toctou.md) |
+| FT021 | MED | function_registry | 1 | [`_triton_jit_function_registry` publishes partially-initialized `JITFunction`](jit/function-registry-race.md) |
+| FT020 | HIGH | device_caches | 2 | [`JITFunction.device_caches` defaultdict auto-vivification race](jit/device-caches-race.md) |
+| FT023 | MED | kernel_cache | 2 | [`kernel_cache` / `kernel_key_cache` TOCTOU causes duplicate compilation](jit/kernel-cache-toctou.md) |
+| FT026 | MED | used_global_vals | 2 | [`JITCallable.used_global_vals` unsynchronized read skips global-changed safety check](jit/used-global-vals-unsynchronized-read.md) |
+| FT024 | MED | pre_run_hooks | 2 | [`JITFunction.pre_run_hooks` unsynchronized iteration during concurrent mutation](jit/pre-run-hooks-unsynchronized-iteration.md) |
+| FT019 | MED | async_compile | 2 | [`_do_compile` async path — `AsyncCompileMode`/`FutureKernel` races](jit/async-compile-races.md) |
+| FT025 | MED | _unsafe_update_src | 2 | [`JITCallable._unsafe_update_src` unsynchronized hash invalidation](jit/unsafe-update-src-race.md) |
+| FT018 | MED | add_stages_inspection_hook | 3 | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `run()`](jit/add-stages-inspection-hook-toctou.md) |
 
 ## Triage notes
 
@@ -102,7 +101,7 @@ Written up in [pre-run-hooks-unsynchronized-iteration.md](jit/pre-run-hooks-unsy
 - **Concern:** Classic TOCTOU — two threads check for the same key, both
   find it missing, both compute and write. The duplicate computation is
   benign, but the concurrent `dict.__setitem__` is the real issue (same
-  dict as #4). Tier 2, covered by #4
+  dict as FT023). Tier 2, covered by FT023
   ([kernel-cache-toctou.md](jit/kernel-cache-toctou.md)).
 
 ### 9. `_do_compile` async path — `AsyncCompileMode`/`FutureKernel` races
@@ -163,9 +162,9 @@ reporting. Kept here so a future auditor does not have to redo the work.
   Reads `func.used_global_vals` several times before calling
   `func.cache_key`. The attribute is only assigned inside `cache_key` under
   `func._hash_lock`, goes atomically from `{}` to a finalized dict, and
-  `_unsafe_update_src` (issue #11) does not reset it — so the pre-`cache_key`
+  `_unsafe_update_src` (issue FT025) does not reset it — so the pre-`cache_key`
   reads see either the empty dict (empty intersection, no-op) or a stable
-  populated dict. Residual hazard is covered by #11's `_hash_lock`
+  populated dict. Residual hazard is covered by FT025's `_hash_lock`
   discussion.
 
 - **`create_binder` writes to `self.CompiledKernel` / `self.compile` /
@@ -182,8 +181,8 @@ reporting. Kept here so a future auditor does not have to redo the work.
 
 - **`finalize_compile` closure writing to `kernel_cache`.** Same dict
   object stored in the `device_caches` tuple — every write site is covered
-  by the kernel-cache TOCTOU writeup (#4) and the async-compile writeup
-  (#9); this is not an additional site.
+  by the kernel-cache TOCTOU writeup (FT023) and the async-compile writeup
+  (FT019); this is not an additional site.
 
 - **`knobs.runtime.debug` / `knobs.compilation.instrumentation_mode`
   reads** in `run()`. Each is a single atomic attribute load with no

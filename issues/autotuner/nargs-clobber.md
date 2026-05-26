@@ -1,5 +1,6 @@
 # `self.nargs` clobbered by concurrent `run()` calls
 
+- **Issue-Id:** FT006
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `python/triton/runtime/autotuner.py`

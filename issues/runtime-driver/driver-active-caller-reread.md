@@ -1,5 +1,6 @@
 # Hot-path callers re-read `driver.active` across multiple statements
 
+- **Issue-Id:** FT038
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `compiler/compiler.py` (`_init_handles`),

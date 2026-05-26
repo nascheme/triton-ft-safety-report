@@ -1,5 +1,6 @@
 # `self.best_config` and `self.bench_time` stale across concurrent calls
 
+- **Issue-Id:** FT001
 - **Status:** Open
 - **Severity:** LOW
 - **Component:** `python/triton/runtime/autotuner.py`

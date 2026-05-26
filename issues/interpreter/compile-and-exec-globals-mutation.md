@@ -1,5 +1,6 @@
 # `FunctionRewriter._compile_and_exec` mutates user kernel's `fn.__globals__`
 
+- **Issue-Id:** FT015
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `runtime/interpreter.py` (`FunctionRewriter._compile_and_exec`)

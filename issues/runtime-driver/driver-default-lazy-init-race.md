@@ -1,5 +1,6 @@
 # `DriverConfig.default` lazy init race creates duplicate driver instances
 
+- **Issue-Id:** FT040
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `runtime/driver.py` (`DriverConfig.default`)

@@ -1,5 +1,6 @@
 # `JITFunction.pre_run_hooks` unsynchronized iteration during concurrent mutation
 
+- **Issue-Id:** FT024
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `runtime/jit.py`

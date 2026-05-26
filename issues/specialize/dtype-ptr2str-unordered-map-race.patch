@@ -4,6 +4,7 @@ Date: Wed, 15 Apr 2026 01:27:39 -0700
 Subject: [PATCH] Lock dtype_ptr2str cache in handle_tensor()
 X-Tier: 2
 X-Severity: SEVERE
+X-Issue-Id: FT042
 
 handle_tensor() mutates a process-global unordered_map with no
 synchronization. Under free-threaded CPython, concurrent kernel

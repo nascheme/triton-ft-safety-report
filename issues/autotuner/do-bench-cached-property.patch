@@ -4,6 +4,7 @@ Date: Tue, 14 Apr 2026 10:33:37 -0700
 Subject: [PATCH] Replace do_bench cached_property with locked init
 X-Tier: 2
 X-Severity: Minor
+X-Issue-Id: FT005
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

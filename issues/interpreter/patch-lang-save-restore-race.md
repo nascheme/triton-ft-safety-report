@@ -1,5 +1,6 @@
 # `_patch_lang` / `_LangPatchScope` save/restore permanently corrupts `tl`
 
+- **Issue-Id:** FT017
 - **Status:** Open
 - **Severity:** HIGH
 - **Component:** `runtime/interpreter.py` (`_patch_lang`, `_LangPatchScope`)

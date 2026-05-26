@@ -18,10 +18,10 @@ Files in scope:
 
 | # | Severity (prelim) | Component | Tier | Issue |
 |---|-------------------|-----------|------|-------|
-| 1 | HIGH | `interpreter_builder` | 2 | [Global `interpreter_builder.grid_idx` / `grid_dim` trampled by concurrent kernel runs](interpreter/builder-grid-state-race.md) |
-| 2 | HIGH | `_patch_lang` / `_LangPatchScope` | 2 | [Process-wide monkey-patching of `tl.*` with save/restore permanently corrupts `tl` under concurrent runs](interpreter/patch-lang-save-restore-race.md) |
-| 3 | MED | `FunctionRewriter._compile_and_exec` | 2 | [Mutation of user kernel's `fn.__globals__` during `exec`, shared across threads](interpreter/compile-and-exec-globals-mutation.md) |
-| 4 | MED | `InterpretedFunction.__call__` | 2 | [`__call__` path applies `_patch_lang` without ever restoring, leaking patches](interpreter/interpreted-fn-call-leaks-patches.md) |
+| FT014 | HIGH | `interpreter_builder` | 2 | [Global `interpreter_builder.grid_idx` / `grid_dim` trampled by concurrent kernel runs](interpreter/builder-grid-state-race.md) |
+| FT017 | HIGH | `_patch_lang` / `_LangPatchScope` | 2 | [Process-wide monkey-patching of `tl.*` with save/restore permanently corrupts `tl` under concurrent runs](interpreter/patch-lang-save-restore-race.md) |
+| FT015 | MED | `FunctionRewriter._compile_and_exec` | 2 | [Mutation of user kernel's `fn.__globals__` during `exec`, shared across threads](interpreter/compile-and-exec-globals-mutation.md) |
+| FT016 | MED | `InterpretedFunction.__call__` | 2 | [`__call__` path applies `_patch_lang` without ever restoring, leaking patches](interpreter/interpreted-fn-call-leaks-patches.md) |
 | 5 | LOW | `InterpretedFunction.rewritten_fn` | 2 | Class-level rewrite cache is check-then-set; duplicate AST rewrite under concurrent first-use |
 | 6 | LOW | `_patch_lang` | 2 | Iteration over `fn.__globals__.items()` while `_compile_and_exec` mutates the same dict |
 | 7 | LOW | `interpreter.cc` `mem_semantic_map` | 1 | `std::map` read via non-const `operator[]` on the hot path (insert-on-miss latent risk) |
@@ -189,7 +189,7 @@ not re-reported, but see the triage notes for a scalability comment.
   everything (because the outer scope captured originals before the nested
   call further patched). Under free-threading it is worse: the nested
   `_patch_lang` call on T1 captures T2's live patches as "originals" (see
-  issue #2) and never restores them anyway. The two issues reinforce each
+  issue FT017) and never restores them anyway. The two issues reinforce each
   other.
 - **Deep-dive questions:**
   - Is this intentional (nested kernel call, rely on outer restore)?
@@ -215,11 +215,11 @@ not re-reported, but see the triage notes for a scalability comment.
   instance, i.e. one dict per process. Classic check-then-act: two threads
   calling the same kernel for the first time both pass the `not in` guard
   and both run `rewrite_ast()` (which calls `inspect.getsourcelines`, runs
-  the `ASTTransformer`, mutates `fn.__globals__` — see #3 — and `compile`s
+  the `ASTTransformer`, mutates `fn.__globals__` — see FT015 — and `compile`s
   the AST). Last writer wins.
 - **Classification:** duplicate compile/rewrite. Benign in correctness terms
   (both rewrites produce the same function object modulo identity), but
-  couples directly to #3's globals mutation.
+  couples directly to FT015's globals mutation.
 - **Deep-dive questions:**
   - Can `FunctionRewriter.rewrite_ast` produce different results on
     different threads (e.g., different `JITFunction` instantiation leading

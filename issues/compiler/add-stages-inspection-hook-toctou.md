@@ -1,5 +1,6 @@
 # `knobs.runtime.add_stages_inspection_hook` TOCTOU in `compile()`
 
+- **Issue-Id:** FT008
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `python/triton/compiler/compiler.py`

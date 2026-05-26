@@ -4,6 +4,7 @@ Date: Tue, 14 Apr 2026 10:38:08 -0700
 Subject: [PATCH] Make HookChain safe under concurrent mutation
 X-Tier: 3
 X-Severity: Significant
+X-Issue-Id: FT011
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit

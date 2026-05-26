@@ -4,6 +4,7 @@ Date: Tue, 14 Apr 2026 11:00:26 -0700
 Subject: [PATCH] Take _hash_lock in _unsafe_update_src
 X-Tier: 2
 X-Severity: Significant
+X-Issue-Id: FT025
 
 `JITCallable._src` and `JITCallable.hash` must stay in sync: `hash`
 is derived from `_src`. Every path that computes or invalidates the

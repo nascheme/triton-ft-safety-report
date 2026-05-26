@@ -4,6 +4,7 @@ Date: Wed, 15 Apr 2026 00:26:09 -0700
 Subject: [PATCH] Lock dtype2str cache in specialize_tensordesc()
 X-Tier: 2
 X-Severity: SEVERE
+X-Issue-Id: FT043
 
 specialize_tensordesc() is on the per-argument specialization hot
 path for tensordesc and Gluon descriptor arguments, and mutates a

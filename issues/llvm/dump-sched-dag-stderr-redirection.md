@@ -6,6 +6,7 @@ type: issue
 
 # `dumpSchedulingDAG` stderr redirection races process-wide stderr
 
+- **Issue-Id:** FT028
 - **Status:** Open
 - **Severity:** LOW
 - **Component:** `python/src/llvm.cc` — `dumpSchedulingDAG` (only active when

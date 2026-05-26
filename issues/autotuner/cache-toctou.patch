@@ -4,6 +4,7 @@ Date: Tue, 14 Apr 2026 10:33:37 -0700
 Subject: [PATCH] Serialize autotuner benchmarking per tuning key
 X-Tier: 2
 X-Severity: SEVERE
+X-Issue-Id: FT002
 
 Autotuner.run() does a `key not in self.cache` check and, on a miss,
 enters a benchmark path that reads and writes several pieces of scratch

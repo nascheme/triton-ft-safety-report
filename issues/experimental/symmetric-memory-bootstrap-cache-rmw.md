@@ -1,5 +1,6 @@
 # `_RUNTIME_BOOTSTRAP_CACHE` read-modify-write across `rendezvous()` calls
 
+- **Issue-Id:** FT012
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `experimental/gsan/symmetric_memory.py` (`rendezvous`)

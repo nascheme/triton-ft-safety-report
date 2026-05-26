@@ -12,11 +12,11 @@ Lower-frequency native pybind11 bindings:
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| 1 | HIGH | `linear_layout.cc` | 2 | [Process-wide shared MLIRContext used for every `LinearLayout` operation](native-helpers/shared-mlir-context.md) |
-| 2 | MED | `linear_layout.cc` | 2 | [`__imul__` mutates a shared `LinearLayout` Python object in place](native-helpers/imul-shared-mutation.md) |
-| 3 | MED | `linear_layout.cc` | 2 | [`get_shared_view` / `get_distributed_view` use `const_cast` to call non-const methods on a shared `LinearLayout`](native-helpers/const-cast-views.md) |
-| 4 | MED | `gluon_ir.cc` | 2 | [Bindings call `*Attr::get(ctx, …)` on a shared, threading-disabled `MLIRContext`](native-helpers/gluon-builder-context.md) |
-| 5 | LOW | `gluon_ir.cc` | 1 | [`layoutToGluon` static `GluonLayouts` cache: first-call import latency, leaked refs](native-helpers/gluon-layouts-static.md) |
+| FT035 | HIGH | `linear_layout.cc` | 2 | [Process-wide shared MLIRContext used for every `LinearLayout` operation](native-helpers/shared-mlir-context.md) |
+| FT034 | MED | `linear_layout.cc` | 2 | [`__imul__` mutates a shared `LinearLayout` Python object in place](native-helpers/imul-shared-mutation.md) |
+| FT031 | MED | `linear_layout.cc` | 2 | [`get_shared_view` / `get_distributed_view` use `const_cast` to call non-const methods on a shared `LinearLayout`](native-helpers/const-cast-views.md) |
+| FT032 | MED | `gluon_ir.cc` | 2 | [Bindings call `*Attr::get(ctx, …)` on a shared, threading-disabled `MLIRContext`](native-helpers/gluon-builder-context.md) |
+| FT033 | LOW | `gluon_ir.cc` | 1 | [`layoutToGluon` static `GluonLayouts` cache: first-call import latency, leaked refs](native-helpers/gluon-layouts-static.md) |
 
 ## Triage notes
 

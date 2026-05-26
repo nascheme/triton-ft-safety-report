@@ -1,5 +1,6 @@
 # `LinearLayout.__imul__` mutates a shared Python object in place
 
+- **Issue-Id:** FT034
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `python/src/linear_layout.cc`

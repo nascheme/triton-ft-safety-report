@@ -1,5 +1,6 @@
 # Gluon IR bindings race on a shared, threading-disabled `MLIRContext`
 
+- **Issue-Id:** FT032
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `python/src/gluon_ir.cc`

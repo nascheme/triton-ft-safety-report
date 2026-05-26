@@ -4,6 +4,7 @@ Date: Tue, 14 Apr 2026 11:00:06 -0700
 Subject: [PATCH] Lock the kernel_cache check-then-compile in run()
 X-Tier: 2
 X-Severity: Significant
+X-Issue-Id: FT023
 
 Each per-device cache tuple carries a plain `kernel_cache` dict shared
 across threads. `run()` did a lock-free `kernel_cache.get(key)` /

@@ -1,5 +1,6 @@
 # `PyCUtensorMap` / `PyKernelArg` / `ARG_*` module globals lazy init race
 
+- **Issue-Id:** FT037
 - **Status:** Open
 - **Severity:** LOW
 - **Component:** `third_party/nvidia/backend/driver.py`

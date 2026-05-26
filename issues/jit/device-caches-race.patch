@@ -4,6 +4,7 @@ Date: Tue, 14 Apr 2026 10:57:09 -0700
 Subject: [PATCH] Serialize JITFunction.device_caches population
 X-Tier: 2
 X-Severity: SEVERE
+X-Issue-Id: FT020
 
 `JITFunction.device_caches` was a `defaultdict(self.create_binder)`
 populated lazily on first access from `run()`, `preload()`, and

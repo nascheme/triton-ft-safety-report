@@ -1,5 +1,6 @@
 # `type_handler_cache` init-time race through unsynchronized lazy init
 
+- **Issue-Id:** FT045
 - **Status:** Open
 - **Severity:** HIGH
 - **Component:** `python/src/specialize.cc`
@@ -23,7 +24,7 @@
   reached from `specialize_impl`, the `native_specialize_impl`
   METH_FASTCALL exposed to Python and called on the per-argument
   specialization hot path from `runtime/jit.py`.
-- **Race scenario:** This is a HIGH consequence of issue #1's
+- **Race scenario:** This is a HIGH consequence of issue FT044's
   unsynchronized lazy init. Two threads can both observe the plain
   `init_called` guard as false and both enter `init_globals()`, which in
   turn calls `init_type_handler_cache()`. Both threads then issue
@@ -35,7 +36,7 @@
 - **Consequence:** corruption of the process-global type-dispatch table used
   by every specialization call. Plausible outcomes are crashes or other
   undefined behavior inside `unordered_map` operations on the hot path.
-- **Suggested fix:** Fix the root cause through issue #1's atomic+mutex
+- **Suggested fix:** Fix the root cause through issue FT044's atomic+mutex
   `ensure_init()` guard. Once initialization is serialized and success is
   published with release/acquire ordering, `type_handler_cache` is
   effectively immutable for the life of the process and safe to read

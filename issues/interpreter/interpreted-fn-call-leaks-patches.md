@@ -1,5 +1,6 @@
 # `InterpretedFunction.__call__` leaks `_patch_lang` patches
 
+- **Issue-Id:** FT016
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `runtime/interpreter.py` (`InterpretedFunction.__call__`)

@@ -1,5 +1,6 @@
 # `dtype_ptr2str` `std::unordered_map` mutated on the hot specialization path
 
+- **Issue-Id:** FT042
 - **Status:** Open
 - **Severity:** HIGH
 - **Component:** `python/src/specialize.cc`
@@ -32,5 +33,5 @@
   Holding a native mutex across an arbitrary Python call risks deadlock if the
   callee re-enters specialization or otherwise tries to take the same mutex.
 
-  Apply the same synchronization strategy to `dtype2str` (issue #3); both
+  Apply the same synchronization strategy to `dtype2str` (issue FT043); both
   caches have the same threading hazard.

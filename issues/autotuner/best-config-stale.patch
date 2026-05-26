@@ -4,6 +4,7 @@ Date: Tue, 14 Apr 2026 10:33:37 -0700
 Subject: [PATCH] Print autotuner benchmark log line from locals
 X-Tier: 2
 X-Severity: Minor
+X-Issue-Id: FT001
 
 Autotuner.run() prints the post-benchmark diagnostic line using
 self.bench_time and self.best_config. Both are per-call writes on an

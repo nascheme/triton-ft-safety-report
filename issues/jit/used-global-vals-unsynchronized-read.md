@@ -1,5 +1,6 @@
 # `JITCallable.used_global_vals` unsynchronized read skips global-changed safety check
 
+- **Issue-Id:** FT026
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `runtime/jit.py`

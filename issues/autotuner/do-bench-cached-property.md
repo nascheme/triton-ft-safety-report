@@ -1,5 +1,6 @@
 # `do_bench` `@cached_property` duplicate execution
 
+- **Issue-Id:** FT005
 - **Status:** Open
 - **Severity:** LOW
 - **Component:** `python/triton/runtime/autotuner.py`

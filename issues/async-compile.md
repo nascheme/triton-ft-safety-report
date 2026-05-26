@@ -81,7 +81,7 @@ the ones to care about; #3 and #4 are minor follow-ups.
   `FutureKernel`s eventually run their `finalize_compile` callbacks.
   That means `jit_post_compile_hook` fires twice per key and
   `kernel_cache[key]` is written twice with two different
-  `CompiledKernel` objects (issue #4 in `jit/issues.md`).
+  `CompiledKernel` objects (issue FT023 in `jit/issues.md`).
 - **Tier:** 2.
 - **Suggested fix:** add an `AsyncCompileMode._lock = threading.Lock()`
   in `__init__` and hold it across the get / submit / append / set
@@ -127,7 +127,7 @@ the ones to care about; #3 and #4 are minor follow-ups.
   with the `FutureKernel` wrapper. Functionally correct (the wrapper's
   `__getattr__` proxies via `result()` which returns the memoized
   `self.kernel`), but the cache entry type is wrong. This is already
-  tracked in `jit/issues.md` under #4 and #9.
+  tracked in `jit/issues.md` under FT023 and FT019.
 - **Tier:** 2.
 - **Suggested fix:** add a `threading.Lock` to `FutureKernel` and
   double-check `self.kernel` under the lock before calling

@@ -1,5 +1,6 @@
 # `CompiledKernel._init_handles` lazy handle initialization race
 
+- **Issue-Id:** FT010
 - **Status:** Open
 - **Severity:** HIGH
 - **Component:** `python/triton/compiler/compiler.py`

@@ -4,11 +4,11 @@
 
 | # | Severity | Tier | Component | Issue |
 |---|----------|------|-----------|-------|
-| 1 | HIGH  | 1 | `init_globals` / `init_called` | [`init_globals()` TOCTOU: plain-bool guard allows concurrent lazy init of all file-scope globals](specialize/init-globals-toctou.md) |
-| 2 | HIGH  | 2 | `dtype_ptr2str`                | [`dtype_ptr2str` `std::unordered_map` mutated on the hot path without synchronization](specialize/dtype-ptr2str-unordered-map-race.md) |
-| 3 | HIGH  | 2 | `dtype2str`                    | [`dtype2str` `std::unordered_map` mutated on the hot path without synchronization](specialize/dtype2str-unordered-map-race.md) |
-| 4 | HIGH  | 1 | `type_handler_cache`           | [`type_handler_cache` read during / before its population races init and specialize-dispatch](specialize/type-handler-cache-init-race.md) |
-| 5 | MED | 1 | `init_called` memory ordering | `init_called` is a non-atomic `bool`; readers can observe `true` before dependent writes — subsumed by issue #1, see triage notes |
+| FT044 | HIGH  | 1 | `init_globals` / `init_called` | [`init_globals()` TOCTOU: plain-bool guard allows concurrent lazy init of all file-scope globals](specialize/init-globals-toctou.md) |
+| FT042 | HIGH  | 2 | `dtype_ptr2str`                | [`dtype_ptr2str` `std::unordered_map` mutated on the hot path without synchronization](specialize/dtype-ptr2str-unordered-map-race.md) |
+| FT043 | HIGH  | 2 | `dtype2str`                    | [`dtype2str` `std::unordered_map` mutated on the hot path without synchronization](specialize/dtype2str-unordered-map-race.md) |
+| FT045 | HIGH  | 1 | `type_handler_cache`           | [`type_handler_cache` read during / before its population races init and specialize-dispatch](specialize/type-handler-cache-init-race.md) |
+| 5 | MED | 1 | `init_called` memory ordering | `init_called` is a non-atomic `bool`; readers can observe `true` before dependent writes — subsumed by issue FT044, see triage notes |
 | 6 | LOW   | 1 | `torch_tensor_cls` lazy probe  | `torch.Tensor` is only discovered if `torch` is already imported at first specialize call — performance-only note, no separate issue file or patch, see triage notes |
 
 Issues in `python/src/specialize.cc` — the native argument-specialization
@@ -21,7 +21,7 @@ Individual issue files exist for the HIGH items: `init-globals-toctou.md`,
 `dtype-ptr2str-unordered-map-race.md`, `dtype2str-unordered-map-race.md`, and
 `type-handler-cache-init-race.md`. The last is resolved by
 `init-globals-toctou.patch` and has no separate patch. Issue #5 is subsumed
-by issue #1 and does not get its own issue file or patch. Issue #6 is LOW
+by issue FT044 and does not get its own issue file or patch. Issue #6 is LOW
 and kept in the table for traceability only — no issue file, no patch.
 
 See the triage notes below for the reasoning behind each entry and for items
@@ -92,7 +92,7 @@ HIGH pattern in `CLAUDE.md` — this file is the textbook example.
     torch_tensor_cls assignment can still race;
   - calls `init_type_handler_cache()` concurrently — two threads
     inserting into the same `std::unordered_map<PyTypeObject*, …>` is an
-    undefined-behavior container race (see issue #4).
+    undefined-behavior container race (see issue FT045).
 - **Additional concern:** `init_globals()` calls Python C API that can raise
   (`import_from`, attribute lookups). On failure it returns `false` and the
   caller returns `nullptr` with the error set, but `init_called` stays
@@ -145,9 +145,9 @@ HIGH pattern in `CLAUDE.md` — this file is the textbook example.
 - **Shared state:** `static Dtype2Str dtype2str`
   (`std::unordered_map<Py_hash_t, PyObject*>`), file scope, never locked.
 - **Writer/Reader:** `specialize_tensordesc()`.
-- **Race scenario:** Same as issue #2. Reached for every tensordesc
+- **Race scenario:** Same as issue FT042. Reached for every tensordesc
   argument during specialization.
-- **Note:** Narrower hot path than #2 (only tensordesc / Gluon descriptor
+- **Note:** Narrower hot path than FT042 (only tensordesc / Gluon descriptor
   args), but the container-safety story is identical.
 - **Fix direction:** protect the map with its own mutex, but avoid holding
   that mutex while calling `canonicalize_dtype_fn`. The clean shape is a
@@ -164,10 +164,10 @@ HIGH pattern in `CLAUDE.md` — this file is the textbook example.
 - **Reader:** `specialize_arg()`, called from `specialize_impl`
   on every specialization.
 - **Root cause:** this is not an independent post-init cache race; it is a
-  direct consequence of issue #1. The map is intended to be populated once
+  direct consequence of issue FT044. The map is intended to be populated once
   during first-use initialization and then treated as immutable.
 - **Race scenario A — init vs init:** Two threads concurrently running
-  `init_globals()` (see issue #1) concurrently call
+  `init_globals()` (see issue FT044) concurrently call
   `init_type_handler_cache()`, each doing several
   `type_handler_cache[key] = fn` inserts. Concurrent `unordered_map`
   mutation is UB.
@@ -178,7 +178,7 @@ HIGH pattern in `CLAUDE.md` — this file is the textbook example.
 - **Note on failed init:** the current source does not provide a strong,
   independent failed-init path for this specific map; the important bug here
   is the unsynchronized first-use init itself.
-- **Fix direction:** fix this as part of issue #1 by serializing
+- **Fix direction:** fix this as part of issue FT044 by serializing
   `init_globals()` behind a mutex-protected slow path and publishing success
   with an acquire/release atomic flag. Once init is guaranteed to complete
   before any read, this map becomes effectively immutable for the life of
@@ -187,7 +187,7 @@ HIGH pattern in `CLAUDE.md` — this file is the textbook example.
 ### 5. `init_called` memory ordering (MED)
 
 - **Shared state:** the `init_called` flag is a plain non-atomic `bool`.
-- **Concern:** even if the TOCTOU in issue #1 were resolved by an
+- **Concern:** even if the TOCTOU in issue FT044 were resolved by an
   ordinary "check, do init, set flag" idiom, a non-atomic `bool` is still
   a data race under the C++ memory model (concurrent read and write with
   no synchronization). In practice on x86 this is often benign, but a
@@ -195,9 +195,9 @@ HIGH pattern in `CLAUDE.md` — this file is the textbook example.
   `type_handler_cache`, `*_str`, `*_attr`, etc. before it sees
   `init_called == true`.
 - **Fix direction:** subsumed by the atomic+mutex fix suggested for issue
-  #1; once readers use an acquire load and the successful initializer does a
+  FT044; once readers use an acquire load and the successful initializer does a
   release store after `init_globals()`, this concern goes away.
-- **Listed separately** because if someone "fixes" issue #1 by only adding
+- **Listed separately** because if someone "fixes" issue FT044 by only adding
   a mutex around `init_globals()` without making the flag read acquire-ordered,
   the memory-ordering hole remains.
 
@@ -234,9 +234,9 @@ HIGH pattern in `CLAUDE.md` — this file is the textbook example.
 - **Interned string / attribute globals (`i32_str`, `dtype_attr`, …)** —
   once written by `init_interned_strings()` they are only read. Their
   concurrency story is entirely subsumed by the `init_globals()` TOCTOU
-  in issue #1. No separate issue.
+  in issue FT044. No separate issue.
 - **Class globals (`constexpr_cls`, `tensor_descriptor_cls`, …)** — same
-  story: subsumed by issue #1.
+  story: subsumed by issue FT044.
 - **`align_kwarg`** — initialized once in `init_interned_strings()`; same
   story.
 - **Handlers that don't touch file-scope state** (`handle_bool_type`,
@@ -258,9 +258,9 @@ HIGH pattern in `CLAUDE.md` — this file is the textbook example.
 - Does any existing caller serialize the first call to
   `native_specialize_impl` (e.g., through some JIT-level lock in
   `runtime/jit.py`) that would make the init TOCTOU unreachable in
-  practice? If so, severity of issue #1 may be tier-dependent rather
+  practice? If so, severity of issue FT044 may be tier-dependent rather
   than "HIGH" in the absolute sense. The hot-path cache races
-  (issues #2–#4) remain HIGH either way.
+  (issues FT042, FT043, FT045) remain HIGH either way.
 - Are these caches reachable from any `py::gil_scoped_release` region?
   Spot check says no — this file does not declare any GIL-release
   scopes — but confirm during the deeper audit.

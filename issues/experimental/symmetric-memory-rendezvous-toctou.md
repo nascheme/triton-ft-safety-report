@@ -1,5 +1,6 @@
 # `rendezvous()` check-then-act on `_RENDEZVOUS_CACHE`
 
+- **Issue-Id:** FT013
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `experimental/gsan/symmetric_memory.py` (`rendezvous`)

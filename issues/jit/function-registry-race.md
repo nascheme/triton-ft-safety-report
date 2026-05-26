@@ -1,5 +1,6 @@
 # `_triton_jit_function_registry` publishes partially-initialized `JITFunction`
 
+- **Issue-Id:** FT021
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `runtime/jit.py`

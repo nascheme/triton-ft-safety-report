@@ -4,6 +4,7 @@ Date: Tue, 14 Apr 2026 10:42:53 -0700
 Subject: [PATCH] Serialize DriverConfig lazy init and set_active/reset_active
 X-Tier: 1
 X-Severity: Significant
+X-Issue-Id: FT040
 
 DriverConfig is the module-level lazy singleton exposing the active
 and default backend DriverBase. Its `default` and `active` properties
