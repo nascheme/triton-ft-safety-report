@@ -135,7 +135,7 @@ the module mid-compile."
 **Investigation question:** does any first-party Triton path mutate
 `triton.language.extra.libdevice` or any other `module_map` value after import?
 If no, downgrade to "not worth reporting." If a backend or extra package does,
-file as Tier 1 minor. Same question applies to the `visit_Attribute`
+file as Tier 1 LOW. Same question applies to the `visit_Attribute`
 fixed-point walk.
 
 ### 3. `inspect.signature(fn)` on user callables during call lowering

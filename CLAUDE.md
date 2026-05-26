@@ -340,5 +340,5 @@ detailed severity justification, move that material into the component
 
 Use `git` to create patch files.  First, checkout the source in a clean state.
 Apply your fixes and then commit.  Use `git format-patch` to create the patch
-file.  Add X-Severity and X-Issue-Id headers to the patch file.  Reset the
-`triton` repo to it's original state.
+file.  Add X-Severity (HIGH, MED, LOW) and X-Issue-Id headers (FT<nnn>) to the
+patch file.  Reset the `triton` repo to it's original state.

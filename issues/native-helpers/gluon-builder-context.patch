@@ -3,7 +3,7 @@ From: Neil Schemenauer <nas@arctrix.com>
 Date: Wed, 20 May 2026 15:25:14 -0700
 Subject: [PATCH] Enable threading on the per-compile MLIRContext
 X-Tier: 2
-X-Severity: Significant
+X-Severity: MED
 X-Issue-Id: FT032
 
 The MLIRContext factory exposed to Python

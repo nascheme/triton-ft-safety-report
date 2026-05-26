@@ -3,7 +3,7 @@ From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 26 May 2026 09:42:39 -0700
 Subject: [PATCH] Lock CompiledKernel._init_handles, publish _run last
 X-Tier: 2
-X-Severity: SEVERE
+X-Severity: HIGH
 X-Issue-Id: FT010
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

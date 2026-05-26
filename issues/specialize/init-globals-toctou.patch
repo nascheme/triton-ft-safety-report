@@ -3,7 +3,7 @@ From: Neil Schemenauer <nas@arctrix.com>
 Date: Wed, 15 Apr 2026 10:35:00 -0700
 Subject: [PATCH] Serialize lazy global init in specialize_impl
 X-Tier: 1
-X-Severity: SEVERE
+X-Severity: HIGH
 X-Issue-Id: FT044
 
 Under free-threaded CPython, two threads can both observe the plain

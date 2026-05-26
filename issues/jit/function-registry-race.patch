@@ -3,7 +3,7 @@ From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:56:58 -0700
 Subject: [PATCH] Register JITFunction in the global registry last
 X-Tier: 1
-X-Severity: Significant
+X-Severity: MED
 X-Issue-Id: FT021
 
 `_triton_jit_function_registry` is a process-global dict from which
