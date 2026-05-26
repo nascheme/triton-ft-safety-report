@@ -335,3 +335,10 @@ detailed severity justification, move that material into the component
 - **Not worth reporting:** Import-time one-shot state, `ContextVar` state,
   harmless debug-flag staleness, already-protected state, or vague suspicions
   without a concrete race scenario.
+
+## Generating patch files
+
+Use `git` to create patch files.  First, checkout the source in a clean state.
+Apply your fixes and then commit.  Use `git format-patch` to create the patch
+file.  Add X-Severity and X-Issue-Id headers to the patch file.  Reset the
+`triton` repo to it's original state.
