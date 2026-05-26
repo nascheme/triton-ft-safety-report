@@ -5,6 +5,7 @@
 - **Severity:** HIGH
 - **Component:** `python/triton/runtime/autotuner.py`
 - **Tier:** 2
+- **Patch:** [`cache-toctou.patch`](cache-toctou.patch)
 
 - **Shared state:** `self.cache`, plus per-call benchmark scratch state stored
   on the shared `Autotuner` instance: `self.nargs`, `self.restore_copies`,
