@@ -23,23 +23,22 @@
        })
   ```
 
-  The `const_cast` strongly suggests `getSharedLayoutStr` /
-  `getDistributedLayoutStr` mutate the layout (e.g. lazy normalization,
-  caching, sorting bases). Whether they actually do is in
-  `lib/Dialect/TritonGPU/IR/Dialect.cpp` and needs confirmation.
+  The `const_cast` is a gratuitous workaround: both helpers in
+  `lib/Dialect/TritonGPU/IR/Dialect.cpp` only call `const` accessors
+  (`getInDimNames`, `getOutDimNames`, `getOutDimSizes`, `getInDimSize`,
+  `getTotalOutDimSize`, `getNumOutDims`, `apply`) and do not mutate the
+  layout. The non-const parameter type is the only reason the cast exists.
 - **Writer(s):** Both view bindings, on the receiver `self`.
 - **Reader(s):** Any other binding on the same `LinearLayout` (`__eq__`,
   `bases`, `out_dims`, `apply`, `compose`, `invert*`, etc.), and another
   concurrent call to either view binding.
 - **Race scenario:** Two threads invoke `layout.get_distributed_view(...)`
   on the same Python `LinearLayout`. Both enter `getDistributedLayoutStr`
-  via `const_cast` mutable references and race on whatever internal state
-  that helper updates. If the helper is in fact const-correct under the
-  hood, this is benign and the binding should drop the cast.
-- **Suggested fix:** First, audit `getSharedLayoutStr` and
-  `getDistributedLayoutStr` to determine whether they actually mutate the
-  passed `LinearLayout`. If they do not, change their signatures to
-  `const LinearLayout &` and remove the `const_cast`. If they do mutate
-  (e.g. memoize a derived layout), serialize the mutation with an internal
-  lock or restructure to compute the derived state without modifying the
-  input.
+  through `const_cast` mutable references. Since the helpers are in fact
+  const-correct, the accesses are read-only and benign — but the aliased
+  mutable references defeat the type system's read-only guarantee and the
+  cast should be dropped.
+- **Suggested fix:** Change both helper signatures to `const LinearLayout &`
+  and remove the `const_cast` at the binding sites. The compiler then
+  enforces read-only access (any future non-const use would fail to
+  compile). No locking is needed since neither helper mutates the layout.
