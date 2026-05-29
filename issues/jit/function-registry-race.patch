@@ -6,16 +6,9 @@ X-Tier: 1
 X-Severity: MED
 X-Issue-Id: FT021
 
-`_triton_jit_function_registry` is a process-global dict from which
-`JITFunction.preload` resolves instances via `_decode_constant`.
-`JITFunction.__init__` inserted `self` into the registry before
-populating `params`, `device_caches`, `kernel`, etc. Any other thread
-that looks the instance up through the registry in that window
-observes a partially-initialized object and raises `AttributeError`
-on first attribute touch. The window exists under the GIL but is
-widened under free-threading.
-
-Publish to the registry at the end of __init__.
+Fix data race in JITFunction.__init__: publish to registry only after
+initialization is complete.  This race also exists in the GIL enabled
+build but it is more likely to be triggered in free-threaded Python.
 
 Assisted-by: claude-opus-4.6
 

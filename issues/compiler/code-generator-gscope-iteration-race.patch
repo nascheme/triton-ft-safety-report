@@ -9,18 +9,9 @@ MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
 
-JITFunction.get_capture_scope() returns fn.__globals__ by identity in
-the no-closure case. CodeGenerator.__init__ then iterates that dict
-during ast_to_ttir on the compile hot path. Because it *is* the
-defining module's __dict__, any concurrent module-level assignment
-mutates the dict mid-iteration. Per free-threaded CPython rules, dict
-iteration under concurrent mutation has an undefined element sequence:
-a legitimate global can be skipped (spurious NameError), or a
-constexpr global can be observed post-rebind after the specialization
-key was already computed against its old value (stale-keyed kernel).
-
-Return dict(self.__globals__) — PyDict_Copy takes a critical section
-and produces a stable snapshot.
+CodeGenerator iterates over __globals__ in a thread-unsafe way, since the dict
+could be mutated while iterating.  Change get_capture_scope() to return
+a copy of the dict.
 
 Assisted-by: claude-opus-4.6
 

@@ -6,24 +6,8 @@ X-Tier: 1
 X-Severity: MED
 X-Issue-Id: FT040
 
-DriverConfig is the module-level lazy singleton exposing the active
-and default backend DriverBase. Its `default` and `active` properties
-do unlocked check-then-assign, and set_active()/reset_active() write
-the slot without synchronization. Consequences under free-threading:
-
-- Two threads reaching driver.active for the first time can both call
-  _create_driver() concurrently. On NVIDIA this runs
-  compile_module_from_src and dlopen()s a native utils module, so the
-  race duplicates that build/dlopen and constructs two backend drivers
-  in parallel; one is leaked with its native resources. Plausibly the
-  root cause of triton-lang/triton#6721.
-- A concurrent set_active(custom) racing the lazy-init assignment can
-  be silently clobbered, producing wrong-driver selection.
-- reset_active() re-enters lazy default init.
-
-Serialize all four operations on a threading.Lock with double-checked
-locking on the read fast path. Callers that read driver.active
-multiple times in the same function are fixed separately.
+Serialize the lazy init of DriverConfig._default and _active.  This
+avoids data races when multiple threads are used.
 
 Assisted-by: claude-opus-4.6
 
