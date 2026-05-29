@@ -36,9 +36,6 @@ the tier and severity classifications.
   Non-atomic `defaultdict` fill of `device_caches` lets two threads build
   separate cache tuples; the loser uses orphaned caches and silently
   recompiles.
-- FT035: [`native-helpers/shared-mlir-context`](issues/native-helpers/shared-mlir-context.md) (Tier 2) —
-  Process-wide LinearLayout `MLIRContext` is built `Threading::DISABLED`;
-  concurrent `StringAttr::get` races an unlocked `unordered_map`.
 - FT043: [`specialize/dtype2str-unordered-map-race`](issues/specialize/dtype2str-unordered-map-race.md) (Tier 2) —
   `specialize_tensordesc()` mutates the global `dtype2str` `unordered_map`
   with no lock — container corruption under concurrent launches.
@@ -78,9 +75,6 @@ the tier and severity classifications.
 - FT031: [`native-helpers/const-cast-views`](issues/native-helpers/const-cast-views.md) (Tier 2) —
   `get_*_view` `const_cast`s a shared `LinearLayout` to non-const; concurrent
   view calls write through aliased mutable references.
-- FT032: [`native-helpers/gluon-builder-context`](issues/native-helpers/gluon-builder-context.md) (Tier 2) —
-  The per-compile `MLIRContext` is built `Threading::DISABLED`; concurrent
-  `*Attr::get`/`*Type::get` race the unsynchronized `StorageUniquer`.
 - FT034: [`native-helpers/imul-shared-mutation`](issues/native-helpers/imul-shared-mutation.md) (Tier 2) —
   `LinearLayout.__imul__` (`operator*=`) mutates the receiver in place,
   racing concurrent readers of the same Python object.
@@ -106,11 +100,11 @@ the tier and severity classifications.
 | [runtime-build](issues/runtime-build.md) | In-review | 0 | 1 | 5 | 6 |
 | [interpreter](issues/interpreter.md) | In-review | 2 | 2 | 3 | 7 |
 | [compiler-codegen](issues/compiler-codegen.md) | In-review | 0 | 0 | 0 | 0 |
-| [native-helpers](issues/native-helpers.md) | In-review | 1 | 3 | 1 | 5 |
+| [native-helpers](issues/native-helpers.md) | In-review | 0 | 2 | 1 | 3 |
 | [language](issues/language.md) | In-review | 0 | 0 | 6 | 6 |
 | [tools](issues/tools.md) | In-review | 0 | 0 | 4 | 4 |
 | [experimental](issues/experimental.md) | In-review | 0 | 3 | 4 | 7 |
-| **Total** | | **12** | **34** | **60** | **106** |
+| **Total** | | **11** | **32** | **60** | **103** |
 
 ## Concurrency Model
 

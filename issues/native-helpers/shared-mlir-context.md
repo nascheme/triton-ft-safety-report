@@ -1,42 +1,73 @@
-# `linear_layout.cc` shares one process-wide MLIRContext across all calls
+# `linear_layout.cc` shared MLIRContext — uniquer race (rejected)
 
 - **Issue-Id:** FT035
-- **Status:** Open
-- **Severity:** HIGH
+- **Status:** Rejected (premise incorrect)
+- **Severity:** —
 - **Component:** `python/src/linear_layout.cc`
 - **Tier:** 2
-- **Patch:** [`shared-mlir-context.patch`](shared-mlir-context.patch)
 
-- **Shared state:** A single `MLIRContext` object stored as a leaked
-  `PyObject*` in a function-local static (`getLinearLayoutContext`). The
-  context is constructed in `ir.cc`'s `context()` factory with
-  `MLIRContext::Threading::DISABLED`, so its `StorageUniquer` (the interner
-  backing `StringAttr::get`, `IntegerAttr::get`, `RankedTensorType::get`, …)
-  takes no internal locks.
-- **Writer(s):** Every binding that calls `mlir::StringAttr::get(ctx, …)` on
-  this shared context: `LinearLayout.identity_1d`, `LinearLayout.strided_1d`,
-  `LinearLayout.zeros_1d`, `LinearLayout.from_bases`, `LinearLayout.apply`,
-  plus the `LinearLayout(...)` constructors invoked inside those bindings.
-  Each interns one or more attributes by mutating uniquer hash maps.
-- **Reader(s):** Same set of bindings, plus any later equality / lookup
-  comparisons against previously interned attributes (`__eq__`, `__mul__`,
-  `__imul__`, `compose`, `invert_and_compose`, `get_shared_view`,
-  `get_distributed_view`, `get_matrix_view`).
-- **Race scenario:** Thread A calls `LinearLayout.identity_1d(64, "x", "y")`
-  while Thread B calls `LinearLayout.strided_1d(32, 2, "x", "y")`. Both call
-  `mlir::StringAttr::get(ctx, …)` concurrently on the same uniquer. The
-  uniquer's hash map is mutated by both threads with no locking, leading to
-  classic non-thread-safe `unordered_map` corruption: torn writes, lost
-  insertions, returning attributes that alias different storage, or crashes
-  in subsequent lookups.
-- **Suggested fix:** Two main options.
-  1. Construct the linear-layout context with
-     `MLIRContext::Threading::ENABLED` so the uniquer takes its internal
-     locks. Confirm that other Triton code paths do not rely on the context
-     remaining single-threaded for ordering.
-  2. Wrap every entry into `getLinearLayoutContext()` with a process-wide
-     `std::mutex` covering the call into MLIR. Coarser but safe.
+## Summary
 
-  Option 1 is preferred unless there is a reason to keep threading disabled.
-  Either way, audit every binding in `linear_layout.cc` (and any caller of
-  `getLinearLayoutContext`) against the chosen fix.
+This was filed as a HIGH race on the StorageUniquer of the process-wide
+`MLIRContext` shared by `getLinearLayoutContext()`. The claim was that the
+context is built with `MLIRContext::Threading::DISABLED`, so its uniquers take
+no internal locks, making concurrent `mlir::StringAttr::get(ctx, …)` from
+`identity_1d` / `strided_1d` / `zeros_1d` / `from_bases` / `apply` corrupt the
+uniquer hash maps.
+
+**The premise is false. The uniquers are already locked, so no race exists.**
+
+## Why the premise is wrong
+
+`StorageUniquer` locking is governed by *each uniquer's own*
+`threadingIsEnabled` flag, which defaults to `true`. The construction-time
+`Threading` enum does **not** reach the uniquers. Verified against the LLVM
+commit pinned by this Triton build (`7f77ca0d`):
+
+- `MLIRContext::MLIRContext(const DialectRegistry&, Threading)` only forwards
+  the flag to `MLIRContextImpl(bool threadingIsEnabled)`. Its body contains no
+  call to `disableMultithreading()` and none to the uniquers'
+  `disableMultithreading()`.
+- `MLIRContextImpl(bool)` only sets its own `threadingIsEnabled` and
+  conditionally creates the thread pool. It does **not** propagate the flag to
+  `affineUniquer` / `attributeUniquer` / `typeUniquer`.
+- Only the runtime method `MLIRContext::disableMultithreading()` propagates into
+  the uniquers:
+  ```cpp
+  impl->affineUniquer.disableMultithreading(disable);
+  impl->attributeUniquer.disableMultithreading(disable);
+  impl->typeUniquer.disableMultithreading(disable);
+  ```
+- `StorageUniquerImpl` declares `bool threadingIsEnabled = true;`, and the
+  parametric `getOrCreate` only skips locks when that flag is false:
+  ```cpp
+  if (!threadingIsEnabled)
+    return getOrCreateUnsafe(shard, lookupKey, ctorFn);  // unlocked
+  // otherwise: SmartScopedReader / SmartScopedWriter on shard.mutex
+  ```
+
+Triton's `ir.context()` factory (`ir.cc:322-325`) only constructs
+`MLIRContext(Threading::DISABLED)` and never calls `disableMultithreading()` on
+it; `getLinearLayoutContext()` (`linear_layout.cc:19-28`) just reuses that
+factory. So the shared context's `attributeUniquer` / `typeUniquer` keep
+`threadingIsEnabled = true`. Concurrent `StringAttr::get` / `IntegerAttr::get` /
+`RankedTensorType::get` are serialized by the uniquer's per-shard
+`SmartRWMutex`. The "unlocked `unordered_map` corruption" scenario cannot occur.
+
+The construction-time `Threading::DISABLED` flag controls only (a) the
+context-level `isMultithreadingEnabled()` flag (which gates `parallelFor`,
+`getThreadPool()`, etc. — not uniquing) and (b) whether an owned
+`DefaultThreadPool` is created. It is unrelated to uniquer locking.
+
+(The other `disableMultithreading()` calls in `ir.cc` — lines 136, 1889, 1929,
+1947 — act on the per-compilation parsing contexts, a different object than this
+shared linear-layout context, so they do not change this analysis.)
+
+## Why the proposed patch was dropped
+
+The patch called `ctx->enableMultithreading()` on the shared context. The
+technique is the correct way to *re-enable* uniquer locking, but here it changes
+nothing for correctness (the uniquers were already enabled) while spawning an
+owned `DefaultThreadPool` (≈ hardware-concurrency OS threads) on a
+process-lifetime context that never runs parallel MLIR work — a small net
+negative. The patch file has been removed.

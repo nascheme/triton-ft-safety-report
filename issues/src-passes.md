@@ -87,9 +87,11 @@ Top-level entry point:
 2. The `mlir::MLIRContext` implied by the caller's `mlir::ModuleOp` (in
    `init_triton_analysis`) and by the passes eventually run through the
    `PassManager`. Concurrent analysis runs against modules sharing a context
-   can mutate type/attribute uniquing tables — the same failure mode as
-   `ir/issues.md` issue #4. `passes.cc` is one more path that lets Python
-   code reach that state.
+   can mutate the context's non-uniquer IR/analysis state without
+   synchronization — the same failure mode as `ir.md` issue #4 (the
+   type/attribute uniquing tables themselves stay locked regardless of the
+   construction-time `Threading` flag). `passes.cc` is one more path that
+   lets Python code reach that state.
 3. `mlir::triton::plugin::loadPlugins()` — the process-global plugin vector
    and its `static bool pluginsLoaded` TOCTOU guard. `passes.cc` reaches it
    at module init under the import lock; `ir.cc` can reach it again later
@@ -130,15 +132,18 @@ means Python C API calls in these bindings are safe for the calling thread.
      the traced call sites (`compiler.py:239`/`:300`, `_filecheck.py:70`,
      proton instrumentation, tests). Two concurrent compiles operate on
      disjoint contexts, so the per-context mutation cannot race.
-- **Severity:** LOW — the unsafe pattern (no MLIR-side lock because
-  the context is built with `Threading::DISABLED`) is real and would
-  fire immediately if (a) these analysis bindings ever gain a Python
-  caller *and* (b) a future refactor caches or pools `MLIRContext`
-  objects across threads. Today neither condition holds.
+- **Severity:** LOW — the unsafe pattern (unsynchronized non-uniquer
+  mutation of a shared `MLIRContext` during analysis / op insertion) is
+  real and would fire immediately if (a) these analysis bindings ever gain
+  a Python caller *and* (b) a future refactor caches or pools `MLIRContext`
+  objects across threads. Today neither condition holds. (Note: this is not
+  a uniquing-table race — the uniquers stay locked regardless of the
+  construction-time `Threading` flag; see `ir.md` issue #4 and
+  `native-helpers.md`.)
 - **Fix direction:** nothing to fix in `passes.cc` alone. Resolution is at
-  the `MLIRContext` design level (one context per thread, or rebuild with
-  `Threading::ENABLED`) and would land alongside the `ir.md` #2/#3/#4
-  family. No fix needed today.
+  the `MLIRContext` design level (one context per thread, or otherwise
+  serialize concurrent use of a shared context) and would land alongside
+  the `ir.md` #2/#3/#4 family. No fix needed today.
 - **Tier:** Tier 2 in shape, but unreachable.
 
 ### 2. `init_plugin_passes` → `loadPlugins()` TOCTOU (LOW — latent only, cross-reference)

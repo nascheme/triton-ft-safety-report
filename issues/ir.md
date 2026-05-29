@@ -163,10 +163,14 @@ Organized by what they do with shared state:
   within a single compile call (see the open-questions resolution at the
   bottom). Two concurrent compiles each get their own `MLIRContext`, so
   the per-call mutation operates on a per-compile object, not shared
-  state. Also note that `MLIRContext` is constructed with
-  `Threading::DISABLED` already (in `ir.cc`), so the per-call
-  `disableMultithreading()` is a same-value write even on the owning
-  thread.
+  state. Note that the runtime `disableMultithreading()` is **not** a
+  no-op merely because the context was constructed `Threading::DISABLED`:
+  the construction-time flag does not reach the per-uniquer locks, whereas
+  the runtime call *does* unlock them (it propagates into
+  `affineUniquer` / `attributeUniquer` / `typeUniquer`). Because the
+  context is per-compile, that unlocking happens on a thread-private object
+  and still cannot race — see the corrected uniquer analysis in
+  `native-helpers.md`.
 - **Severity:** LOW — the pattern of mutating context state inside a
   GIL-released binding body is unsound and would be a HIGH race the
   moment any path caches or pools `MLIRContext` objects, but it is not
@@ -208,12 +212,17 @@ Organized by what they do with shared state:
 
 ### 4. MLIR op / attribute / type construction on a shared context (LOW — latent only)
 
-- **Shared state (candidate):** `MLIRContext`'s type-uniquing and
-  attribute-uniquing tables. Calls like `IntegerType::get(ctx, 32)`,
-  `StringAttr::get(ctx, name)`, `RoundingModeAttr::get(ctx, ...)`,
-  `DenseIntElementsAttr::get(...)`, and every op-builder construction
-  reach into these tables. The context is built with
-  `Threading::DISABLED`, so MLIR's own per-table locks are not engaged.
+- **Shared state (candidate):** the `MLIRContext`'s mutable IR/context
+  state reached during op/attribute/type construction — op insertion into
+  blocks and regions, dialect and diagnostic state, etc. Calls like
+  `IntegerType::get(ctx, 32)`, `StringAttr::get(ctx, name)`,
+  `RoundingModeAttr::get(ctx, ...)`, `DenseIntElementsAttr::get(...)`, and
+  every op-builder construction reach into the context. (The type/attribute
+  *uniquing* tables themselves are **not** the hazard: MLIR keeps each
+  uniquer's per-shard `SmartRWMutex` engaged regardless of the
+  construction-time `Threading` flag — see the rejected-observations note
+  below and the corrected analysis in `native-helpers.md`. The
+  unsynchronized state is the surrounding non-uniquer IR mutation.)
 - **Writers/Readers:** every operation-building binding in this file —
   `TritonOpBuilder`, `OpBuilder`, op construction helpers on `ModuleOp`,
   `FuncOp`, etc.
@@ -224,17 +233,17 @@ Organized by what they do with shared state:
   reference to the source IR module (and transitively the context),
   but no further op construction happens against that retained context
   after `compile()` returns — it is effectively frozen. Two concurrent
-  compiles operate on disjoint contexts and disjoint uniquing tables.
-- **Severity:** LOW — the unsafe pattern (uniquing-table mutation
-  with no lock) is real, but unreachable while contexts are
+  compiles operate on disjoint contexts.
+- **Severity:** LOW — the unsafe pattern (unsynchronized non-uniquer IR
+  mutation on a shared context) is real, but unreachable while contexts are
   per-compile. The day a context cache or pool is introduced, this
   becomes a HIGH race against MLIR's internal containers and against
   borrowed type/attribute pointers.
-- **Fix direction:** when shared contexts are introduced, either pin
-  one context per thread or rebuild the context with
-  `Threading::ENABLED` so MLIR's locks cover the uniquing tables (this
-  interacts with the explicit `Threading::DISABLED` choice made for
-  diagnostic reasons). No fix needed today.
+- **Fix direction:** when shared contexts are introduced, pin one context
+  per thread (or otherwise serialize concurrent IR construction on a shared
+  context). The construction-time `Threading` flag does not help here: the
+  uniquers are already locked, and `Threading::ENABLED` would not cover the
+  unsynchronized non-uniquer IR mutation. No fix needed today.
 
 ### 5. `plugin::loadPlugins()` plain-bool TOCTOU (LOW — latent only)
 
@@ -331,12 +340,17 @@ Organized by what they do with shared state:
 ## Rejected / low-value observations
 
 - **`MLIRContext::Threading::DISABLED`** is a deliberate configuration
-  choice for diagnostic reasons; it is not itself a bug. It is, however,
-  the reason issues #2 and #4 bite: MLIR's own locks are not engaged. So
-  the fix direction interacts with this choice but the choice is not the
-  bug.
+  choice (it turns off MLIR's owned thread pool and the context-level
+  `isMultithreadingEnabled()` flag that gates `parallelFor` / parallel pass
+  execution); it is not itself a bug. Contrary to the original triage, it is
+  **not** what makes issues #2 and #4 bite: the construction-time flag does
+  **not** propagate to the storage uniquers, which keep their per-shard
+  `SmartRWMutex` engaged. Only the runtime `disableMultithreading()` unlocks
+  the uniquers. See the corrected analysis in `native-helpers.md`. The
+  residual hazard in #4 is unsynchronized non-uniquer IR mutation on a
+  shared context, not uniquer-table corruption.
 - **`parse_mlir_module`** — if two threads parse into the same context,
-  this is subsumed by issue #4 (shared-context uniquing tables).
+  this is subsumed by issue #4 (shared-context IR mutation).
 - **`get_pipeline_str`** — read-only on the PassManager, no shared state
   concerns beyond the PassManager object itself.
 - **`PaddingOption` / `CacheModifier` / `MemSemantic` / `MemSyncScope` /
