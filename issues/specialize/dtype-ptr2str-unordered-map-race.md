@@ -50,3 +50,9 @@ resolved by this patch.
   immortal, so on a race the losing thread's `py::object` is decref'd on
   scope exit and the winning thread's entry is observed via the
   `emplace` result.
+
+**Insert-only:** Neither map has any call to `erase`, `remove`, or `clear`
+anywhere in `specialize.cc`. Stored `PyObject *` values are deliberately
+leaked and live for the process lifetime. This insert-only property is what
+makes the two-phase miss path safe: an entry found under the lock in phase 1
+cannot be invalidated during the unlocked window before phase 2.

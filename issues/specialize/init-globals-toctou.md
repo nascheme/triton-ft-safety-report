@@ -54,13 +54,14 @@
   running concurrently — re-enters and re-inserts into a partially
   populated `type_handler_cache`, leaking the references that were
   already assigned to the file-scope `PyObject *` globals.
-- **Suggested fix:** Replace the plain-bool guard with an
-  `std::atomic<bool>` + `std::mutex` `ensure_init()` helper: do an
-  acquire-load fast path, take the mutex on the slow path, re-check,
-  run `init_globals()`, and publish success with a release-store. This
-  fixes the init/init TOCTOU, provides proper publication for
-  `type_handler_cache` and the other globals, and preserves today's
-  retry-on-failure behavior if `init_globals()` raises. One design caveat:
-  this keeps a native mutex held across the Python import / attribute-lookup
-  work inside `init_globals()`, so the fix assumes that path does not
-  re-enter `native_specialize_impl` on the same thread.
+- **Suggested fix:** Replace the plain-bool guard with `std::once_flag` +
+  `std::call_once`. A `static std::once_flag init_flag` and a `static bool
+  init_success` replace `init_called`; `ensure_init()` calls
+  `std::call_once(init_flag, []() { init_success = init_globals(); })` and
+  returns `init_success`. This is simpler than an explicit atomic+mutex and
+  provides the same serialization and publication guarantees. Trade-off: a
+  single `init_globals()` failure permanently disables specialization (no
+  retry), which is acceptable in practice since failure means a fatal
+  environment error. One design caveat: `std::call_once` is UB if
+  `init_globals()` re-enters `ensure_init()` on the same thread; a comment
+  in the patch documents this constraint.

@@ -1,8 +1,8 @@
-From a6dd6f79c4cf647fdca443c8c1f17292f7e6079f Mon Sep 17 00:00:00 2001
+From b5e112ad17f7d6c5d3f8ff75a812961845e7f193 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
-Date: Wed, 15 Apr 2026 10:35:00 -0700
-Subject: [PATCH] Serialize lazy global init in specialize_impl
-X-Tier: 1
+Date: Sat, 30 May 2026 08:11:15 -0700
+Subject: [PATCH] Use std::call_once for init_globals() serialization in
+ specialize.cc
 X-Severity: HIGH
 X-Issue-Id: FT044
 
@@ -11,24 +11,16 @@ init_called guard as false and enter init_globals() concurrently. That
 races on the file-scope PyObject* assignments and on the
 unordered_map-backed type_handler_cache population.
 
-Replace the plain bool with an atomic fast path plus a mutex-protected
-slow path. This preserves the current retry-on-failure behavior while
-also giving readers proper publication of the initialized globals.
-
-Assisted-by: claude-opus-4.6
+Assisted-by: claude-sonnet-4-6
 ---
- python/src/specialize.cc | 29 +++++++++++++++++++++--------
- 1 file changed, 21 insertions(+), 8 deletions(-)
+ python/src/specialize.cc | 21 +++++++++++++++------
+ 1 file changed, 15 insertions(+), 6 deletions(-)
 
 diff --git a/python/src/specialize.cc b/python/src/specialize.cc
-index c4bab9fb2..d1aa2fe2f 100644
+index c4bab9fb2..97d0e5392 100644
 --- a/python/src/specialize.cc
 +++ b/python/src/specialize.cc
-@@ -1,9 +1,11 @@
- #include <Python.h>
- #include <cstddef>
- #include <cstdint>
-+#include <atomic>
+@@ -4,6 +4,7 @@
  #include <cstdlib>
  #include <cstring>
  #include <functional>
@@ -36,49 +28,41 @@ index c4bab9fb2..d1aa2fe2f 100644
  #include <pybind11/pybind11.h>
  #include <string>
  #include <string_view>
-@@ -36,7 +38,8 @@ static std::pair<py::object, py::object>
+@@ -36,7 +37,8 @@ static std::pair<py::object, py::object>
  specialize_arg(PyObject *backend, PyObject *arg, bool is_const,
                 bool specialize_value, bool align);
- 
+
 -static bool init_called = false;
-+static std::atomic<bool> init_done{false};
-+static std::mutex init_mutex;
- 
++static std::once_flag init_flag;
++static bool init_success = false;
+
  static PyObject *constexpr_cls = nullptr;
  static PyObject *jit_callable_cls = nullptr;
-@@ -155,13 +158,30 @@ bool init_globals() noexcept try {
+@@ -155,13 +157,22 @@ bool init_globals() noexcept try {
    init_interned_strings();
    init_type_handler_cache();
- 
+
 -  init_called = true;
    return true;
  } catch (py::error_already_set &e) {
    e.restore();
    return false;
  }
- 
+
++// NOTE: std::call_once does not support re-entrant calls from within the
++// callable. If init_globals() triggers a Python import that re-enters
++// native_specialize_impl on the same thread, behavior is undefined. In
++// practice this should not occur since triton.runtime.jit is already loaded
++// before specialize is first called.
 +bool ensure_init() {
-+  if (init_done.load(std::memory_order_acquire)) {
-+    return true;
-+  }
-+
-+  std::lock_guard<std::mutex> lock(init_mutex);
-+  if (init_done.load(std::memory_order_relaxed)) {
-+    return true;
-+  }
-+
-+  if (!init_globals()) {
-+    return false;
-+  }
-+
-+  init_done.store(true, std::memory_order_release);
-+  return true;
++  std::call_once(init_flag, []() { init_success = init_globals(); });
++  return init_success;
 +}
 +
  std::pair<py::object, py::object> specialize_tensordesc(PyObject *arg,
                                                          bool has_layout) {
    auto base = from_new_ref(PyObject_GetAttr(arg, base_attr));
-@@ -572,10 +592,8 @@ std::pair<py::object, py::object> specialize_arg(PyObject *backend,
+@@ -572,10 +583,8 @@ std::pair<py::object, py::object> specialize_arg(PyObject *backend,
  // main entry-point from Python implementing specialization logic natively
  PyObject *specialize_impl(PyObject *self, PyObject *const *args,
                            Py_ssize_t nargs) {
@@ -89,7 +73,7 @@ index c4bab9fb2..d1aa2fe2f 100644
 +  if (!ensure_init()) {
 +    return nullptr;
    }
- 
+
    if (nargs != 5) {
--- 
+--
 2.47.3

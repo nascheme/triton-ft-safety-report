@@ -12,10 +12,10 @@ Lower-frequency native pybind11 bindings:
 
 | # | Severity | Component | Tier | Issue |
 |---|----------|-----------|------|-------|
-| FT035 | - | `linear_layout.cc` | 2 | [Shared MLIRContext, linear_layout (rejected)](native-helpers/shared-mlir-context.md) |
-| FT034 | MED | `linear_layout.cc` | 2 | [`__imul__` mutates a shared `LinearLayout` Python object in place](native-helpers/imul-shared-mutation.md) |
-| FT031 | MED | `linear_layout.cc` | 2 | [`get_shared_view` / `get_distributed_view` use `const_cast` to call non-const methods on a shared `LinearLayout`](native-helpers/const-cast-views.md) |
-| FT032 | - | `gluon_ir.cc` | 2 | [Shared MLIRContext, gluon_ir (rejected)](native-helpers/gluon-builder-context.md) |
+| FT035 | - | `linear_layout.cc` | - | [Shared MLIRContext, linear_layout (rejected)](native-helpers/shared-mlir-context.md) |
+| FT034 | - | `linear_layout.cc` | - | [`__imul__` mutates a shared `LinearLayout` Python object in place (rejected)](native-helpers/imul-shared-mutation.md) |
+| FT031 | - | `linear_layout.cc` | - | [`get_shared_view` / `get_distributed_view` use `const_cast` — const-correctness fix only, not FT](native-helpers/const-cast-views.md) |
+| FT032 | - | `gluon_ir.cc` | - | [Shared MLIRContext, gluon_ir (rejected)](native-helpers/gluon-builder-context.md) |
 | FT033 | LOW | `gluon_ir.cc` | 1 | [`layoutToGluon` static `GluonLayouts` cache: first-call import latency, leaked refs](native-helpers/gluon-layouts-static.md) |
 
 ## Triage notes

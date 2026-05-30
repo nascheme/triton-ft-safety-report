@@ -1,10 +1,10 @@
 # `LinearLayout.__imul__` mutates a shared Python object in place
 
 - **Issue-Id:** FT034
-- **Status:** Open
-- **Severity:** MED
+- **Status:** Rejected
+- **Severity:** -
 - **Component:** `python/src/linear_layout.cc`
-- **Tier:** 2
+- **Tier:** -
 - **Patch:** [`imul-shared-mutation.patch`](imul-shared-mutation.patch)
 
 - **Shared state:** A `LinearLayout` instance held by a Python wrapper. The
@@ -38,3 +38,17 @@
   (via `__mul__`), which rebinds the name instead of mutating shared
   C++ state. This avoids any API change for existing GIL-build users
   who may rely on the in-place semantics.
+
+---
+
+**Rejected.** `LinearLayout` is a pure value type with no static state,
+no shared caches, and no lazy singletons. In practice, instances are
+created during layout conversion and then consumed locally within a single
+compilation context — there is no code path that stores a `LinearLayout`
+into a shared cache or registry. Sharing a single `LinearLayout` instance
+across threads requires intentional misuse that violates the intended usage
+pattern. The proposed fix also introduces an unacceptable API bifurcation:
+`a *= b` mutates on GIL builds but rebinds on free-threaded builds, which
+would silently break code that relies on in-place semantics. Since the race
+scenario is not reachable in practice, this is not a meaningful
+free-threading issue and the patch should be dropped.

@@ -1,10 +1,10 @@
 # `get_shared_view` / `get_distributed_view` `const_cast` away const on `LinearLayout`
 
 - **Issue-Id:** FT031
-- **Status:** Open
-- **Severity:** MED
+- **Status:** Not a FT issue — const-correctness fix only
+- **Severity:** -
 - **Component:** `python/src/linear_layout.cc`
-- **Tier:** 2
+- **Tier:** -
 - **Patch:** [`const-cast-views.patch`](const-cast-views.patch)
 
 - **Shared state:** A `LinearLayout` instance owned by a Python wrapper.
@@ -42,3 +42,11 @@
   and remove the `const_cast` at the binding sites. The compiler then
   enforces read-only access (any future non-const use would fail to
   compile). No locking is needed since neither helper mutates the layout.
+
+---
+
+**Note:** This is **not** a free-threading fix. Both helpers call only
+`const` `LinearLayout` methods and do not mutate the object. The
+`const_cast` is a const-correctness oversight, not a thread-safety hazard.
+This patch should be submitted separately from the FT patch series as a
+standalone cleanup.

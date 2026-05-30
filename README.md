@@ -5,7 +5,8 @@ Tracking thread-safety issues in Triton's Python layer for Python 3.14t (free-th
 We are auditing the Python code under `python/` (both the pure-Python `triton/`
 package and the C++ pybind11 extensions in `src/`). The C++/MLIR/LLVM core is
 out of scope except where it interacts with the Python layer (GIL release
-points, pybind11 bindings).
+points, pybind11 bindings, and core signatures changed only to fix a
+binding-layer issue).
 
 See [CLAUDE.md](CLAUDE.md) for the audit methodology.
 See [OVERVIEW.md](OVERVIEW.md) for an architectural overview of the Triton
@@ -72,12 +73,6 @@ the tier and severity classifications.
 - FT026: [`jit/used-global-vals-unsynchronized-read`](issues/jit/used-global-vals-unsynchronized-read.md) (Tier 2) —
   Unordered `kernel_cache` and `used_global_vals` writes let a cache hit
   observe empty `used_global_vals` and skip the global-changed safety check.
-- FT031: [`native-helpers/const-cast-views`](issues/native-helpers/const-cast-views.md) (Tier 2) —
-  `get_*_view` `const_cast`s a shared `LinearLayout` to non-const; concurrent
-  view calls write through aliased mutable references.
-- FT034: [`native-helpers/imul-shared-mutation`](issues/native-helpers/imul-shared-mutation.md) (Tier 2) —
-  `LinearLayout.__imul__` (`operator*=`) mutates the receiver in place,
-  racing concurrent readers of the same Python object.
 
 ## Audit Progress
 
@@ -100,11 +95,11 @@ the tier and severity classifications.
 | [runtime-build](issues/runtime-build.md) | In-review | 0 | 1 | 5 | 6 |
 | [interpreter](issues/interpreter.md) | In-review | 2 | 2 | 3 | 7 |
 | [compiler-codegen](issues/compiler-codegen.md) | In-review | 0 | 0 | 0 | 0 |
-| [native-helpers](issues/native-helpers.md) | In-review | 0 | 2 | 1 | 3 |
+| [native-helpers](issues/native-helpers.md) | In-review | 0 | 0 | 1 | 1 |
 | [language](issues/language.md) | In-review | 0 | 0 | 6 | 6 |
 | [tools](issues/tools.md) | In-review | 0 | 0 | 4 | 4 |
 | [experimental](issues/experimental.md) | In-review | 0 | 3 | 4 | 7 |
-| **Total** | | **11** | **32** | **60** | **103** |
+| **Total** | | **11** | **31** | **60** | **102** |
 
 ## Concurrency Model
 
