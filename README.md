@@ -37,12 +37,10 @@ the tier and severity classifications.
   Non-atomic `defaultdict` fill of `device_caches` lets two threads build
   separate cache tuples; the loser uses orphaned caches and silently
   recompiles.
-- FT043: [`specialize/dtype2str-unordered-map-race`](issues/specialize/dtype2str-unordered-map-race.md) (Tier 2) —
-  `specialize_tensordesc()` mutates the global `dtype2str` `unordered_map`
-  with no lock — container corruption under concurrent launches.
-- FT042: [`specialize/dtype-ptr2str-unordered-map-race`](issues/specialize/dtype-ptr2str-unordered-map-race.md) (Tier 2) —
-  `handle_tensor()` mutates the global `dtype_ptr2str` `unordered_map` with
-  no lock — container corruption under concurrent launches.
+- FT042/FT043: [`specialize/dtype-ptr2str-unordered-map-race`](issues/specialize/dtype-ptr2str-unordered-map-race.md) / [`specialize/dtype2str-unordered-map-race`](issues/specialize/dtype2str-unordered-map-race.md) (Tier 2) —
+  `handle_tensor()` and `specialize_tensordesc()` each mutate a process-global
+  `unordered_map` (`dtype_ptr2str` / `dtype2str`) with no lock — container
+  corruption under concurrent launches. Fixed by a single patch.
 
 ### Severity: MED
 
