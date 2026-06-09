@@ -342,3 +342,45 @@ Use `git` to create patch files.  First, checkout the source in a clean state.
 Apply your fixes and then commit.  Use `git format-patch` to create the patch
 file.  Add X-Severity (HIGH, MED, LOW) and X-Issue-Id headers (FT<nnn>) to the
 patch file.  Reset the `triton` repo to it's original state.
+
+## Fix hazard: do not break pickling when adding a lock
+
+**Before adding a `threading.Lock`/`RLock` (or any other unpicklable object) as
+an instance attribute, check whether that object is pickled.** `torch.compile`'s
+Inductor caching serializes Triton runtime objects into a *persistent on-disk
+cache*, so a lock that is correct under free-threading can still break
+`torch.compile` (on **both** the GIL and free-threaded builds — this is not a
+free-threading-only failure).
+
+Known pickle paths (verify against the installed torch, these move around):
+
+- `TritonBundler.put_static_autotuner` (`torch/_inductor/triton_bundler.py`)
+  does `copy.deepcopy(caching_autotuner)` then pickles it. The
+  `CachingAutotuner` reaches Triton's **`CompiledKernel`** via
+  `compile_results[].kernel`, and the **`JITFunction`** via `.fn`.
+- Combo-kernel autotuning (`generate_and_run_autotune_block`) pickles through
+  the same kinds of objects.
+
+Symptom: `cannot pickle '_thread.lock' object`, raised at cache-write time
+(e.g. during the first profile run), *not* from a thread race.
+
+torch only hand-strips the upstream `JITFunction._hash_lock` (in
+`CachingAutotuner.prepare_for_pickle` / `restore_after_unpickle`,
+`torch/_inductor/runtime/triton_heuristics.py`). It has no knowledge of any new
+lock we add.
+
+**Required fix when you add an instance lock to a pickled object:** give that
+object `__getstate__`/`__setstate__` that drop the lock on serialize and
+recreate a fresh one on restore — the same idiom torch's own `CachingAutotuner`
+uses for its `lock`. Example (`CompiledKernel`, FT010):
+
+```python
+def __getstate__(self):
+    state = self.__dict__.copy()
+    state["_init_lock"] = None   # threading.Lock is not picklable
+    return state
+
+def __setstate__(self, state):
+    self.__dict__.update(state)
+    self._init_lock = threading.Lock()
+```

@@ -1,25 +1,26 @@
-From c17dd633dcd5b4fabaa2a1fc5e0e1ef9b5439c9e Mon Sep 17 00:00:00 2001
+From a2d1cd06ab475aaee7447013167459b708f42387 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 26 May 2026 09:42:39 -0700
 Subject: [PATCH] Lock CompiledKernel._init_handles, publish _run last
 X-Tier: 2
 X-Severity: HIGH
 X-Issue-Id: FT010
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
 
 Re-structure _init_handles() to avoid data races.  On fast path (init
 already done) return early.  Otherwise, acquire init mutex and complete
 lazy init.  Use self._run as non-None to indicate init was done.
 
+The per-instance threading.Lock makes CompiledKernel unpicklable. Add
+__getstate__/__setstate__ to allow CompiledKernel to be pickled,
+required by torch.compile's static-autotuner cache.
+
 Assisted-by: claude-opus-4.6
 ---
- python/triton/compiler/compiler.py | 68 ++++++++++++++++++------------
- 1 file changed, 41 insertions(+), 27 deletions(-)
+ python/triton/compiler/compiler.py | 78 +++++++++++++++++++-----------
+ 1 file changed, 51 insertions(+), 27 deletions(-)
 
 diff --git a/python/triton/compiler/compiler.py b/python/triton/compiler/compiler.py
-index 16e988443..2f54f6f44 100644
+index 16e988443..75cf9684a 100644
 --- a/python/triton/compiler/compiler.py
 +++ b/python/triton/compiler/compiler.py
 @@ -14,6 +14,7 @@ from pathlib import Path
@@ -30,15 +31,25 @@ index 16e988443..2f54f6f44 100644
  import time
  import copy
  
-@@ -435,6 +436,7 @@ class CompiledKernel:
+@@ -435,6 +436,17 @@ class CompiledKernel:
          self.module = None
          self.function = None
          self._run = None
 +        self._init_lock = threading.Lock()
++
++    def __getstate__(self):
++        state = self.__dict__.copy()
++        # drop since threading.Lock is not picklable
++        state["_init_lock"] = None
++        return state
++
++    def __setstate__(self, state):
++        self.__dict__.update(state)
++        self._init_lock = threading.Lock()
  
      def __del__(self):
  
-@@ -446,41 +448,53 @@ class CompiledKernel:
+@@ -446,41 +458,53 @@ class CompiledKernel:
              self.module = None
  
      def _init_handles(self):
