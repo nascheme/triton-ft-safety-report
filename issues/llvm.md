@@ -17,9 +17,6 @@ object/assembly emission, diagnostics, and LLVM process-global options.
 
 ## Notes
 
-- Runtime mutation of LLVM `cl::opt` is a pre-existing maintainer-rule
-  violation, not a current-goal ask; it is summarized in
-  [Dropped And Out-Of-Scope Notes](README.md#dropped-and-out-of-scope-notes).
 - FT028 and FT030 are debug/diagnostic features. They can corrupt output or
   file descriptors, but they do not change ordinary codegen.
 - Items #5-#7 matter only if Python callers share LLVM/MLIR objects across

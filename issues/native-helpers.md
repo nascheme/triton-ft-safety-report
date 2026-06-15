@@ -11,7 +11,5 @@ Scope: lower-frequency pybind11 bindings in `python/src/linear_layout.cc` and
 
 ## Notes
 
-- Dropped MLIRContext and `LinearLayout` leads are summarized in
-  [Dropped And Out-Of-Scope Notes](README.md#dropped-and-out-of-scope-notes).
 - FT033 is a magic-static initialization note. C++ serializes the initialization;
   the remaining concern is minor first-call import/refcount behavior.
