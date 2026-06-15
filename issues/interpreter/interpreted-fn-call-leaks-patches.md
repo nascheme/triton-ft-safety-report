@@ -4,13 +4,7 @@
 - **Status:** Open
 - **Severity:** MED
 - **Component:** `runtime/interpreter.py` (`InterpretedFunction.__call__`)
-- **Tier:** 3
-
-Tier 3 because this issue requires `TRITON_INTERPRET=1`. The interpreter is
-currently a debug-only, single-threaded path outside the Tier 1-2
-free-threading goal. Severity remains MED if interpreter concurrency becomes
-in-scope because leaked `tl.*` patches can affect later interpreter and
-non-interpreter code.
+- **Tier:** 3 (`TRITON_INTERPRET=1`; serious if interpreter concurrency becomes in-scope)
 
 - **Shared state:** the same shared `tl.*` module/class attributes
   patched by `_patch_lang` (see `patch-lang-save-restore-race.md`).
