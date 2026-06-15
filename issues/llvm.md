@@ -7,7 +7,6 @@ object/assembly emission, diagnostics, and LLVM process-global options.
 
 | # | Rank | Component | Issue |
 | --- | --- | --- | --- |
-| FT029 | Out-of-scope | `setLLVMOption` / `restoreLLVMOption` / `ScopedLLVMOption` | [Process-global `llvm::cl::opt<>` state mutated from GIL-released paths](llvm/global-cl-opt-mutation.md) |
 | FT028 | Low | `dumpSchedulingDAG` stderr redirection | [Process-wide `dup` / `freopen(stderr)` / `dup2` sequence races with other threads and Python I/O](llvm/dump-sched-dag-stderr-redirection.md) |
 | FT030 | Low | `llvm::TimePassesIsEnabled` / `llvm::TimePassesPerRun` | [Process-global timing flags used from GIL-released `translateLLVMIRToASM`](llvm/time-passes-global-flags.md) |
 | 4 | Low | `init_targets` | Unconditional write to `llvm::parallel::strategy`; concurrent writers set the same value |
@@ -18,11 +17,10 @@ object/assembly emission, diagnostics, and LLVM process-global options.
 
 ## Notes
 
-- FT029 is a pre-existing maintainer-rule violation, not a current-goal ask:
-  runtime mutation of LLVM `cl::opt` is already unsupported.
+- Runtime mutation of LLVM `cl::opt` is a pre-existing maintainer-rule
+  violation, not a current-goal ask; it is summarized in
+  [Dropped And Out-Of-Scope Notes](README.md#dropped-and-out-of-scope-notes).
 - FT028 and FT030 are debug/diagnostic features. They can corrupt output or
   file descriptors, but they do not change ordinary codegen.
 - Items #5-#7 matter only if Python callers share LLVM/MLIR objects across
   threads. Current compile paths do not.
-- The extended lock-design discussion for FT029 lives in
-  [`llvm/global-cl-opt-mutation.md`](llvm/global-cl-opt-mutation.md).

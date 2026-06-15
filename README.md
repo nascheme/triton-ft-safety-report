@@ -22,6 +22,6 @@ binding-layer issue.
 - [Glossary](GLOSSARY.md): terminology used throughout the report.
 
 Current-goal **Critical Blocker** and **Blocker** findings are listed in the
-[patch queue](issues/README.md#patch-queue). Deferred, Low, Rejected, and
-Out-of-scope findings remain tracked in the component issue files for audit
-completeness.
+[patch queue](issues/README.md#patch-queue). Deferred and Low findings remain
+tracked in the component issue files. Dropped and out-of-scope leads are
+summarized separately in the [issue index](issues/README.md#dropped-and-out-of-scope-notes).
