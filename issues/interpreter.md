@@ -1,7 +1,10 @@
 # interpreter Free-Threading Issues
 
 Initial (shallow) pass. Each triage-note entry is a candidate intended for a
-follow-up deep dive — severity/tier assignments are preliminary.
+follow-up deep dive. Severity assignments reflect the seriousness of the bug if
+concurrent interpreter execution becomes in-scope. Tier assignments are Tier 3
+because these findings require `TRITON_INTERPRET=1`, which is currently a
+debug-only, single-threaded path outside the Tier 1-2 free-threading goal.
 
 Files in scope:
 
@@ -18,13 +21,13 @@ Files in scope:
 
 | # | Severity (prelim) | Component | Tier | Issue |
 |---|-------------------|-----------|------|-------|
-| FT014 | HIGH | `interpreter_builder` | 2 | [Global `interpreter_builder.grid_idx` / `grid_dim` trampled by concurrent kernel runs](interpreter/builder-grid-state-race.md) |
-| FT017 | HIGH | `_patch_lang` / `_LangPatchScope` | 2 | [Process-wide monkey-patching of `tl.*` with save/restore permanently corrupts `tl` under concurrent runs](interpreter/patch-lang-save-restore-race.md) |
-| FT015 | MED | `FunctionRewriter._compile_and_exec` | 2 | [Mutation of user kernel's `fn.__globals__` during `exec`, shared across threads](interpreter/compile-and-exec-globals-mutation.md) |
-| FT016 | MED | `InterpretedFunction.__call__` | 2 | [`__call__` path applies `_patch_lang` without ever restoring, leaking patches](interpreter/interpreted-fn-call-leaks-patches.md) |
-| 5 | LOW | `InterpretedFunction.rewritten_fn` | 2 | Class-level rewrite cache is check-then-set; duplicate AST rewrite under concurrent first-use |
-| 6 | LOW | `_patch_lang` | 2 | Iteration over `fn.__globals__.items()` while `_compile_and_exec` mutates the same dict |
-| 7 | LOW | `interpreter.cc` `mem_semantic_map` | 1 | `std::map` read via non-const `operator[]` on the hot path (insert-on-miss latent risk) |
+| FT014 | HIGH | `interpreter_builder` | 3 | [Global `interpreter_builder.grid_idx` / `grid_dim` trampled by concurrent kernel runs](interpreter/builder-grid-state-race.md) |
+| FT017 | HIGH | `_patch_lang` / `_LangPatchScope` | 3 | [Process-wide monkey-patching of `tl.*` with save/restore permanently corrupts `tl` under concurrent runs](interpreter/patch-lang-save-restore-race.md) |
+| FT015 | MED | `FunctionRewriter._compile_and_exec` | 3 | [Mutation of user kernel's `fn.__globals__` during `exec`, shared across threads](interpreter/compile-and-exec-globals-mutation.md) |
+| FT016 | MED | `InterpretedFunction.__call__` | 3 | [`__call__` path applies `_patch_lang` without ever restoring, leaking patches](interpreter/interpreted-fn-call-leaks-patches.md) |
+| 5 | LOW | `InterpretedFunction.rewritten_fn` | 3 | Class-level rewrite cache is check-then-set; duplicate AST rewrite under concurrent first-use |
+| 6 | LOW | `_patch_lang` | 3 | Iteration over `fn.__globals__.items()` while `_compile_and_exec` mutates the same dict |
+| 7 | LOW | `interpreter.cc` `mem_semantic_map` | 3 | `std::map` read via non-const `operator[]` on the hot path (insert-on-miss latent risk) |
 
 `atomic_op_guard`-based serialization in `interpreter.cc` is already
 documented as protected state (see CLAUDE.md and `specialize/` notes). It is
@@ -67,7 +70,9 @@ not re-reported, but see the triage notes for a scalability comment.
   - Fix direction: move per-call state (`grid_idx`, `grid_dim`, arguably the
     whole builder) into a `ContextVar` or thread-local, or serialize the
     whole `GridExecutor.__call__` with a process-wide lock.
-- **Tier 2**, HIGH.
+- **Tier 3**, HIGH. Requires concurrent `TRITON_INTERPRET=1` execution, which
+  is out of the current Tier 1-2 support goal; serious if interpreter
+  concurrency becomes in-scope.
 
 ### 2. `_patch_lang` save/restore on shared module objects
 
@@ -108,7 +113,9 @@ not re-reported, but see the triage notes for a scalability comment.
   - Full fix likely requires routing `tl.*` dispatch through a
     `ContextVar` / thread-local "semantic" rather than monkey-patching
     shared module state. That is a significant architectural change.
-- **Tier 2**, HIGH.
+- **Tier 3**, HIGH. Requires concurrent `TRITON_INTERPRET=1` execution, which
+  is out of the current Tier 1-2 support goal; serious if interpreter
+  concurrency becomes in-scope.
 
 ### 3. `FunctionRewriter._compile_and_exec` mutates `fn.__globals__`
 
@@ -164,8 +171,10 @@ not re-reported, but see the triage notes for a scalability comment.
   - Does CPython 3.14t's dict guarantee forward progress for `exec`
     readers while another thread is `__setitem__`-ing? (Believed yes per
     PEP 703, but verify.)
-- **Tier 2**, MED (correctness likely survives via single-use caching
-  but the shared-state mutation is unsafe and leaks into the user's module).
+- **Tier 3**, MED. Requires concurrent `TRITON_INTERPRET=1` execution, which
+  is out of the current Tier 1-2 support goal; the shared-state mutation is
+  unsafe and leaks into the user's module if interpreter concurrency becomes
+  in-scope.
 
 ### 4. `InterpretedFunction.__call__` leaks patches
 
@@ -197,7 +206,8 @@ not re-reported, but see the triage notes for a scalability comment.
     installed the patches.
   - Is `InterpretedFunction.__call__` reachable outside a `GridExecutor`
     context? If so, the leak is immediate even under the GIL.
-- **Tier 2**, MED.
+- **Tier 3**, MED. Requires `TRITON_INTERPRET=1`, which is out of the current
+  Tier 1-2 support goal; serious if interpreter concurrency becomes in-scope.
 
 ### 5. `InterpretedFunction.rewritten_fn` class-level cache
 
@@ -226,7 +236,7 @@ not re-reported, but see the triage notes for a scalability comment.
     to different line numbers)? Probably no.
   - Fix direction: per-kernel lock, or `functools.lru_cache`-style coalescing
     keyed on `self.fn`.
-- **Tier 2**, LOW.
+- **Tier 3**, LOW.
 
 ### 6. `_patch_lang` iterates `fn.__globals__.items()`
 
@@ -252,7 +262,7 @@ not re-reported, but see the triage notes for a scalability comment.
 - **Likelihood:** realistic only on first-ever call (the only time
   `_compile_and_exec` mutates `fn_globals`), and the mutation window is
   small. Still a real window.
-- **Tier 2**, LOW.
+- **Tier 3**, LOW.
 
 ### 7. `mem_semantic_map` read via non-const `operator[]`
 
@@ -277,7 +287,8 @@ not re-reported, but see the triage notes for a scalability comment.
   - Switch to `at(sem)` (throws on miss) or a `switch` / `constexpr` map.
   - Or mark the global `const` so the non-const `operator[]` overload is
     not available.
-- **Tier 1**, LOW.
+- **Tier 3**, LOW. This binding is only relevant through interpreter-mode
+  execution, which is outside the current Tier 1-2 support goal.
 
 ## Triage notes, continued
 

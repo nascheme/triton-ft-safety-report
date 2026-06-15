@@ -10,7 +10,7 @@ Issues in `python/triton/runtime/jit.py` affecting free-threaded Python 3.14t.
 | FT020 | HIGH | device_caches | 2 | [`JITFunction.device_caches` defaultdict auto-vivification race](jit/device-caches-race.md) |
 | FT023 | MED | kernel_cache | 2 | [`kernel_cache` / `kernel_key_cache` TOCTOU causes duplicate compilation](jit/kernel-cache-toctou.md) |
 | FT026 | MED | used_global_vals | 2 | [`JITCallable.used_global_vals` unsynchronized read skips global-changed safety check](jit/used-global-vals-unsynchronized-read.md) |
-| FT024 | MED | pre_run_hooks | 2 | [`JITFunction.pre_run_hooks` unsynchronized iteration during concurrent mutation](jit/pre-run-hooks-unsynchronized-iteration.md) |
+| FT024 | MED | pre_run_hooks | 3 | [`JITFunction.pre_run_hooks` unsynchronized iteration during concurrent mutation](jit/pre-run-hooks-unsynchronized-iteration.md) |
 | FT019 | MED | async_compile | 2 | [`_do_compile` async path — `AsyncCompileMode`/`FutureKernel` races](jit/async-compile-races.md) |
 | FT025 | MED | _unsafe_update_src | 2 | [`JITCallable._unsafe_update_src` unsynchronized hash invalidation](jit/unsafe-update-src-race.md) |
 | FT018 | MED | add_stages_inspection_hook | 3 | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `run()`](jit/add-stages-inspection-hook-toctou.md) |

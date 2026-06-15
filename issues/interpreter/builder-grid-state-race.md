@@ -4,7 +4,13 @@
 - **Status:** Open
 - **Severity:** HIGH
 - **Component:** `runtime/interpreter.py` (`InterpreterBuilder`, `GridExecutor`)
-- **Tier:** 2
+- **Tier:** 3
+
+Tier 3 because this issue requires concurrent `TRITON_INTERPRET=1` execution.
+The interpreter is currently a debug-only, single-threaded path outside the
+Tier 1-2 free-threading goal. Severity remains HIGH if interpreter concurrency
+becomes in-scope: this race can silently execute kernels with the wrong grid
+state.
 
 - **Shared state:** the module-level singleton `interpreter_builder =
   InterpreterBuilder()` (interpreter.py near the bottom of the file). Its
@@ -29,6 +35,6 @@
 - **Suggested fix:** move per-call state off the module-level singleton.
   Either store `grid_dim` / `grid_idx` in a `ContextVar` /
   `threading.local`, or serialize `GridExecutor.__call__` with a
-  process-wide lock. (Concurrent interpreter use is listed as
-  pragmatically out of scope in `README.md`; a documented single-thread
-  assertion is the cheapest fix.)
+  process-wide lock. (Concurrent interpreter use is listed as Tier 3 in
+  [`../README.md`](../README.md); a documented single-thread assertion is the
+  cheapest fix.)
