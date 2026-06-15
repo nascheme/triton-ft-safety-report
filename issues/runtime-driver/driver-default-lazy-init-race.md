@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT040
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Blocker
 - **Component:** `runtime/driver.py` (`DriverConfig.default`)
-- **Tier:** 1
 - **Patch:** [`driver-default-lazy-init-race.patch`](driver-default-lazy-init-race.patch)
 
 - **Shared state:** `DriverConfig._default` on the module-level singleton

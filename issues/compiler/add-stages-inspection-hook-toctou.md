@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT008
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Deferred
 - **Component:** `python/triton/compiler/compiler.py`
-- **Tier:** 3
 - **Patch:** [`add-stages-inspection-hook-toctou.patch`](add-stages-inspection-hook-toctou.patch)
 
 - **Shared state:** `knobs.runtime.add_stages_inspection_hook` — a

@@ -8,15 +8,15 @@ twice and clobber hook/pruning/disk-cache context.
 
 ## Issues
 
-| # | Severity | Component | Tier | Issue |
-|---|----------|-----------|------|-------|
-| FT002 | HIGH | Autotuner.cache | 2 | [`run()` cache-miss TOCTOU enables duplicate benchmarking and cross-thread hook-state contamination](autotuner/cache-toctou.md) |
-| FT006 | MED | Autotuner.nargs | 2 | [`self.nargs` clobbered by concurrent `run()` calls, corrupting hook/pruning context](autotuner/nargs-clobber.md) |
-| FT004 | MED | Autotuner.configs_timings | 2 | [`self.configs_timings` clobbered across concurrent tuning keys](autotuner/configs-timings-clobber.md) |
-| FT007 | MED | Autotuner.restore_copies | 2 | [`self.restore_copies` pre/post hook race restores wrong snapshot or raises](autotuner/restore-copies-race.md) |
-| FT001 | LOW | Autotuner.best_config | 2 | [`self.best_config` and `self.bench_time` stale across concurrent calls](autotuner/best-config-stale.md) |
-| FT005 | LOW | Autotuner.do_bench | 2 | [`@cached_property` `do_bench` duplicate execution on shared instance](autotuner/do-bench-cached-property.md) |
-| FT003 | MED | check_disk_cache | 2 | [`check_disk_cache` compound race on shared instance state and disk](autotuner/check-disk-cache-race.md) |
+| # | Rank | Component | Issue |
+| --- | --- | --- | --- |
+| FT002 | Critical Blocker | Autotuner.cache | [`run()` cache-miss TOCTOU enables duplicate benchmarking and cross-thread hook-state contamination](autotuner/cache-toctou.md) |
+| FT006 | Blocker | Autotuner.nargs | [`self.nargs` clobbered by concurrent `run()` calls, corrupting hook/pruning context](autotuner/nargs-clobber.md) |
+| FT004 | Blocker | Autotuner.configs_timings | [`self.configs_timings` clobbered across concurrent tuning keys](autotuner/configs-timings-clobber.md) |
+| FT007 | Blocker | Autotuner.restore_copies | [`self.restore_copies` pre/post hook race restores wrong snapshot or raises](autotuner/restore-copies-race.md) |
+| FT001 | Low | Autotuner.best_config | [`self.best_config` and `self.bench_time` stale across concurrent calls](autotuner/best-config-stale.md) |
+| FT005 | Low | Autotuner.do_bench | [`@cached_property` `do_bench` duplicate execution on shared instance](autotuner/do-bench-cached-property.md) |
+| FT003 | Blocker | check_disk_cache | [`check_disk_cache` compound race on shared instance state and disk](autotuner/check-disk-cache-race.md) |
 
 ## Notes
 

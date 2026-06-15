@@ -2,8 +2,7 @@ From 6a992818afc5550afc38b616157bbc445e398274 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:42:53 -0700
 Subject: [PATCH] Snapshot driver.active across multi-read hot paths
-X-Tier: 3
-X-Severity: MED
+X-Rank: Deferred
 X-Issue-Id: FT038
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

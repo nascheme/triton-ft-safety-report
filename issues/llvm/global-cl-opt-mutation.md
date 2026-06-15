@@ -8,15 +8,13 @@ type: issue
 
 - **Issue-Id:** FT029
 - **Status:** Open
-- **Severity:** LOW (pre-existing maintainer-rule violation, not a free-threading bug)
+- **Rank:** Out-of-scope
 - **Component:** `python/src/llvm.cc` — `setLLVMOption` / `restoreLLVMOption` / `ScopedLLVMOption`
-- **Tier:** Out-of-scope (see README "Pre-existing rule violations" /
-  Tier 3 family)
 
 > **Scope note:** Triton maintainers' rule is "don't mutate `cl::opt`
 > per-kernel"; only debug features currently do it. The race exists under
 > the GIL build too. Per `README.md` and `CLAUDE.md`, this category is
-> tracked for completeness rather than promoted to a free-threading tier.
+> tracked for completeness rather than promoted to a current-goal rank.
 > Filed here so the failure mode is documented, not as an ask to fix.
 
 - **Shared state:** the process-global `llvm::cl::opt<T>` registry returned by

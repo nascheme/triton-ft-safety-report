@@ -8,16 +8,16 @@ kernel's `asm` dict.
 
 ## Issues
 
-| # | Severity | Component | Tier | Issue |
-|---|----------|-----------|------|-------|
-| 1 | LOW | `tools/disasm.py` | 1 | `@functools.lru_cache()` on runtime-reachable `get_sass()` |
-| 2 | LOW | `tools/compile.py` | 3 | `compile_kernel()` mutates process-global `sys.path` and never restores it |
-| 3 | LOW | `tools/gsan.py` | 3 | `main()` writes `triton.knobs.compilation.instrumentation_mode` and mutates `sys.argv` / `sys.path` |
-| 4 | LOW | `tools/build_extern.py` | 2 | `LLVMDisassembler._ll_file` hard-codes `/tmp/extern_lib.ll` |
+| # | Rank | Component | Issue |
+| --- | --- | --- | --- |
+| 1 | Low | `tools/disasm.py` | `@functools.lru_cache()` on runtime-reachable `get_sass()` |
+| 2 | Low | `tools/compile.py` | `compile_kernel()` mutates process-global `sys.path` and never restores it |
+| 3 | Low | `tools/gsan.py` | `main()` writes `triton.knobs.compilation.instrumentation_mode` and mutates `sys.argv` / `sys.path` |
+| 4 | Low | `tools/build_extern.py` | `LLVMDisassembler._ll_file` hard-codes `/tmp/extern_lib.ll` |
 
 ## Notes
 
-- No MED or HIGH issues were found.
+- No Critical Blocker or Blocker issues were found.
 - `get_sass()` uses per-call temp files; the `lru_cache` is the only shared
   runtime state.
 - The CLI utilities are listed for completeness but are not normal JIT hot-path

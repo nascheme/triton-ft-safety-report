@@ -8,10 +8,9 @@ type: issue
 
 - **Issue-Id:** FT028
 - **Status:** Open
-- **Severity:** LOW
+- **Rank:** Low
 - **Component:** `python/src/llvm.cc` — `dumpSchedulingDAG` (only active when
   `TRITON_DUMP_MIR` is set)
-- **Tier:** 1/2
 
 - **Shared state:** the process's `stderr` `FILE*` and file-descriptor 2.
   Both are process-global and shared with every other thread, including all

@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT037
 - **Status:** Open
-- **Severity:** LOW
+- **Rank:** Low
 - **Component:** `third_party/nvidia/backend/driver.py`
-- **Tier:** 1
 - **Patch:** [`cudautils-singleton-race.patch`](cudautils-singleton-race.patch)
 
 - **Shared state:** Five module-level globals — `PyCUtensorMap`,

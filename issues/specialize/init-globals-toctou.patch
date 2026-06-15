@@ -3,7 +3,7 @@ From: Neil Schemenauer <nas@arctrix.com>
 Date: Sat, 30 May 2026 08:11:15 -0700
 Subject: [PATCH] Use std::call_once for init_globals() serialization in
  specialize.cc
-X-Severity: HIGH
+X-Rank: Critical Blocker
 X-Issue-Id: FT044
 
 Under free-threaded CPython, two threads can both observe the plain

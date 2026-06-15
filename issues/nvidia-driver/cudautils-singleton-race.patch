@@ -2,8 +2,7 @@ From f9ed4051582b559df636434a8d035e37f6b1e206 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 11:02:20 -0700
 Subject: [PATCH] Make CudaUtils a properly-locked singleton
-X-Tier: 1
-X-Severity: LOW
+X-Rank: Low
 X-Issue-Id: FT036
 
 `CudaUtils` was written as a singleton with two defects:

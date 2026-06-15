@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT002
 - **Status:** Open
-- **Severity:** HIGH
+- **Rank:** Critical Blocker
 - **Component:** `python/triton/runtime/autotuner.py`
-- **Tier:** 2
 - **Patch:** [`cache-toctou.patch`](cache-toctou.patch)
 
 - **Shared state:** `self.cache`, plus per-call benchmark scratch state stored

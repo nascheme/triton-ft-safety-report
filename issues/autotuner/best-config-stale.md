@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT001
 - **Status:** Open
-- **Severity:** LOW
+- **Rank:** Low
 - **Component:** `python/triton/runtime/autotuner.py`
-- **Tier:** 2
 - **Patch:** [`best-config-stale.patch`](best-config-stale.patch)
 
 - **Shared state:** `self.best_config` and `self.bench_time` — written

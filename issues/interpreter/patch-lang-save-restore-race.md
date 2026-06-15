@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT017
 - **Status:** Open
-- **Severity:** HIGH
+- **Rank:** Deferred
 - **Component:** `runtime/interpreter.py` (`_patch_lang`, `_LangPatchScope`)
-- **Tier:** 3 (`TRITON_INTERPRET=1`; serious if interpreter concurrency becomes in-scope)
 
 - **Shared state:** attributes of the shared module/class objects `tl`,
   `tl.core`, `tl.tensor`, `tl.dtype`, `tl.math`, and
@@ -36,4 +35,4 @@
   Route `tl.*` dispatch through a `ContextVar` / thread-local "semantic"
   selector. As a stopgap, serialize all interpreter calls with a
   process-wide lock and document the interpreter as single-threaded
-  (matching the [`../README.md`](../README.md) Tier 3 position).
+  (matching the Deferred position in [`../README.md`](../README.md)).

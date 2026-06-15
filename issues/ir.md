@@ -9,16 +9,16 @@ compile paths construct fresh `MLIRContext` / `PassManager` objects per compile.
 
 ## Issues
 
-| # | Severity | Tier | Component | Issue |
-|---|----------|------|-----------|-------|
-| 1 | LOW | 2 | `PassManager::run` debug flags | `::llvm::DebugFlag` / `setCurrentDebugTypes` mutation with GIL released; diagnostic-only |
-| 2 | LOW | 2 | `PassManager::run` context mutation | `context->disableMultithreading()` is latent only because contexts are per compile |
-| 3 | LOW | 2 | `load_dialects` | Latent only: unsafe on a shared `MLIRContext`, not shared in shipping paths |
-| 4 | LOW | 2 | Operation builders | Latent only: op/type/attr construction would race on a shared context |
-| 5 | LOW | 1 | `plugin::loadPlugins()` | Plain-bool TOCTOU shape, but reached at module init under the import lock today |
-| 6 | LOW | 2 | `PassManager::run` options | Per-call mutations are on per-compile objects; reproducer file write is debug-only |
-| 7 | MED | 3 | `setupTritonDiagnosticHandler` | Diagnostic output goes to process-wide `llvm::errs()` |
-| 8 | LOW | 3 | Env helpers | POSIX `getenv` is unsafe against concurrent `setenv` |
+| # | Rank | Component | Issue |
+| --- | --- | --- | --- |
+| 1 | Low | `PassManager::run` debug flags | `::llvm::DebugFlag` / `setCurrentDebugTypes` mutation with GIL released; diagnostic-only |
+| 2 | Low | `PassManager::run` context mutation | `context->disableMultithreading()` is latent only because contexts are per compile |
+| 3 | Low | `load_dialects` | Latent only: unsafe on a shared `MLIRContext`, not shared in shipping paths |
+| 4 | Low | Operation builders | Latent only: op/type/attr construction would race on a shared context |
+| 5 | Low | `plugin::loadPlugins()` | Plain-bool TOCTOU shape, but reached at module init under the import lock today |
+| 6 | Low | `PassManager::run` options | Per-call mutations are on per-compile objects; reproducer file write is debug-only |
+| 7 | Deferred | `setupTritonDiagnosticHandler` | Diagnostic output goes to process-wide `llvm::errs()` |
+| 8 | Low | Env helpers | POSIX `getenv` is unsafe against concurrent `setenv` |
 
 ## Notes
 

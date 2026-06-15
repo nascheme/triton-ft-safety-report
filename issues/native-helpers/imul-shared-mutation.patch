@@ -2,8 +2,7 @@ From f1033c7ec2341214ec303d5fac73b0a24f2da334 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Wed, 20 May 2026 15:21:38 -0700
 Subject: [PATCH] Drop LinearLayout __imul__ on free-threaded builds
-X-Tier: 2
-X-Severity: MED
+X-Rank: Rejected
 X-Issue-Id: FT034
 
 LinearLayout::operator*= mutates the receiver's bases / outDims

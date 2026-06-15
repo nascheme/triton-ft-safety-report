@@ -2,10 +2,9 @@
 
 - **Issue-Id:** FT038
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Deferred
 - **Component:** `compiler/compiler.py` (`_init_handles`),
   `runtime/jit.py` (`JITFunction.run`), `runtime/autotuner.py`
-- **Tier:** 3
 - **Patch:** [`driver-active-caller-reread.patch`](driver-active-caller-reread.patch)
 
 - **Shared state:** `DriverConfig._active`, swappable at runtime via

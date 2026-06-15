@@ -2,8 +2,7 @@ From c58781a12bc3108c65eab42b81c81ad223735142 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:38:08 -0700
 Subject: [PATCH] Load add_stages_inspection_hook once in compile()
-X-Tier: 3
-X-Severity: MED
+X-Rank: Deferred
 X-Issue-Id: FT008
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

@@ -186,24 +186,27 @@ Quick rules of thumb:
 - `collections.defaultdict` auto-vivification (`d[missing]`) is a
   compound op and is a real race on shared defaultdicts.
 
-## Concurrency model
+## Support Model
 
-Tier definitions live in [README.md](README.md#concurrency-model). They are
-the authoritative version — do not redefine tiers in component issue files
-or in this document.
+The rank model lives in [`issues/README.md`](issues/README.md#rank-model). It
+is the authoritative version; do not redefine rank meanings in component issue
+files or in this document.
 
-When auditing, note which tier an issue falls into. Concurrent compilation
-of different kernels is **Tier 2**, not Tier 3 — maintainers already use
-multi-threaded compilation in production under the GIL build.
+When auditing, decide whether the issue affects the current free-threading
+support goal or should be deferred. The current goal includes one Triton thread
+running while unrelated Python threads run, and multiple Triton threads
+compiling or launching kernels concurrently. Triton maintainers already use
+multi-threaded compilation in production under the GIL build, so concurrent
+compilation is current-goal behavior.
 
-Tier 3 covers concurrent mutation of `knobs.*`, hook chains, or
-driver/backend selection while other threads compile or launch. Tier 3
-issues are **tracked for completeness, not a current goal** — the
-underlying scenarios are unsupported even under the GIL build today.
+Deferred issues include concurrent mutation of `knobs.*`, hook chains,
+driver/backend selection, or `TRITON_INTERPRET=1` while other threads compile
+or launch. These are tracked for completeness, but the underlying scenarios are
+unsupported even under the GIL build today.
 
-If an issue belongs to one of the out-of-scope categories listed in
-README.md (`cl::opt` mutation, concurrent interpreter mode), say so
-explicitly rather than promoting it to a tier.
+If an issue belongs to an out-of-scope category listed in
+[`issues/README.md`](issues/README.md#rank-model), say so explicitly rather
+than promoting it to a current-goal rank.
 
 ## How to audit a file
 
@@ -244,9 +247,9 @@ table:
   ```markdown
   ## Issues
 
-  | # | Severity | Component | Issue |
-  |---|----------|-----------|-------|
-  |   |          |           |       |
+  | # | Rank | Component | Issue |
+  |---|------|-----------|-------|
+  |   |      |           |       |
   ```
 
 After the table, create another section "## Triage notes".
@@ -254,7 +257,7 @@ After the table, create another section "## Triage notes".
 The triage notes section is the place for:
 - extra context,
 - alternative hypotheses,
-- severity reasoning,
+- rank reasoning,
 - examples / interleavings,
 - why a suspected issue was rejected or downgraded,
 - and any detail that would make the individual issue files too long.
@@ -279,8 +282,7 @@ Prefer a short, flat format like this:
 # `<short issue title>`
 
 - **Status:** Open
-- **Severity:** HIGH | MED | LOW
-- **Tier:** <n>
+- **Rank:** Critical Blocker | Blocker | Deferred | Low | Rejected | Out-of-scope
 - **Component:** `<file or subsystem>`
 
 - **Shared state:** what shared mutable state is being raced on
@@ -294,7 +296,7 @@ Prefer a short, flat format like this:
 Guidelines:
 - Keep issue files as short as possible while still making the bug clear.
 - Prefer one screen of text if possible.
-- Do **not** repeat long architecture background, severity discussions, or
+- Do **not** repeat long architecture background, rank discussions, or
   alternative theories in the issue file unless they are necessary to establish
   the bug.
 - Put extra commentary, nuance, edge cases, examples, and follow-up notes in
@@ -315,33 +317,38 @@ Use the individual issue files for the minimum needed to answer:
 4. What is the fix direction?
 
 If you find yourself adding long caveats, multiple alternative hypotheses, or
-detailed severity justification, move that material into the component
+detailed rank justification, move that material into the component
 `issues/<component>.md` triage notes instead.
 
-## Severity guide
+## Rank Guide
 
-- **HIGH:** Concurrent access to a non-thread-safe container
-  (`unordered_map`, `vector`, `dict`, `defaultdict`), use-after-free,
-  borrowed-reference invalidation, or corrupted runtime/compiler state.
-  Plausible crash or wrong-kernel execution.
+- **Critical Blocker:** Current-goal issue with plausible crash, memory/native
+  container corruption, borrowed-reference invalidation, wrong-kernel
+  execution, or corrupted runtime/compiler state.
 
-- **MED:** TOCTOU on lazy init, duplicate compile/finalization,
-  incorrect cache behavior, wrong config/backend/driver selection, or unsafe
-  shared mutable instance state. Causes incorrect behavior.
+- **Blocker:** Current-goal issue that causes incorrect behavior, duplicate
+  compile/finalization with observable side effects, incorrect cache behavior,
+  wrong backend/driver selection, or unsafe shared mutable instance state, but
+  with less catastrophic expected consequences than Critical Blocker.
 
-- **LOW:** Duplicate computation, low-impact first-use races, or stale reads
+- **Deferred:** Serious race shape that requires unsupported concurrent
+  configuration mutation, hook mutation, driver/backend switching, debug-mode
+  execution, or `TRITON_INTERPRET=1`. These are tracked, not current blockers.
+
+- **Low:** Duplicate computation, low-impact first-use races, or stale reads
   where the consequence is limited.
 
-- **Not worth reporting:** Import-time one-shot state, `ContextVar` state,
+- **Rejected / Out-of-scope:** Import-time one-shot state, `ContextVar` state,
   harmless debug-flag staleness, already-protected state, or vague suspicions
-  without a concrete race scenario.
+  without a concrete race scenario. Use Out-of-scope for real concerns that are
+  not free-threading-specific Triton asks.
 
 ## Generating patch files
 
 Use `git` to create patch files.  First, checkout the source in a clean state.
 Apply your fixes and then commit.  Use `git format-patch` to create the patch
-file.  Add X-Severity (HIGH, MED, LOW) and X-Issue-Id headers (FT<nnn>) to the
-patch file.  Reset the `triton` repo to it's original state.
+file. Add `X-Rank` and `X-Issue-Id` headers (`FT<nnn>`) to the patch file.
+Reset the `triton` repo to it's original state.
 
 ## Fix hazard: do not break pickling when adding a lock
 

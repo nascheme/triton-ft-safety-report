@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT012
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Blocker
 - **Component:** `experimental/gsan/symmetric_memory.py` (`rendezvous`)
-- **Tier:** 2
 - **Patch:** [`symmetric-memory-rendezvous-toctou.patch`](symmetric-memory-rendezvous-toctou.patch)
 
 - **Shared state:** module-level `_RUNTIME_BOOTSTRAP_CACHE: dict[(id(process_group), device_index), set[int]]`. The value `set` records which peer ranks have already received this rank's runtime-state FD, so that subsequent `rendezvous()` calls only send the runtime-state FD to new peers.

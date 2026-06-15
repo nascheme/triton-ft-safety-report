@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT015
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Deferred
 - **Component:** `runtime/interpreter.py` (`FunctionRewriter._compile_and_exec`)
-- **Tier:** 3 (`TRITON_INTERPRET=1`; serious if interpreter concurrency becomes in-scope)
 
 - **Shared state:** `self.fn.__globals__` — the user kernel module's
   globals dict, shared across every thread that imports / uses that

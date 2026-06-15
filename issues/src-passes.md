@@ -8,13 +8,13 @@ No individual issue files are warranted. Most risk routes through caller-owned
 
 ## Issues
 
-| # | Severity | Tier | Component | Issue |
-|---|----------|------|-----------|-------|
-| 1 | LOW | 2 | `ModuleAllocation` / `ModuleMembarAnalysis` bindings | Latent only: would mutate caller context, but shipping paths use per-compile contexts and no Python callers |
-| 2 | LOW | 1 | `init_plugin_passes` -> `loadPlugins()` | Plain-bool TOCTOU shape, but module-init callers pre-warm under the import lock |
-| 3 | LOW | 2 | Pass-builder lambdas | Sharing one `PassManager` across threads is a caller-contract race |
-| 4 | LOW | 2 | Pass-builder factory functions | Spot-check only if factory-local static state appears |
-| 5 | Not worth reporting | - | `m.def(...)` / `py::class_` registrations | Import-lock write-once module registration |
+| # | Rank | Component | Issue |
+| --- | --- | --- | --- |
+| 1 | Low | `ModuleAllocation` / `ModuleMembarAnalysis` bindings | Latent only: would mutate caller context, but shipping paths use per-compile contexts and no Python callers |
+| 2 | Low | `init_plugin_passes` -> `loadPlugins()` | Plain-bool TOCTOU shape, but module-init callers pre-warm under the import lock |
+| 3 | Low | Pass-builder lambdas | Sharing one `PassManager` across threads is a caller-contract race |
+| 4 | Low | Pass-builder factory functions | Spot-check only if factory-local static state appears |
+| 5 | Rejected | `m.def(...)` / `py::class_` registrations | Import-lock write-once module registration |
 
 ## Notes
 

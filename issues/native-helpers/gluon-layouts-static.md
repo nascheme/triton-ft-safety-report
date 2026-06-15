@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT033
 - **Status:** Open
-- **Severity:** LOW
+- **Rank:** Low
 - **Component:** `python/src/gluon_ir.cc`
-- **Tier:** 1
 
 - **Shared state:** A function-local static `GluonLayouts layouts;` inside
   `layoutToGluon`. The struct holds raw `py::handle` pointers (released

@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT018
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Deferred
 - **Component:** `runtime/jit.py`
-- **Tier:** 3
 - **Patch:** [`add-stages-inspection-hook-toctou.patch`](add-stages-inspection-hook-toctou.patch)
 
 - **Shared state:** `knobs.runtime.add_stages_inspection_hook` -- a

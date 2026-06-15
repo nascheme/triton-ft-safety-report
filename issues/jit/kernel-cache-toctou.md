@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT023
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Blocker
 - **Component:** `runtime/jit.py`
-- **Tier:** 2
 - **Patch:** [`kernel-cache-toctou.patch`](kernel-cache-toctou.patch)
 
 - **Shared state:** `kernel_cache` and `kernel_key_cache` -- plain dicts inside

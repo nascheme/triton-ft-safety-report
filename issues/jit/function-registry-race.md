@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT021
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Blocker
 - **Component:** `runtime/jit.py`
-- **Tier:** 1
 - **Patch:** [`function-registry-race.patch`](function-registry-race.patch)
 
 - **Shared state:** `_triton_jit_function_registry` (module-level dict) and

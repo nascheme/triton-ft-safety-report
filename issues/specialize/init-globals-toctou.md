@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT044
 - **Status:** Open
-- **Severity:** HIGH
+- **Rank:** Critical Blocker
 - **Component:** `python/src/specialize.cc`
-- **Tier:** 1
 - **Patch:** [`init-globals-toctou.patch`](init-globals-toctou.patch)
 
 - **Shared state:** `static bool init_called` in `specialize.cc` and every

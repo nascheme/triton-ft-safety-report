@@ -11,8 +11,8 @@ binding-layer issue.
 
 ## Start Here
 
-- [Issue index and tier model](issues/README.md): proposed patches, audit
-  progress, component links, and the canonical Tier 1/2/3 definitions.
+- [Issue index and rank model](issues/README.md): proposed patches, rank
+  counts, component links, and the canonical triage definitions.
 - [Audit methodology](CLAUDE.md): thread-safety assumptions, issue format, and
   patch expectations.
 - [Architecture overview](OVERVIEW.md): Triton components and how the audit
@@ -21,7 +21,7 @@ binding-layer issue.
   free-threaded CPython container behavior.
 - [Glossary](GLOSSARY.md): terminology used throughout the report.
 
-Tier 1-2 HIGH/MED findings that currently block the free-threading goal are
-listed in the [proposed patch queue](issues/README.md#proposed-patches). LOW
-findings and unsupported Tier 3 scenarios remain tracked in the component issue
-files for audit completeness.
+Current-goal **Critical Blocker** and **Blocker** findings are listed in the
+[patch queue](issues/README.md#patch-queue). Deferred, Low, Rejected, and
+Out-of-scope findings remain tracked in the component issue files for audit
+completeness.

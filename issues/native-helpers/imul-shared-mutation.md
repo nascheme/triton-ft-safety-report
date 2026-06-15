@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT034
 - **Status:** Rejected
-- **Severity:** -
+- **Rank:** Rejected
 - **Component:** `python/src/linear_layout.cc`
-- **Tier:** -
 - **Patch:** [`imul-shared-mutation.patch`](imul-shared-mutation.patch)
 
 - **Shared state:** A `LinearLayout` instance held by a Python wrapper. The
