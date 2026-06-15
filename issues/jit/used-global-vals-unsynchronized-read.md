@@ -28,3 +28,15 @@
   probabilistic stress test. It manually creates the cache-hit state a racing
   thread can observe: `kernel_cache` has a hit while `used_global_vals` still
   appears as its initial empty dict.
+
+## Validation
+
+Validated locally against a source-built editable Triton checkout at
+`ac580018f1` with Python 3.14.5:
+
+```text
+FT026 reproduced: cache-hit run skipped the global-changed check
+  used_global_vals was empty even though CAPTURED_GLOBAL changed
+forcing cache_key first raises as expected
+  Global variable CAPTURED_GLOBAL has changed since we compiled this kernel, from 1 to 2
+```
