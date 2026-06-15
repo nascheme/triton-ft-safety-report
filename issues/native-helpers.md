@@ -7,7 +7,7 @@ Scope: lower-frequency pybind11 bindings in `python/src/linear_layout.cc` and
 
 | # | Rank | Component | Issue |
 | --- | --- | --- | --- |
-| FT033 | Low | `gluon_ir.cc` | [`layoutToGluon` static `GluonLayouts` cache: first-call import latency, leaked refs](native-helpers/gluon-layouts-static.md) |
+| FT033 | Low | `gluon_ir.cc` | `layoutToGluon` uses a function-local static `GluonLayouts` cache whose initialization is C++-serialized but may do first-call Python import/ref work. The remaining concern is minor cold-start behavior. |
 
 ## Notes
 

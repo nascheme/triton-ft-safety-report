@@ -8,8 +8,8 @@ lowering path through `code_generator.py`.
 | # | Rank | Component | Issue |
 | --- | --- | --- | --- |
 | FT010 | Critical Blocker | CompiledKernel | [`CompiledKernel._init_handles` lazy handle initialization race](compiler/compiled-kernel-init-handles-race.md) |
-| FT008 | Deferred | compile() | [`knobs.runtime.add_stages_inspection_hook` TOCTOU in `compile()`](compiler/add-stages-inspection-hook-toctou.md) |
-| FT011 | Deferred | HookChain | [`kernel_load_start_hook` / `kernel_load_end_hook` - `HookChain` iteration race in `_init_handles`](compiler/kernel-load-hook-chain-race.md) |
+| FT008 | Deferred | compile() | `compile()` reads `knobs.runtime.add_stages_inspection_hook` more than once, so concurrent hook mutation can raise or mis-key cache state. Deferred because mid-flight hook mutation is outside the current support goal. |
+| FT011 | Deferred | HookChain | `_init_handles` iterates `kernel_load_start_hook` / `kernel_load_end_hook` while concurrent `HookChain.add` / `remove` could mutate the chain. Deferred because hook mutation during kernel load is unsupported. |
 | FT009 | Blocker | code_generator | [`CodeGenerator.__init__` iterates live `fn.__globals__` via `get_capture_scope`](compiler/code-generator-gscope-iteration-race.md) |
 
 ## Notes

@@ -11,10 +11,10 @@ concurrent interpreter execution becomes in-scope.
 
 | # | Rank | Component | Issue |
 | --- | --- | --- | --- |
-| FT014 | Deferred | `interpreter_builder` | [Global `interpreter_builder.grid_idx` / `grid_dim` trampled by concurrent kernel runs](interpreter/builder-grid-state-race.md) |
-| FT017 | Deferred | `_patch_lang` / `_LangPatchScope` | [Process-wide monkey-patching of `tl.*` with save/restore permanently corrupts `tl` under concurrent runs](interpreter/patch-lang-save-restore-race.md) |
-| FT015 | Deferred | `FunctionRewriter._compile_and_exec` | [Mutation of user kernel's `fn.__globals__` during `exec`, shared across threads](interpreter/compile-and-exec-globals-mutation.md) |
-| FT016 | Deferred | `InterpretedFunction.__call__` | [`__call__` path applies `_patch_lang` without ever restoring, leaking patches](interpreter/interpreted-fn-call-leaks-patches.md) |
+| FT014 | Deferred | `interpreter_builder` | The module-level `interpreter_builder` stores `grid_idx` / `grid_dim`, so concurrent interpreter launches can read another thread's grid state and execute with wrong `program_id` values. Deferred because it requires `TRITON_INTERPRET=1`. |
+| FT017 | Deferred | `_patch_lang` / `_LangPatchScope` | Interpreter mode monkey-patches process-global `tl.*` symbols, and restore ordering can permanently corrupt them under concurrent runs. Deferred because it requires concurrent `TRITON_INTERPRET=1` execution. |
+| FT015 | Deferred | `FunctionRewriter._compile_and_exec` | The rewrite path mutates a user kernel's shared `fn.__globals__` during `exec`, so concurrent interpreter compilation can leak temporary globals across threads. Deferred because interpreter concurrency is not currently supported. |
+| FT016 | Deferred | `InterpretedFunction.__call__` | `__call__` applies `_patch_lang` without restoring it, so interpreter patches can leak into later calls or non-interpreter code. Deferred because it is confined to `TRITON_INTERPRET=1`. |
 | 5 | Low | `InterpretedFunction.rewritten_fn` | Class-level rewrite cache is check-then-set; duplicate AST rewrite under concurrent first use |
 | 6 | Low | `_patch_lang` | Iteration over `fn.__globals__.items()` while `_compile_and_exec` mutates the same dict |
 | 7 | Low | `interpreter.cc` `mem_semantic_map` | `std::map` read via non-const `operator[]`; insert-on-miss latent risk |

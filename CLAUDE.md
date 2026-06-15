@@ -258,8 +258,9 @@ The triage notes section is the place for:
 - why a suspected issue was not promoted,
 - and any detail that would make the individual issue files too long.
 
-For issues that are determined to be valid, create one individual markdown file
-per issue as `issues/<component>/<issue-name>.md`.
+For Critical Blocker and Blocker issues, create one individual markdown file per
+issue as `issues/<component>/<issue-name>.md`. Keep Deferred and Low issues as
+component-table summaries of at most three sentences.
 
 Keep the individual issue files brief. Reviewers should be able to understand
 the bug, impact, and fix quickly without reading a long narrative. Put any
@@ -278,7 +279,7 @@ Prefer a short, flat format like this:
 # `<short issue title>`
 
 - **Status:** Open
-- **Rank:** Critical Blocker | Blocker | Deferred | Low
+- **Rank:** Critical Blocker | Blocker
 - **Component:** `<file or subsystem>`
 
 - **Shared state:** what shared mutable state is being raced on
@@ -336,10 +337,10 @@ detailed rank justification, move that material into the component
 
 ## Generating patch files
 
-Use `git` to create patch files.  First, checkout the source in a clean state.
-Apply your fixes and then commit.  Use `git format-patch` to create the patch
-file. Add `X-Rank` and `X-Issue-Id` headers (`FT<nnn>`) to the patch file.
-Reset the `triton` repo to it's original state.
+Use `git` to create patch files for current-goal fixes. First, checkout the
+source in a clean state. Apply your fixes and then commit. Use `git
+format-patch` to create the patch file. Add `X-Rank` and `X-Issue-Id` headers
+(`FT<nnn>`) to the patch file. Reset the `triton` repo to it's original state.
 
 ## Fix hazard: do not break pickling when adding a lock
 

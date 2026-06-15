@@ -51,13 +51,15 @@ Entries in this queue are ranked **Critical Blocker** or **Blocker**.
 
 ## Rank Counts
 
-Counts below are generated from the ranked detailed issue files under
-`issues/<component>/`. Component-summary-only candidates are not counted here.
+Counts below cover FT-numbered ranked findings. Critical Blocker and Blocker
+findings have detailed issue files; Deferred and Low findings are summarized in
+component tables only. Component-summary-only candidates without FT IDs are not
+counted here.
 
-There are **39 ranked detailed issue files**. Of these, **21** are current-goal
+There are **39 ranked FT findings**. Of these, **21** are current-goal
 issue IDs: **8 Critical Blocker** and **13 Blocker**.
 
-| Component | Critical Blocker | Blocker | Deferred | Low | Ranked issue files |
+| Component | Critical Blocker | Blocker | Deferred | Low | Ranked FT findings |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | [autotuner](autotuner.md) | 1 | 4 | 0 | 2 | 7 |
 | [compiler](compiler.md) | 1 | 1 | 2 | 0 | 4 |
@@ -102,3 +104,5 @@ When auditing, assign the issue a single rank:
   `TRITON_INTERPRET=1`.
 - Use **Low** for latent, diagnostic, duplicate-work, or otherwise low-impact
   findings.
+- Keep Deferred and Low findings as table-only summaries of at most three
+  sentences.

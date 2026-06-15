@@ -9,8 +9,8 @@ tests.
 | # | Rank | Component | Issue |
 | --- | --- | --- | --- |
 | FT040 | Blocker | DriverConfig.default | [`DriverConfig.default` lazy init race creates duplicate driver instances](runtime-driver/driver-default-lazy-init-race.md) |
-| FT039 | Deferred | DriverConfig.active | [`DriverConfig.active` lazy init / `set_active` ordering race](runtime-driver/driver-active-set-active-race.md) |
-| FT038 | Deferred | hot-path callers | [Hot-path callers re-read `driver.active` across multiple statements](runtime-driver/driver-active-caller-reread.md) |
+| FT039 | Deferred | DriverConfig.active | `DriverConfig.active` lazy initialization can race with `set_active`, exposing stale or overwritten active-driver state. Deferred because changing the active driver while other threads compile or launch is unsupported. |
+| FT038 | Deferred | hot-path callers | Several hot-path callers read `driver.active` more than once, so concurrent active-driver mutation can mix driver objects within one operation. Deferred because it requires unsupported driver/backend switching mid-flight. |
 | FT041 | Critical Blocker | upstream import | [Upstream segfault on Python 3.13t during Triton import](runtime-driver/seg-fault-gh-6721.md) |
 
 FT041 is an upstream symptom. FT040 is a plausible contributing race, but the

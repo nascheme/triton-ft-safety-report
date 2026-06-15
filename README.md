@@ -23,4 +23,4 @@ binding-layer issue.
 
 Current-goal **Critical Blocker** and **Blocker** findings are listed in the
 [patch queue](issues/README.md#patch-queue). Deferred and Low findings remain
-tracked in the component issue files.
+as compact summaries in the component tables.
