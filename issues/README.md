@@ -10,11 +10,11 @@ The top-level project context lives in [`../README.md`](../README.md). See
 ## Proposed Patches
 
 Each issue below has a patch file along with an issue file
-(`issues/<component>/<issue>.patch` from the repo root). This list is scoped to
-the Tier 1-2 findings at HIGH or MED severity: the issues that block the Tier 1
-and Tier 2 goals. LOW issues and Tier 3 issues are tracked in the per-component
-issue files but are not listed here. See below for definitions of the tier and
-severity classifications.
+(`issues/<component>/<issue>.patch` from the repo root). This is a patch queue,
+not a count of every Tier 1-2 issue ID: some patch entries cover multiple issue
+IDs, and some issue IDs are tracked as upstream symptoms or as consequences of
+another patch. See [Detailed Issue Counts](#detailed-issue-counts) for the
+canonical counts.
 
 ### Severity: HIGH
 
@@ -68,36 +68,30 @@ severity classifications.
   Unordered `kernel_cache` and `used_global_vals` writes let a cache hit observe
   empty `used_global_vals` and skip the global-changed safety check.
 
-## Audit Progress
+## Detailed Issue Counts
 
-Counts include all tracked tiers. Tier 3 findings are kept for audit
-completeness, but they are not part of the current Tier 1-2 free-threading
-support goal.
+Counts below are generated from the detailed issue files under
+`issues/<component>/`. Component-summary-only candidates and rejected notes are
+not counted here.
 
-| Component | Status | HIGH | MED | LOW | Total |
-|-----------|--------|------|-----|-----|-------|
-| [jit](jit.md) | In-review | 1 | 7 | 0 | 8 |
-| [autotuner](autotuner.md) | In-review | 1 | 4 | 2 | 7 |
-| [compiler](compiler.md) | In-review | 1 | 3 | 0 | 4 |
-| [runtime-driver](runtime-driver.md) | In-review | 1 | 3 | 0 | 4 |
-| [nvidia-driver](nvidia-driver.md) | In-review | 0 | 0 | 3 | 3 |
-| [specialize](specialize.md) | In-review | 4 | 1 | 1 | 6 |
-| [async-compile](async-compile.md) | In-review | 0 | 2 | 2 | 4 |
-| [cache](cache.md) | In-review | 0 | 0 | 4 | 4 |
-| [knobs](knobs.md) | In-review | 1 | 4 | 3 | 8 |
-| [backends](backends.md) | In-review | 0 | 0 | 2 | 2 |
-| [ir](ir.md) | In-review | 0 | 1 | 7 | 8 |
-| [llvm](llvm.md) | In-review | 0 | 0 | 8 | 8 |
-| [src-main](src-main.md) | In-review | 0 | 0 | 1 | 1 |
-| [src-passes](src-passes.md) | In-review | 0 | 0 | 4 | 4 |
-| [runtime-build](runtime-build.md) | In-review | 0 | 1 | 5 | 6 |
-| [interpreter](interpreter.md) | In-review | 2 | 2 | 3 | 7 |
-| [compiler-codegen](compiler-codegen.md) | In-review | 0 | 0 | 0 | 0 |
-| [native-helpers](native-helpers.md) | In-review | 0 | 0 | 1 | 1 |
-| [language](language.md) | In-review | 0 | 0 | 6 | 6 |
-| [tools](tools.md) | In-review | 0 | 0 | 4 | 4 |
-| [experimental](experimental.md) | In-review | 0 | 3 | 4 | 7 |
-| **Total** | | **11** | **31** | **60** | **102** |
+There are **21 Tier 1-2 HIGH/MED issue IDs**: **8 HIGH** and **13 MED**.
+Tier 3 findings are tracked for audit completeness, but they are not part of
+the current Tier 1-2 free-threading support goal.
+
+| Component | HIGH | MED | LOW | Other | Detailed issue files | Tier 1-2 HIGH/MED |
+|-----------|-----:|----:|----:|------:|---------------------:|------------------:|
+| [autotuner](autotuner.md) | 1 | 4 | 2 | 0 | 7 | 5 |
+| [compiler](compiler.md) | 1 | 3 | 0 | 0 | 4 | 2 |
+| [experimental](experimental.md) | 0 | 2 | 0 | 0 | 2 | 2 |
+| [interpreter](interpreter.md) | 2 | 2 | 0 | 0 | 4 | 0 |
+| [jit](jit.md) | 1 | 7 | 0 | 1 | 9 | 6 |
+| [knobs](knobs.md) | 0 | 1 | 0 | 0 | 1 | 0 |
+| [llvm](llvm.md) | 0 | 0 | 3 | 0 | 3 | 0 |
+| [native-helpers](native-helpers.md) | 0 | 0 | 1 | 4 | 5 | 0 |
+| [nvidia-driver](nvidia-driver.md) | 0 | 0 | 2 | 0 | 2 | 0 |
+| [runtime-driver](runtime-driver.md) | 1 | 3 | 0 | 0 | 4 | 2 |
+| [specialize](specialize.md) | 4 | 0 | 0 | 0 | 4 | 4 |
+| **Total** | **10** | **22** | **8** | **5** | **45** | **21** |
 
 ## Tier Model
 
