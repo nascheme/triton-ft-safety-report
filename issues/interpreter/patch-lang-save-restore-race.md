@@ -4,7 +4,13 @@
 - **Status:** Open
 - **Severity:** HIGH
 - **Component:** `runtime/interpreter.py` (`_patch_lang`, `_LangPatchScope`)
-- **Tier:** 2
+- **Tier:** 3
+
+Tier 3 because this issue requires concurrent `TRITON_INTERPRET=1` execution.
+The interpreter is currently a debug-only, single-threaded path outside the
+Tier 1-2 free-threading goal. Severity remains HIGH if interpreter concurrency
+becomes in-scope: this race can permanently corrupt process-wide `tl.*`
+bindings.
 
 - **Shared state:** attributes of the shared module/class objects `tl`,
   `tl.core`, `tl.tensor`, `tl.dtype`, `tl.math`, and
@@ -36,4 +42,4 @@
   Route `tl.*` dispatch through a `ContextVar` / thread-local "semantic"
   selector. As a stopgap, serialize all interpreter calls with a
   process-wide lock and document the interpreter as single-threaded
-  (matching the `README.md` "pragmatically out of scope" position).
+  (matching the [`../README.md`](../README.md) Tier 3 position).
