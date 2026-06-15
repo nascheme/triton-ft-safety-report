@@ -14,9 +14,9 @@ twice and clobber hook/pruning/disk-cache context.
 | FT006 | Blocker | Autotuner.nargs | [`self.nargs` clobbered by concurrent `run()` calls, corrupting hook/pruning context](autotuner/nargs-clobber.md) |
 | FT004 | Blocker | Autotuner.configs_timings | [`self.configs_timings` clobbered across concurrent tuning keys](autotuner/configs-timings-clobber.md) |
 | FT007 | Blocker | Autotuner.restore_copies | [`self.restore_copies` pre/post hook race restores wrong snapshot or raises](autotuner/restore-copies-race.md) |
+| FT003 | Blocker | check_disk_cache | [`check_disk_cache` compound race on shared instance state and disk](autotuner/check-disk-cache-race.md) |
 | FT001 | Low | Autotuner.best_config | Concurrent calls can leave `self.best_config` and `self.bench_time` showing another thread's most recent tuning result. This is stale diagnostic/state exposure, not the root cache race. |
 | FT005 | Low | Autotuner.do_bench | The shared `@cached_property` can run duplicate benchmark-helper setup on concurrent first use. The result should converge, so the impact is wasted work rather than incorrect tuning. |
-| FT003 | Blocker | check_disk_cache | [`check_disk_cache` compound race on shared instance state and disk](autotuner/check-disk-cache-race.md) |
 
 ## Notes
 
