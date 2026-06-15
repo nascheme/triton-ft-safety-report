@@ -204,9 +204,10 @@ driver/backend selection, or `TRITON_INTERPRET=1` while other threads compile
 or launch. These are tracked for completeness, but the underlying scenarios are
 unsupported even under the GIL build today.
 
-If an issue belongs to an out-of-scope category listed in
-[`issues/README.md`](issues/README.md#rank-model), say so explicitly rather
-than promoting it to a current-goal rank.
+If an issue is rejected or out of scope, do not promote it to a current-goal
+rank. Preserve it only as a short note in
+[`issues/README.md`](issues/README.md#dropped-and-out-of-scope-notes) when the
+audit trail is worth the space.
 
 ## How to audit a file
 
