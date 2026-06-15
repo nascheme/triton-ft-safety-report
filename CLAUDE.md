@@ -282,7 +282,7 @@ Prefer a short, flat format like this:
 # `<short issue title>`
 
 - **Status:** Open
-- **Rank:** Critical Blocker | Blocker | Deferred | Low | Rejected | Out-of-scope
+- **Rank:** Critical Blocker | Blocker | Deferred | Low
 - **Component:** `<file or subsystem>`
 
 - **Shared state:** what shared mutable state is being raced on
@@ -338,10 +338,9 @@ detailed rank justification, move that material into the component
 - **Low:** Duplicate computation, low-impact first-use races, or stale reads
   where the consequence is limited.
 
-- **Rejected / Out-of-scope:** Import-time one-shot state, `ContextVar` state,
-  harmless debug-flag staleness, already-protected state, or vague suspicions
-  without a concrete race scenario. Use Out-of-scope for real concerns that are
-  not free-threading-specific Triton asks.
+- Do not create detailed issue files for rejected or out-of-scope leads.
+  Summarize them in `issues/README.md` only when preserving the audit trail is
+  worth the space.
 
 ## Generating patch files
 

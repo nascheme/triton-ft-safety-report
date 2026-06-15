@@ -14,11 +14,12 @@ No individual issue files are warranted. Most risk routes through caller-owned
 | 2 | Low | `init_plugin_passes` -> `loadPlugins()` | Plain-bool TOCTOU shape, but module-init callers pre-warm under the import lock |
 | 3 | Low | Pass-builder lambdas | Sharing one `PassManager` across threads is a caller-contract race |
 | 4 | Low | Pass-builder factory functions | Spot-check only if factory-local static state appears |
-| 5 | Rejected | `m.def(...)` / `py::class_` registrations | Import-lock write-once module registration |
 
 ## Notes
 
 - The file owns no important file-scope mutable state.
+- Module registrations run once under the import lock and are not tracked as a
+  ranked finding.
 - The analysis wrappers have no Python callers in the shipping tree today.
 - Revisit #3 if Triton starts exposing reusable `PassManager` objects as a
   supported Python API.

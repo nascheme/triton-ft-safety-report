@@ -18,8 +18,6 @@ column with a support-scope column to decide what matters.
 | **Blocker** | Must be fixed for the current free-threaded Triton goal, but with a less catastrophic or more recoverable consequence than Critical Blocker. |
 | **Deferred** | Serious race shape, but it requires unsupported concurrent configuration mutation, debug-mode execution, driver/backend switching, or `TRITON_INTERPRET=1`. Track it, but do not block the current goal on it. |
 | **Low** | Low-impact, latent, diagnostic-only, duplicate-work, or cold-start behavior. |
-| **Rejected** | Audited and not considered a free-threading bug or Triton-owned fix. |
-| **Out-of-scope** | Real concern, but outside this free-threading report, usually because it violates a pre-existing maintainer rule independent of no-GIL Python. |
 
 `TRITON_INTERPRET=1` findings are **Deferred** today. They are serious once
 concurrent interpreter execution becomes an in-scope support goal, but the
@@ -53,27 +51,40 @@ Entries in this queue are ranked **Critical Blocker** or **Blocker**.
 
 ## Rank Counts
 
-Counts below are generated from the detailed issue files under
-`issues/<component>/`. Component-summary-only candidates and rejected notes are
+Counts below are generated from the ranked detailed issue files under
+`issues/<component>/`. Component-summary-only candidates and dropped notes are
 not counted here.
 
-There are **21 current-goal issue IDs**: **8 Critical Blocker** and
-**13 Blocker**.
+There are **39 ranked detailed issue files**. Of these, **21** are current-goal
+issue IDs: **8 Critical Blocker** and **13 Blocker**.
 
-| Component | Critical Blocker | Blocker | Deferred | Low | Rejected | Out-of-scope | Detailed issue files |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| [autotuner](autotuner.md) | 1 | 4 | 0 | 2 | 0 | 0 | 7 |
-| [compiler](compiler.md) | 1 | 1 | 2 | 0 | 0 | 0 | 4 |
-| [experimental](experimental.md) | 0 | 2 | 0 | 0 | 0 | 0 | 2 |
-| [interpreter](interpreter.md) | 0 | 0 | 4 | 0 | 0 | 0 | 4 |
-| [jit](jit.md) | 1 | 5 | 2 | 0 | 1 | 0 | 9 |
-| [knobs](knobs.md) | 0 | 0 | 1 | 0 | 0 | 0 | 1 |
-| [llvm](llvm.md) | 0 | 0 | 0 | 2 | 0 | 1 | 3 |
-| [native-helpers](native-helpers.md) | 0 | 0 | 0 | 1 | 4 | 0 | 5 |
-| [nvidia-driver](nvidia-driver.md) | 0 | 0 | 0 | 2 | 0 | 0 | 2 |
-| [runtime-driver](runtime-driver.md) | 1 | 1 | 2 | 0 | 0 | 0 | 4 |
-| [specialize](specialize.md) | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
-| **Total** | **8** | **13** | **11** | **7** | **5** | **1** | **45** |
+| Component | Critical Blocker | Blocker | Deferred | Low | Ranked issue files |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| [autotuner](autotuner.md) | 1 | 4 | 0 | 2 | 7 |
+| [compiler](compiler.md) | 1 | 1 | 2 | 0 | 4 |
+| [experimental](experimental.md) | 0 | 2 | 0 | 0 | 2 |
+| [interpreter](interpreter.md) | 0 | 0 | 4 | 0 | 4 |
+| [jit](jit.md) | 1 | 5 | 2 | 0 | 8 |
+| [knobs](knobs.md) | 0 | 0 | 1 | 0 | 1 |
+| [llvm](llvm.md) | 0 | 0 | 0 | 2 | 2 |
+| [native-helpers](native-helpers.md) | 0 | 0 | 0 | 1 | 1 |
+| [nvidia-driver](nvidia-driver.md) | 0 | 0 | 0 | 2 | 2 |
+| [runtime-driver](runtime-driver.md) | 1 | 1 | 2 | 0 | 4 |
+| [specialize](specialize.md) | 4 | 0 | 0 | 0 | 4 |
+| **Total** | **8** | **13** | **11** | **7** | **39** |
+
+## Dropped And Out-Of-Scope Notes
+
+The following audit leads are intentionally not ranked issue files:
+
+| Former ID | Resolution |
+| --- | --- |
+| FT022 | `JITCallable.hash` placeholder does not escape `_hash_lock`; not a bug. |
+| FT029 | Runtime mutation of LLVM `cl::opt` is a real pre-existing debug-path rule violation, not a free-threading-specific Triton ask. |
+| FT031 | `LinearLayout` view helpers use an unnecessary `const_cast`; const-correctness cleanup only. |
+| FT032 | Gluon shared-`MLIRContext` uniquer race premise was incorrect; normal-path uniquers are already locked. |
+| FT034 | Shared `LinearLayout.__imul__` requires intentional caller misuse, and the proposed fix would split API behavior across builds. |
+| FT035 | Linear-layout shared-`MLIRContext` uniquer race premise was incorrect for the same reason as FT032. |
 
 ## Component Files
 
@@ -105,5 +116,6 @@ When auditing, assign the issue a single rank:
   `TRITON_INTERPRET=1`.
 - Use **Low** for latent, diagnostic, duplicate-work, or otherwise low-impact
   findings.
-- Use **Rejected** or **Out-of-scope** when the report should preserve the
-  analysis but should not ask Triton maintainers for a free-threading fix.
+- Do not create a detailed issue file for rejected or out-of-scope leads.
+  Summarize them in [Dropped And Out-Of-Scope Notes](#dropped-and-out-of-scope-notes)
+  only if the audit trail is worth preserving.

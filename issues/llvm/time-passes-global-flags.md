@@ -61,9 +61,8 @@ type: issue
   use with concurrent in-process compilation (timing reports will be
   interleaved/truncated) and treat it as a single-threaded diagnostic.
   If a mutex is wanted anyway, serialize the timing-enabled region under
-  the same process-wide compile mutex that would cover the `cl::opt`
-  mutations (`issues/llvm/global-cl-opt-mutation.md`) — both share the
-  same root cause: process-global LLVM state mutated from a GIL-released
-  path. Alternatively, set `TimePassesIsEnabled` / `TimePassesPerRun`
+  the same kind of process-wide compile mutex that would cover other
+  process-global LLVM state mutated from GIL-released paths. Alternatively,
+  set `TimePassesIsEnabled` / `TimePassesPerRun`
   once at module-init time based on the env var instead of every compile,
   and skip the `reportAndResetTimings` calls when the flags aren't on.
