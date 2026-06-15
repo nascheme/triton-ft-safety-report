@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT020
 - **Status:** Open
-- **Severity:** HIGH
+- **Rank:** Critical Blocker
 - **Component:** `runtime/jit.py`
-- **Tier:** 2
 - **Patch:** [`device-caches-race.patch`](device-caches-race.patch)
 
 - **Shared state:** `self.device_caches` -- a `defaultdict(self.create_binder)`

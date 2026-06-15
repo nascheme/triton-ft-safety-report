@@ -10,12 +10,12 @@ observable through `runtime/jit.py`'s shared `kernel_cache`.
 
 ## Issues
 
-| # | Severity | Component | Tier | Issue |
-|---|----------|-----------|------|-------|
-| 1 | MED | AsyncCompileMode.submit | 2 | Duplicate executor submissions when two threads call `submit()` with the same key |
-| 2 | MED | FutureKernel.result | 2 | Duplicate `finalize_compile` / `jit_post_compile_hook` from non-atomic first use |
-| 3 | LOW | AsyncCompileMode.raw_futures | 2 | `raw_futures.append` can race the `as_completed` loop in `__exit__` |
-| 4 | LOW | FutureKernel.__getattr__ | 2 | Attribute access re-enters `result()`, widening the race window |
+| # | Rank | Component | Issue |
+| --- | --- | --- | --- |
+| 1 | Blocker | AsyncCompileMode.submit | Duplicate executor submissions when two threads call `submit()` with the same key |
+| 2 | Blocker | FutureKernel.result | Duplicate `finalize_compile` / `jit_post_compile_hook` from non-atomic first use |
+| 3 | Low | AsyncCompileMode.raw_futures | `raw_futures.append` can race the `as_completed` loop in `__exit__` |
+| 4 | Low | FutureKernel.__getattr__ | Attribute access re-enters `result()`, widening the race window |
 
 ## Notes
 

@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT025
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Blocker
 - **Component:** `runtime/jit.py`
-- **Tier:** 2
 - **Patch:** [`unsafe-update-src-race.patch`](unsafe-update-src-race.patch)
 
 - **Shared state:** `JITCallable._src` and `JITCallable.hash` -- must stay in

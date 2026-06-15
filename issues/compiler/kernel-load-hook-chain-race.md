@@ -2,10 +2,9 @@
 
 - **Issue-Id:** FT011
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Deferred
 - **Component:** `python/triton/knobs.py` (`HookChain`),
   `python/triton/compiler/compiler.py`
-- **Tier:** 3
 - **Patch:** [`kernel-load-hook-chain-race.patch`](kernel-load-hook-chain-race.patch)
 
 - **Shared state:** `HookChain.calls: list[F]` on the process-global

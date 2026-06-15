@@ -6,11 +6,11 @@ lazy initialization race.
 
 ## Issues
 
-| # | Severity | Component | Tier | Issue |
-|---|----------|-----------|------|-------|
-| FT037 | LOW | module globals | 1 | [`PyCUtensorMap` / `PyKernelArg` / `ARG_*` module globals rewritten on every `CudaUtils()` call](nvidia-driver/module-globals-lazy-init-race.md) |
-| FT036 | LOW | `CudaUtils` singleton | 1 | [Broken singleton pattern causes duplicate `compile_module_from_src` / `dlopen` under concurrent driver bring-up](nvidia-driver/cudautils-singleton-race.md) |
-| 3 | LOW | `CudaDriver.__init__` | 1 | Every `CudaDriver()` calls `CudaUtils()`; covered by FT036/FT037 |
+| # | Rank | Component | Issue |
+| --- | --- | --- | --- |
+| FT037 | Low | module globals | [`PyCUtensorMap` / `PyKernelArg` / `ARG_*` module globals rewritten on every `CudaUtils()` call](nvidia-driver/module-globals-lazy-init-race.md) |
+| FT036 | Low | `CudaUtils` singleton | [Broken singleton pattern causes duplicate `compile_module_from_src` / `dlopen` under concurrent driver bring-up](nvidia-driver/cudautils-singleton-race.md) |
+| 3 | Low | `CudaDriver.__init__` | Every `CudaDriver()` calls `CudaUtils()`; covered by FT036/FT037 |
 
 ## Notes
 

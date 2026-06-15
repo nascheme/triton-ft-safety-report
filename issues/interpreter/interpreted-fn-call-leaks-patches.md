@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT016
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Deferred
 - **Component:** `runtime/interpreter.py` (`InterpretedFunction.__call__`)
-- **Tier:** 3 (`TRITON_INTERPRET=1`; serious if interpreter concurrency becomes in-scope)
 
 - **Shared state:** the same shared `tl.*` module/class attributes
   patched by `_patch_lang` (see `patch-lang-save-restore-race.md`).

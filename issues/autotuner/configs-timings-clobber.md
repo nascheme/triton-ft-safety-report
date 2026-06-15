@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT004
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Blocker
 - **Component:** `python/triton/runtime/autotuner.py`
-- **Tier:** 2
 - **Patch:** [`cache-toctou.patch`](cache-toctou.patch)
 
 - **Shared state:** `self.configs_timings` — a `dict` mapping `Config` objects

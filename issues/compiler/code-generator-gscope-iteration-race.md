@@ -1,10 +1,7 @@
 # `CodeGenerator.__init__` iterates live `fn.__globals__`
 
 - **Issue-Id:** FT009
-- **Status:** Open — analysis done, patch to be developed
-- **Severity:** MED
 - **Component:** `python/triton/compiler/code_generator.py`
-- **Tier:** 1
 
 - **Shared state:** The defining module's `__dict__`, reached as
   `fn.__globals__` via `JITFunction.get_capture_scope()` in

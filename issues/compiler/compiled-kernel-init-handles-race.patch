@@ -2,8 +2,7 @@ From a2d1cd06ab475aaee7447013167459b708f42387 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 26 May 2026 09:42:39 -0700
 Subject: [PATCH] Lock CompiledKernel._init_handles, publish _run last
-X-Tier: 2
-X-Severity: HIGH
+X-Rank: Critical Blocker
 X-Issue-Id: FT010
 
 Re-structure _init_handles() to avoid data races.  On fast path (init

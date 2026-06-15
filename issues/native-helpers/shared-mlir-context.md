@@ -2,13 +2,12 @@
 
 - **Issue-Id:** FT035
 - **Status:** Rejected (premise incorrect)
-- **Severity:** —
+- **Rank:** Rejected
 - **Component:** `python/src/linear_layout.cc`
-- **Tier:** 2
 
 ## Summary
 
-This was filed as a HIGH race on the StorageUniquer of the process-wide
+This was originally suspected as a race on the StorageUniquer of the process-wide
 `MLIRContext` shared by `getLinearLayoutContext()`. The claim was that the
 context is built with `MLIRContext::Threading::DISABLED`, so its uniquers take
 no internal locks, making concurrent `mlir::StringAttr::get(ctx, …)` from

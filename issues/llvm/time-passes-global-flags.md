@@ -8,10 +8,9 @@ type: issue
 
 - **Issue-Id:** FT030
 - **Status:** Open
-- **Severity:** LOW
+- **Rank:** Low
 - **Component:** `python/src/llvm.cc` — `translateLLVMIRToASM` (only active
   when `LLVM_ENABLE_TIMING` is set)
-- **Tier:** 1/2
 
 - **Shared state:**
   - `llvm::TimePassesIsEnabled` and `llvm::TimePassesPerRun` — process-global
@@ -51,7 +50,7 @@ type: issue
      `raw_ostream`) with no synchronization, producing interleaved or
      torn timing-report output.
 
-- **Severity rationale:** Strictly opt-in via `LLVM_ENABLE_TIMING` and
+- **Rank rationale:** Strictly opt-in via `LLVM_ENABLE_TIMING` and
   expected to be used in single-threaded test/debug situations, not in
   multi-threaded production work. No compiled-code correctness impact —
   the race only scrambles the timing report itself (drained counters,

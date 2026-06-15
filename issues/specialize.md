@@ -9,14 +9,14 @@ initialization guarded by a plain boolean and process-global
 
 ## Issues
 
-| # | Severity | Tier | Component | Issue |
-|---|----------|------|-----------|-------|
-| FT044 | HIGH | 1 | `init_globals` / `init_called` | [`init_globals()` TOCTOU: plain-bool guard allows concurrent lazy init of all file-scope globals](specialize/init-globals-toctou.md) |
-| FT042 | HIGH | 2 | `dtype_ptr2str` / `dtype2str` | [`dtype_ptr2str` and `dtype2str` `std::unordered_map` caches mutated on the specialization hot path](specialize/dtype-ptr2str-unordered-map-race.md) |
-| FT043 | HIGH | 2 | `dtype2str` | [`dtype2str` `std::unordered_map` mutated on the tensordesc specialization path](specialize/dtype2str-unordered-map-race.md) |
-| FT045 | HIGH | 1 | `type_handler_cache` | [`type_handler_cache` read during / before its population races init and specialize-dispatch](specialize/type-handler-cache-init-race.md) |
-| 5 | MED | 1 | `init_called` memory ordering | Non-atomic publish is subsumed by FT044 |
-| 6 | LOW | 1 | `torch_tensor_cls` lazy probe | `torch.Tensor` is discovered only if torch is already imported at first specialize call |
+| # | Rank | Component | Issue |
+| --- | --- | --- | --- |
+| FT044 | Critical Blocker | `init_globals` / `init_called` | [`init_globals()` TOCTOU: plain-bool guard allows concurrent lazy init of all file-scope globals](specialize/init-globals-toctou.md) |
+| FT042 | Critical Blocker | `dtype_ptr2str` / `dtype2str` | [`dtype_ptr2str` and `dtype2str` `std::unordered_map` caches mutated on the specialization hot path](specialize/dtype-ptr2str-unordered-map-race.md) |
+| FT043 | Critical Blocker | `dtype2str` | [`dtype2str` `std::unordered_map` mutated on the tensordesc specialization path](specialize/dtype2str-unordered-map-race.md) |
+| FT045 | Critical Blocker | `type_handler_cache` | [`type_handler_cache` read during / before its population races init and specialize-dispatch](specialize/type-handler-cache-init-race.md) |
+| 5 | Blocker | `init_called` memory ordering | Non-atomic publish is subsumed by FT044 |
+| 6 | Low | `torch_tensor_cls` lazy probe | `torch.Tensor` is discovered only if torch is already imported at first specialize call |
 
 ## Notes
 

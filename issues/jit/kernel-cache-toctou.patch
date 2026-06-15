@@ -2,8 +2,7 @@ From 9841688bf0243ea707e31a3c8a05f8d37d08e67c Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 11:00:06 -0700
 Subject: [PATCH] Lock the kernel_cache check-then-compile in run()
-X-Tier: 2
-X-Severity: MED
+X-Rank: Blocker
 X-Issue-Id: FT023
 
 Each per-device cache tuple carries a plain `kernel_cache` dict shared

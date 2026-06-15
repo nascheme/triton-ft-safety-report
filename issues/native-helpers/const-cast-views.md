@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT031
 - **Status:** Not a FT issue — const-correctness fix only
-- **Severity:** -
+- **Rank:** Rejected
 - **Component:** `python/src/linear_layout.cc`
-- **Tier:** -
 - **Patch:** [`const-cast-views.patch`](const-cast-views.patch)
 
 - **Shared state:** A `LinearLayout` instance owned by a Python wrapper.

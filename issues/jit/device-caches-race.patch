@@ -2,8 +2,7 @@ From 2a13bfc1fd6ce9d832ab66c6d6831511bb1ac639 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:57:09 -0700
 Subject: [PATCH] Serialize JITFunction.device_caches population
-X-Tier: 2
-X-Severity: HIGH
+X-Rank: Critical Blocker
 X-Issue-Id: FT020
 
 Avoid using `defaultdict()` for `JITFunction.device_caches`. It risks

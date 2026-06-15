@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT005
 - **Status:** Open
-- **Severity:** LOW
+- **Rank:** Low
 - **Component:** `python/triton/runtime/autotuner.py`
-- **Tier:** 2
 - **Patch:** [`do-bench-cached-property.patch`](do-bench-cached-property.patch)
 
 - **Shared state:** `self.do_bench` backed by `@cached_property`,

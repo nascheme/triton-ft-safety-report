@@ -2,13 +2,12 @@
 
 - **Issue-Id:** FT032
 - **Status:** Rejected (premise incorrect)
-- **Severity:** —
+- **Rank:** Rejected
 - **Component:** `python/src/gluon_ir.cc`
-- **Tier:** 2
 
 ## Summary
 
-This was filed as a MED uniquer race: `GluonOpBuilder` holds a non-owning
+This was originally suspected as a uniquer race: `GluonOpBuilder` holds a non-owning
 `MLIRContext *` (`py::init<MLIRContext *>()`) that comes from `ir.cc`'s
 `context()` factory, constructed with `MLIRContext::Threading::DISABLED`. The
 claim was that the context's `StorageUniquer` is therefore unlocked, so

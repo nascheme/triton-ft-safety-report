@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT045
 - **Status:** Open
-- **Severity:** HIGH
+- **Rank:** Critical Blocker
 - **Component:** `python/src/specialize.cc`
-- **Tier:** 1
 - **Patch:** [`init-globals-toctou.patch`](init-globals-toctou.patch)
 
 - **Shared state:** `static TypeHandlerCache type_handler_cache` in
@@ -24,7 +23,7 @@
   reached from `specialize_impl`, the `native_specialize_impl`
   METH_FASTCALL exposed to Python and called on the per-argument
   specialization hot path from `runtime/jit.py`.
-- **Race scenario:** This is a HIGH consequence of issue FT044's
+- **Race scenario:** This is a Critical Blocker consequence of issue FT044's
   unsynchronized lazy init. Two threads can both observe the plain
   `init_called` guard as false and both enter `init_globals()`, which in
   turn calls `init_type_handler_cache()`. Both threads then issue

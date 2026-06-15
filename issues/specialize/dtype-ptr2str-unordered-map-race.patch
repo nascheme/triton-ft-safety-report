@@ -2,8 +2,7 @@ From ef3b58c3760b070ae9b8a243f963d32406d551b8 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 26 May 2026 10:10:27 -0700
 Subject: [PATCH] Lock dtype_ptr2str and dtype2str specialization caches
-X-Tier: 2
-X-Severity: HIGH
+X-Rank: Critical Blocker
 X-Issue-Id: FT042
 
 handle_tensor() and specialize_tensordesc() each mutate a

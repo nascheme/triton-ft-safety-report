@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT026
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Blocker
 - **Component:** `runtime/jit.py`
-- **Tier:** 2
 - **Patch:** [`used-global-vals-unsynchronized-read.patch`](used-global-vals-unsynchronized-read.patch)
 
 - **Shared state:** `JITCallable.used_global_vals` -- a dict recording captured

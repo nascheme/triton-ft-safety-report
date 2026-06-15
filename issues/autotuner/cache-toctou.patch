@@ -2,8 +2,7 @@ From 27fbbcfe1390cd30a059449e0ec1d846cb37ece9 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:33:37 -0700
 Subject: [PATCH] Serialize autotuner benchmarking per tuning key
-X-Tier: 2
-X-Severity: HIGH
+X-Rank: Critical Blocker
 X-Issue-Id: FT002
 
 The Autotuner.run() method can be entered by two or more threads. The
