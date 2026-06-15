@@ -6,7 +6,7 @@
 - **Status:** Open (upstream)
 - **Rank:** Critical Blocker
 - **Component:** `runtime/driver.py` (and downstream native extensions)
-- **Patch:** No standalone patch. The two in-scope contributing races are addressed by [`driver-default-lazy-init-race.patch`](driver-default-lazy-init-race.patch) (DriverConfig lazy-init lock) and [`../nvidia-driver/cudautils-singleton-race.patch`](../nvidia-driver/cudautils-singleton-race.patch) (CudaUtils locked init-once). The single-thread native-extension hypotheses described below remain follow-ups outside `runtime/driver.py`.
+- **Patch:** No standalone patch. The in-scope contributing race is addressed by [`driver-default-lazy-init-race.patch`](driver-default-lazy-init-race.patch) (DriverConfig lazy-init lock). The lower-priority CudaUtils duplicate initialization concern is summarized in [`../nvidia-driver.md`](../nvidia-driver.md), and the single-thread native-extension hypotheses described below remain follow-ups outside `runtime/driver.py`.
 
 ## Summary
 

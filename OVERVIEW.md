@@ -118,9 +118,10 @@ python/
 ## Audit Components
 
 The audit is organized into the components below. Each maps to an
-`issues/<component>.md` file and, for detailed issue files, to a row in the
-issue index [Rank Counts](issues/README.md#rank-counts) table. Descriptions
-call out the shared mutable state worth inspecting for free-threading.
+`issues/<component>.md` file and to rows in the issue index
+[Rank Counts](issues/README.md#rank-counts) table when it has FT-numbered
+findings. Descriptions call out the shared mutable state worth inspecting for
+free-threading.
 
 ### Runtime (`python/triton/runtime/`)
 

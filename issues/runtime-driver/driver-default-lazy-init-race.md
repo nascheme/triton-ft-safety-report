@@ -23,5 +23,5 @@
   (see [seg-fault-gh-6721.md](seg-fault-gh-6721.md)).
 - **Suggested fix:** Serialize lazy init with a `threading.Lock` on
   `DriverConfig` using double-checked locking. The same lock should guard
-  `active`, `set_active`, and `reset_active`
-  (see [driver-active-set-active-race.md](driver-active-set-active-race.md)).
+  `active`, `set_active`, and `reset_active`; the active-driver mutation concern
+  is summarized in [`../runtime-driver.md`](../runtime-driver.md).

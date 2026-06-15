@@ -14,7 +14,7 @@ goal.
 | 1 | Deferred | HookChain | `HookChain.__call__` iterates `self.calls` under concurrent `add`/`remove` |
 | 2 | Deferred | HookChain | `HookChain.add` / `HookChain.remove` TOCTOU on membership check |
 | 3 | Deferred | runtime hook slots | Hot-path callers re-read `knobs.runtime.*_hook` across `is not None` / call |
-| FT027 | Deferred | base_knobs.scope | [`base_knobs.scope()` corrupts shared knob state / `os.environ` under concurrent use](knobs/scope-context-manager-race.md) |
+| FT027 | Deferred | base_knobs.scope | `base_knobs.scope()` saves and restores shared descriptor state plus `os.environ`, so overlapping scopes can restore the wrong values. Deferred because concurrent global configuration mutation is unsupported. |
 | 5 | Deferred | env_base.__set__ | `env_base.__set__` non-atomic instance-dict vs `os.environ` update |
 | 6 | Low | setenv | `setenv` check-then-delete TOCTOU on `os.environ` |
 | 7 | Low | base_knobs.reset | `base_knobs.reset()` non-atomic multi-descriptor delete |
@@ -24,8 +24,8 @@ goal.
 
 - `HookChain` copy-on-write would address #1 and #2 and also help compiler/JIT
   hook users.
-- Hot-path double-read call sites are tracked where they occur, for example
-  [`jit/add-stages-inspection-hook-toctou.md`](jit/add-stages-inspection-hook-toctou.md).
+- Hot-path double-read call sites are tracked where they occur, including the
+  `add_stages_inspection_hook` row in `jit.md`.
 - `base_knobs.scope()` is already documented as unsafe across threads; FT027
   records the concrete failure mode.
 - Atomicity of individual dict/attribute operations is not enough here because
