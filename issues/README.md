@@ -52,8 +52,7 @@ Entries in this queue are ranked **Critical Blocker** or **Blocker**.
 ## Rank Counts
 
 Counts below are generated from the ranked detailed issue files under
-`issues/<component>/`. Component-summary-only candidates and dropped notes are
-not counted here.
+`issues/<component>/`. Component-summary-only candidates are not counted here.
 
 There are **39 ranked detailed issue files**. Of these, **21** are current-goal
 issue IDs: **8 Critical Blocker** and **13 Blocker**.
@@ -72,19 +71,6 @@ issue IDs: **8 Critical Blocker** and **13 Blocker**.
 | [runtime-driver](runtime-driver.md) | 1 | 1 | 2 | 0 | 4 |
 | [specialize](specialize.md) | 4 | 0 | 0 | 0 | 4 |
 | **Total** | **8** | **13** | **11** | **7** | **39** |
-
-## Dropped And Out-Of-Scope Notes
-
-The following audit leads are intentionally not ranked issue files:
-
-| Former ID | Resolution |
-| --- | --- |
-| FT022 | `JITCallable.hash` placeholder does not escape `_hash_lock`; not a bug. |
-| FT029 | Runtime mutation of LLVM `cl::opt` is a real pre-existing debug-path rule violation, not a free-threading-specific Triton ask. |
-| FT031 | `LinearLayout` view helpers use an unnecessary `const_cast`; const-correctness cleanup only. |
-| FT032 | Gluon shared-`MLIRContext` uniquer race premise was incorrect; normal-path uniquers are already locked. |
-| FT034 | Shared `LinearLayout.__imul__` requires intentional caller misuse, and the proposed fix would split API behavior across builds. |
-| FT035 | Linear-layout shared-`MLIRContext` uniquer race premise was incorrect for the same reason as FT032. |
 
 ## Component Files
 
@@ -116,6 +102,3 @@ When auditing, assign the issue a single rank:
   `TRITON_INTERPRET=1`.
 - Use **Low** for latent, diagnostic, duplicate-work, or otherwise low-impact
   findings.
-- Do not create a detailed issue file for rejected or out-of-scope leads.
-  Summarize them in [Dropped And Out-Of-Scope Notes](#dropped-and-out-of-scope-notes)
-  only if the audit trail is worth preserving.

@@ -204,11 +204,6 @@ driver/backend selection, or `TRITON_INTERPRET=1` while other threads compile
 or launch. These are tracked for completeness, but the underlying scenarios are
 unsupported even under the GIL build today.
 
-If an issue is rejected or out of scope, do not promote it to a current-goal
-rank. Preserve it only as a short note in
-[`issues/README.md`](issues/README.md#dropped-and-out-of-scope-notes) when the
-audit trail is worth the space.
-
 ## How to audit a file
 
 For each piece of mutable state you find:
@@ -260,7 +255,7 @@ The triage notes section is the place for:
 - alternative hypotheses,
 - rank reasoning,
 - examples / interleavings,
-- why a suspected issue was rejected or downgraded,
+- why a suspected issue was not promoted,
 - and any detail that would make the individual issue files too long.
 
 For issues that are determined to be valid, create one individual markdown file
@@ -338,10 +333,6 @@ detailed rank justification, move that material into the component
 
 - **Low:** Duplicate computation, low-impact first-use races, or stale reads
   where the consequence is limited.
-
-- Do not create detailed issue files for rejected or out-of-scope leads.
-  Summarize them in `issues/README.md` only when preserving the audit trail is
-  worth the space.
 
 ## Generating patch files
 

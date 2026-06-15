@@ -270,17 +270,13 @@ As you move through the passes, keep these questions in mind:
 ## Rank mapping to keep in mind
 
 Rank definitions live in [issues/README.md](issues/README.md#rank-model).
-Dropped/out-of-scope note guidance lives in
-[Dropped And Out-Of-Scope Notes](issues/README.md#dropped-and-out-of-scope-notes).
 Refer to that document when classifying an issue rather than redefining ranks
 here.
 
 A good report should say which rank an issue belongs to. **Deferred** covers
 concurrent configuration mutation (knobs / hooks / driver / backend) and
 `TRITON_INTERPRET=1`: record these for completeness but do not block the
-current goal on them. Rejected or out-of-scope leads should not become detailed
-issue files; summarize them in the issue index only when the audit trail is
-worth preserving.
+current goal on them.
 
 ## Suggested output structure for later reports
 
