@@ -5,6 +5,7 @@
 - **Rank:** Blocker
 - **Component:** `runtime/jit.py`
 - **Patch:** [`used-global-vals-unsynchronized-read.patch`](used-global-vals-unsynchronized-read.patch)
+- **Reproducer:** [`used-global-vals-unsynchronized-read-reproducer.py`](used-global-vals-unsynchronized-read-reproducer.py)
 
 - **Shared state:** `JITCallable.used_global_vals` -- a dict recording captured
   global variables and their values at first compilation. Initialized to `{}`
@@ -23,3 +24,7 @@
 - **Suggested fix:** Call `self.cache_key` once at the top of `run()` to
   ensure `used_global_vals` is populated and its write is synchronized via
   `_hash_lock`. After the first call this is a cheap uncontended lock acquire.
+- **Reproducer note:** The reproducer is a deterministic state-space test, not a
+  probabilistic stress test. It manually creates the cache-hit state a racing
+  thread can observe: `kernel_cache` has a hit while `used_global_vals` still
+  appears as its initial empty dict.
