@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT007
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Blocker
 - **Component:** `python/triton/runtime/autotuner.py`
-- **Tier:** 2
 - **Patch:** [`cache-toctou.patch`](cache-toctou.patch)
 
 - **Shared state:** `self.restore_copies` — a `dict` on the shared `Autotuner`

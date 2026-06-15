@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT009
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Blocker
 - **Component:** `python/triton/compiler/code_generator.py`
-- **Tier:** 1
 - **Patch:** [`code-generator-gscope-iteration-race.patch`](code-generator-gscope-iteration-race.patch)
 
 - **Shared state:** The defining module's `__dict__`, reached as

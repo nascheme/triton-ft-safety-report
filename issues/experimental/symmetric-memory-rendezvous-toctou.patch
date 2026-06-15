@@ -2,8 +2,7 @@ From 287636e5aecf44e98ba25e7394891d5e93f3c8d3 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Wed, 20 May 2026 15:28:35 -0700
 Subject: [PATCH] Serialize gsan symmetric_memory.rendezvous()
-X-Tier: 2
-X-Severity: MED
+X-Rank: Blocker
 X-Issue-Id: FT013
 
 The rendezvous protocol does check-then-act on a module-level

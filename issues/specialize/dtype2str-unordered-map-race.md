@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT043
 - **Status:** Open
-- **Severity:** HIGH
+- **Rank:** Critical Blocker
 - **Component:** `python/src/specialize.cc`
-- **Tier:** 2
 - **Patch:** [`dtype-ptr2str-unordered-map-race.patch`](dtype-ptr2str-unordered-map-race.patch)
 
 `dtype2str` and `dtype_ptr2str` are sibling process-global

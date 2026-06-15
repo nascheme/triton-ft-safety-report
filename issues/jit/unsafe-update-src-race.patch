@@ -2,8 +2,7 @@ From 81a0b9c0756455bfb058df2ed297e7359d42a70e Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 11:00:26 -0700
 Subject: [PATCH] Take _hash_lock in _unsafe_update_src
-X-Tier: 2
-X-Severity: MED
+X-Rank: Blocker
 X-Issue-Id: FT025
 
 `JITCallable._src` and `JITCallable.hash` must stay in sync: `hash`

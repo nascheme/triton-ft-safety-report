@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT042
 - **Status:** Open
-- **Severity:** HIGH
+- **Rank:** Critical Blocker
 - **Component:** `python/src/specialize.cc`
-- **Tier:** 2
 - **Patch:** [`dtype-ptr2str-unordered-map-race.patch`](dtype-ptr2str-unordered-map-race.patch)
 
 Two sibling caches in `specialize.cc` share the same hazard and the same

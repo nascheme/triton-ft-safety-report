@@ -1,7 +1,7 @@
 # Triton Free-Threading Audit Plan: Scope and Ordering
 
 See [CLAUDE.md](CLAUDE.md) for audit methodology, high-value race patterns,
-report format, and severity guidance.
+report format, and rank guidance.
 
 See [OVERVIEW.md](OVERVIEW.md) for the high-level architecture of Triton's
 Python-facing runtime.
@@ -93,7 +93,7 @@ for kernel invocation.
 Why first:
 - these files define the hottest Python execution path
 - they contain the most important shared mutable Python objects
-- they directly cover tier-1 and tier-2 concurrency scenarios
+- they directly cover current-goal concurrency scenarios
 
 ---
 
@@ -128,7 +128,7 @@ center of dispatch themselves.
 
 Why second:
 - these files explain the global state surrounding dispatch
-- they are important for tier-1 and tier-2 issues
+- they are important for current-goal issues
 - they often determine whether a race is local to one object or process-global
 
 ---
@@ -267,17 +267,16 @@ As you move through the passes, keep these questions in mind:
    - crash, use-after-free, or wrong-kernel behavior
    - or only benign duplicate work / stale read
 
-## Tier mapping to keep in mind
+## Rank mapping to keep in mind
 
-Tier definitions and out-of-scope categories live in
-[README.md](README.md#concurrency-model). Refer to that document when
-classifying an issue rather than redefining tiers here.
+Rank definitions live in [issues/README.md](issues/README.md#rank-model).
+Refer to that document when classifying an issue rather than redefining ranks
+here.
 
-A good report should say which tier an issue belongs to. Tier 3 covers
-concurrent configuration mutation (knobs / hooks / driver / backend) and is
-**tracked, not a current objective** — record these for completeness but do
-not block on them. Issues in the out-of-scope categories should be flagged
-as out of scope rather than promoted to a tier.
+A good report should say which rank an issue belongs to. **Deferred** covers
+concurrent configuration mutation (knobs / hooks / driver / backend) and
+`TRITON_INTERPRET=1`: record these for completeness but do not block the
+current goal on them.
 
 ## Suggested output structure for later reports
 

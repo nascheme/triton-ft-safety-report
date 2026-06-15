@@ -118,9 +118,10 @@ python/
 ## Audit Components
 
 The audit is organized into the components below. Each maps to an
-`issues/<component>.md` file and to a row in the README
-[Audit Progress](README.md#audit-progress) table. Descriptions call out the
-shared mutable state worth inspecting for free-threading.
+`issues/<component>.md` file and to rows in the issue index
+[Rank Counts](issues/README.md#rank-counts) table when it has FT-numbered
+findings. Descriptions call out the shared mutable state worth inspecting for
+free-threading.
 
 ### Runtime (`python/triton/runtime/`)
 
@@ -280,10 +281,10 @@ Examples include:
 - async compilation bookkeeping in `_async_compile.py`
 - lazy runtime-handle initialization on `CompiledKernel`
 
-These matter for Tier 2 scenarios — multiple threads using Triton
-concurrently against the same process, whether sharing a GPU or running
-one-thread-per-GPU. Tier 2 covers both kernel dispatch and concurrent first-
-time compilation; concurrent compilation is already a production use case
+These matter for current-goal scenarios: multiple threads using Triton
+concurrently in the same process, whether sharing a GPU or running
+one-thread-per-GPU. The current goal covers both kernel dispatch and concurrent
+first-time compilation; concurrent compilation is already a production use case
 today (under GIL + `gil_scoped_release`) and must not regress under
 free-threading.
 
@@ -324,7 +325,7 @@ running.
 
 ## What This Overview Intentionally Does Not Do
 
-This file is not trying to settle exact severity, prove every race, or document
+This file is not trying to settle exact rank, prove every race, or document
 every individual field. Later subsystem-specific audit notes should do that.
 
 The purpose of this overview is just to keep the high-level map correct:

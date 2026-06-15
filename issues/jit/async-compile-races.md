@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT019
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Blocker
 - **Component:** `runtime/_async_compile.py`
-- **Tier:** 2
 - **Patch:** [`async-compile-races.patch`](async-compile-races.patch)
 
 Two threads can reach the same `FutureKernel` concurrently: one via the

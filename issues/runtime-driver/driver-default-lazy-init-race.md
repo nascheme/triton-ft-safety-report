@@ -2,9 +2,8 @@
 
 - **Issue-Id:** FT040
 - **Status:** Open
-- **Severity:** MED
+- **Rank:** Blocker
 - **Component:** `runtime/driver.py` (`DriverConfig.default`)
-- **Tier:** 1
 - **Patch:** [`driver-default-lazy-init-race.patch`](driver-default-lazy-init-race.patch)
 
 - **Shared state:** `DriverConfig._default` on the module-level singleton
@@ -24,5 +23,5 @@
   (see [seg-fault-gh-6721.md](seg-fault-gh-6721.md)).
 - **Suggested fix:** Serialize lazy init with a `threading.Lock` on
   `DriverConfig` using double-checked locking. The same lock should guard
-  `active`, `set_active`, and `reset_active`
-  (see [driver-active-set-active-race.md](driver-active-set-active-race.md)).
+  `active`, `set_active`, and `reset_active`; the active-driver mutation concern
+  is summarized in [`../runtime-driver.md`](../runtime-driver.md).
