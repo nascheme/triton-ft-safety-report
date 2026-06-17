@@ -1,4 +1,4 @@
-From 261785cc4f26cc38e6700e71aa4815782220998d Mon Sep 17 00:00:00 2001
+From a21f5b8f550695985b411311260890f7dba1dfb4 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:42:53 -0700
 Subject: [PATCH] Serialize DriverConfig lazy init and set_active/reset_active
@@ -9,7 +9,6 @@ Serialize the lazy init of DriverConfig._default and _active.  This
 avoids data races when multiple threads are used.
 
 Assisted-by: claude-opus-4.6
-
 ---
  python/triton/runtime/driver.py | 39 ++++++++++++++++++++++++++-------
  1 file changed, 31 insertions(+), 8 deletions(-)

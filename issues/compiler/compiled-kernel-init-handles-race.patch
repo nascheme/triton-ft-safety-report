@@ -1,4 +1,4 @@
-From a2d1cd06ab475aaee7447013167459b708f42387 Mon Sep 17 00:00:00 2001
+From a8823b1a898364a782a60375eea7330e87883080 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 26 May 2026 09:42:39 -0700
 Subject: [PATCH] Lock CompiledKernel._init_handles, publish _run last

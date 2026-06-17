@@ -1,0 +1,13 @@
+issues/specialize/init-globals-toctou.patch
+issues/autotuner/cache-toctou.patch
+issues/compiler/compiled-kernel-init-handles-race.patch
+issues/jit/device-caches-race.patch
+issues/specialize/dtype-ptr2str-unordered-map-race.patch
+issues/compiler/code-generator-gscope-iteration-race.patch
+issues/jit/function-registry-race.patch
+issues/runtime-driver/driver-default-lazy-init-race.patch
+issues/experimental/symmetric-memory-rendezvous-toctou.patch
+issues/jit/async-compile-races.patch
+issues/jit/kernel-cache-toctou.patch
+issues/jit/unsafe-update-src-race.patch
+issues/jit/used-global-vals-unsynchronized-read.patch

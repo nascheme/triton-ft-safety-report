@@ -1,4 +1,4 @@
-From 2a13bfc1fd6ce9d832ab66c6d6831511bb1ac639 Mon Sep 17 00:00:00 2001
+From 11442de2fbf7ddfb6b7a44938acfcad01d1085dd Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:57:09 -0700
 Subject: [PATCH] Serialize JITFunction.device_caches population
@@ -11,14 +11,22 @@ TOCTOU data races under free-threading.  Instead, add a
 
 Assisted-by: claude-opus-4.6
 ---
- python/triton/runtime/jit.py | 37 ++++++++++++++++++++++++++++++++----
- 1 file changed, 33 insertions(+), 4 deletions(-)
+ python/triton/runtime/jit.py | 38 +++++++++++++++++++++++++++++++-----
+ 1 file changed, 33 insertions(+), 5 deletions(-)
 
 diff --git a/python/triton/runtime/jit.py b/python/triton/runtime/jit.py
-index dc8eeacf5..9202337d8 100644
+index 865eb5939..7fc1f3772 100644
 --- a/python/triton/runtime/jit.py
 +++ b/python/triton/runtime/jit.py
-@@ -696,6 +696,17 @@ class JITFunction(JITCallable, KernelInterface[T]):
+@@ -7,7 +7,6 @@ import itertools
+ import threading
+ import re
+ import textwrap
+-from collections import defaultdict
+ from dataclasses import dataclass
+ from functools import cached_property
+ from typing import Callable, Concatenate, Generic, Iterable, Optional, ParamSpec, TYPE_CHECKING, TypeVar, overload, Dict, Any, Tuple
+@@ -699,6 +698,17 @@ class JITFunction(JITCallable, KernelInterface[T]):
          binder = create_function_from_signature(self.signature, self.params, backend)
          return {}, {}, target, backend, binder
  
@@ -36,7 +44,7 @@ index dc8eeacf5..9202337d8 100644
      def _pack_args(self, backend, kwargs, bound_args, specialization, options):
          # options
          options = backend.parse_options(kwargs)
-@@ -732,7 +743,7 @@ class JITFunction(JITCallable, KernelInterface[T]):
+@@ -735,7 +745,7 @@ class JITFunction(JITCallable, KernelInterface[T]):
          for hook in self.pre_run_hooks:
              hook(*args, **kwargs)
  
@@ -45,7 +53,7 @@ index dc8eeacf5..9202337d8 100644
          # specialization is list[tuple[str, Any]], where first element of tuple is
          # the type and the second parameter is the 'specialization' value.
          bound_args, specialization, options = binder(*args, **kwargs)
-@@ -802,7 +813,8 @@ class JITFunction(JITCallable, KernelInterface[T]):
+@@ -805,7 +815,8 @@ class JITFunction(JITCallable, KernelInterface[T]):
              self.params.append(KernelParam(i, param, dns, dns_oa))
  
          # cache of just-in-time compiled kernels
@@ -55,7 +63,7 @@ index dc8eeacf5..9202337d8 100644
  
          # JITFunction can be instantiated as kernel
          # when called with a grid using __getitem__
-@@ -818,6 +830,23 @@ class JITFunction(JITCallable, KernelInterface[T]):
+@@ -821,6 +832,23 @@ class JITFunction(JITCallable, KernelInterface[T]):
          # Hooks that will be called prior to executing "run"
          self.pre_run_hooks = []
  
@@ -79,7 +87,7 @@ index dc8eeacf5..9202337d8 100644
      def preload(self, specialization_data):
          import json
          import triton.language as tl
-@@ -828,7 +857,7 @@ class JITFunction(JITCallable, KernelInterface[T]):
+@@ -831,7 +859,7 @@ class JITFunction(JITCallable, KernelInterface[T]):
                  f"Specialization data is for {deserialized_obj['name']} but trying to preload for {self._fn_name}")
          constant_keys = map(tuple, deserialized_obj['constant_keys'])
          constant_vals = deserialized_obj['constant_vals']
@@ -88,7 +96,7 @@ index dc8eeacf5..9202337d8 100644
          deserialized_target = deserialized_obj['target']
          # TODO: we could support loading a kernel signature serialized on a different target however
          # currently options are target specific so we would need to change that.
-@@ -872,7 +901,7 @@ class JITFunction(JITCallable, KernelInterface[T]):
+@@ -875,7 +903,7 @@ class JITFunction(JITCallable, KernelInterface[T]):
          )
  
      def _do_compile(self, key, signature, device, constexprs, options, attrs, warmup):

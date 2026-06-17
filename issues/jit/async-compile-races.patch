@@ -1,7 +1,10 @@
-From cd6c33542592efcdc50d5f0ff6fc6d5752a4d095 Mon Sep 17 00:00:00 2001
+From d80b74e4c104bbe50b574353924201a8aa8ee2e4 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:57:23 -0700
 Subject: [PATCH] Lock AsyncCompileMode submit and finalize_compile
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
 X-Rank: Blocker
 X-Issue-Id: FT019
 
@@ -26,13 +29,12 @@ Add a lock to `AsyncCompileMode.submit` and a per-FutureKernel lock
 with double-checked finalize_compile.
 
 Assisted-by: claude-opus-4.6
-
 ---
  python/triton/runtime/_async_compile.py | 29 +++++++++++++++----------
  1 file changed, 18 insertions(+), 11 deletions(-)
 
 diff --git a/python/triton/runtime/_async_compile.py b/python/triton/runtime/_async_compile.py
-index 69af44742..8f2915941 100644
+index d8868b5da..b4d3fee7a 100644
 --- a/python/triton/runtime/_async_compile.py
 +++ b/python/triton/runtime/_async_compile.py
 @@ -1,4 +1,5 @@

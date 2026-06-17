@@ -33,6 +33,15 @@ another patch. See [Rank Counts](#rank-counts) for the canonical counts.
 
 Entries in this queue are ranked **Critical Blocker** or **Blocker**.
 
+The patches are designed to apply as a **series**, each on top of the previous
+one. For the order to apply patches in, see
+[`../patch_queue.txt`](../patch_queue.txt). To apply the whole series onto a
+clean Triton checkout, from the repository root run:
+
+```sh
+cat $(cat ./patch_queue.txt) | (cd triton; git am)
+```
+
 | Issue | Rank | Patch / risk |
 | --- | --- | --- |
 | FT044 | Critical Blocker | [`specialize/init-globals-toctou`](specialize/init-globals-toctou.md): plain-bool lazy init lets two threads race file-scope `PyObject*` assignment and `type_handler_cache`. |

@@ -1,4 +1,4 @@
-From 2df81c5fa7c7ac77b3a5f8fde7eb2ce87de88feb Mon Sep 17 00:00:00 2001
+From 20ff2210633aab5849afff9a68357fe6225f582e Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 11:00:37 -0700
 Subject: [PATCH] Force cache_key in run() before kernel_cache lookup
@@ -21,16 +21,15 @@ Force `self.cache_key` at the top of `run()`, before the kernel_cache
 lookup, so `used_global_vals` is populated before any cache hit.
 
 Assisted-by: claude-opus-4.6
-
 ---
  python/triton/runtime/jit.py | 7 +++++++
  1 file changed, 7 insertions(+)
 
 diff --git a/python/triton/runtime/jit.py b/python/triton/runtime/jit.py
-index ba21a58e1..de842b4a4 100644
+index f2d5cdae8..04845bcd1 100644
 --- a/python/triton/runtime/jit.py
 +++ b/python/triton/runtime/jit.py
-@@ -709,6 +709,13 @@ class JITFunction(JITCallable, KernelInterface[T]):
+@@ -753,6 +753,13 @@ class JITFunction(JITCallable, KernelInterface[T]):
          kwargs["debug"] = kwargs.get("debug", self.debug) or knobs.runtime.debug
          kwargs["instrumentation_mode"] = knobs.compilation.instrumentation_mode
  

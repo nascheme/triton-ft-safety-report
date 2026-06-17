@@ -1,4 +1,4 @@
-From b5e112ad17f7d6c5d3f8ff75a812961845e7f193 Mon Sep 17 00:00:00 2001
+From 31d6d099de5de38b0f9a89dbd944ef31dbf51b49 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Sat, 30 May 2026 08:11:15 -0700
 Subject: [PATCH] Use std::call_once for init_globals() serialization in
@@ -31,24 +31,24 @@ index c4bab9fb2..97d0e5392 100644
 @@ -36,7 +37,8 @@ static std::pair<py::object, py::object>
  specialize_arg(PyObject *backend, PyObject *arg, bool is_const,
                 bool specialize_value, bool align);
-
+ 
 -static bool init_called = false;
 +static std::once_flag init_flag;
 +static bool init_success = false;
-
+ 
  static PyObject *constexpr_cls = nullptr;
  static PyObject *jit_callable_cls = nullptr;
 @@ -155,13 +157,22 @@ bool init_globals() noexcept try {
    init_interned_strings();
    init_type_handler_cache();
-
+ 
 -  init_called = true;
    return true;
  } catch (py::error_already_set &e) {
    e.restore();
    return false;
  }
-
+ 
 +// NOTE: std::call_once does not support re-entrant calls from within the
 +// callable. If init_globals() triggers a Python import that re-enters
 +// native_specialize_impl on the same thread, behavior is undefined. In
@@ -73,7 +73,8 @@ index c4bab9fb2..97d0e5392 100644
 +  if (!ensure_init()) {
 +    return nullptr;
    }
-
+ 
    if (nargs != 5) {
---
+-- 
 2.47.3
+

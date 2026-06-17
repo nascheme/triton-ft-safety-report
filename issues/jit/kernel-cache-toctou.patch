@@ -1,4 +1,4 @@
-From 9841688bf0243ea707e31a3c8a05f8d37d08e67c Mon Sep 17 00:00:00 2001
+From 86df6423c9112cc961a03773940ed61d22af5340 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 11:00:06 -0700
 Subject: [PATCH] Lock the kernel_cache check-then-compile in run()
@@ -20,14 +20,14 @@ placeholder write so a finalized real kernel isn't clobbered.
 
 Assisted-by: claude-opus-4.6
 ---
- python/triton/runtime/jit.py | 51 +++++++++++++++++++++++++++++++-----
- 1 file changed, 45 insertions(+), 6 deletions(-)
+ python/triton/runtime/jit.py | 51 ++++++++++++++++++++++++++++--------
+ 1 file changed, 40 insertions(+), 11 deletions(-)
 
 diff --git a/python/triton/runtime/jit.py b/python/triton/runtime/jit.py
-index dc8eeacf5..84b08a9e1 100644
+index 486749c46..27bc1174e 100644
 --- a/python/triton/runtime/jit.py
 +++ b/python/triton/runtime/jit.py
-@@ -683,6 +683,17 @@ class JITFunction(JITCallable, KernelInterface[T]):
+@@ -685,6 +685,17 @@ class JITFunction(JITCallable, KernelInterface[T]):
          assert callable(hook)
          self.pre_run_hooks.append(hook)
  
@@ -45,7 +45,7 @@ index dc8eeacf5..84b08a9e1 100644
      def create_binder(self):
          """
          Precompute as much as possible.
-@@ -748,12 +759,15 @@ class JITFunction(JITCallable, KernelInterface[T]):
+@@ -761,12 +772,15 @@ class JITFunction(JITCallable, KernelInterface[T]):
  
          # Kernel is not cached; we have to compile.
          if kernel is None:
@@ -54,8 +54,8 @@ index dc8eeacf5..84b08a9e1 100644
 +            with self._get_compile_lock(device):
 +                kernel = kernel_cache.get(key, None)
 +                if kernel is None:
-+                    options, signature, constexprs, attrs = self._pack_args(
-+                        backend, kwargs, bound_args, specialization, options)
++                    options, signature, constexprs, attrs = self._pack_args(backend, kwargs, bound_args, specialization,
++                                                                            options)
  
 -            kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
 -            if kernel is None:
@@ -66,10 +66,10 @@ index dc8eeacf5..84b08a9e1 100644
  
          # Check that used global values have not changed.
          not_present = object()
-@@ -803,6 +817,11 @@ class JITFunction(JITCallable, KernelInterface[T]):
- 
+@@ -815,6 +829,11 @@ class JITFunction(JITCallable, KernelInterface[T]):
          # cache of just-in-time compiled kernels
-         self.device_caches = defaultdict(self.create_binder)
+         self.device_caches = {}
+         self._device_caches_lock = threading.Lock()
 +        # Per-device locks serializing the kernel_cache check-then-compile
 +        # sequence in run() so two threads launching the same kernel on the
 +        # same device do not both compile and write kernel_cache[key].
@@ -78,30 +78,39 @@ index dc8eeacf5..84b08a9e1 100644
  
          # JITFunction can be instantiated as kernel
          # when called with a grid using __getitem__
-@@ -818,6 +837,22 @@ class JITFunction(JITCallable, KernelInterface[T]):
-         # Hooks that will be called prior to executing "run"
-         self.pre_run_hooks = []
+@@ -836,20 +855,26 @@ class JITFunction(JITCallable, KernelInterface[T]):
  
-+    def __getstate__(self):
-+        # JITFunction is pickled into torch.compile's (possibly cross-process)
-+        # Inductor static-autotuner cache. _compile_locks_lock and the
-+        # per-device locks stored in _compile_locks are not picklable. Drop
-+        # both here; __setstate__ rebuilds them. (The upstream _hash_lock is
-+        # stripped separately by torch's CachingAutotuner.prepare_for_pickle.)
-+        state = self.__dict__.copy()
+     def __getstate__(self):
+         # JITFunction is pickled into torch.compile's (possibly cross-process)
+-        # Inductor static-autotuner cache. _device_caches_lock is not picklable,
+-        # and device_caches holds live per-process compiled state (binders,
+-        # compiled kernels) that must not be serialized. Drop both here;
+-        # __setstate__ rebuilds them. (The upstream _hash_lock is stripped
+-        # separately by torch's CachingAutotuner.prepare_for_pickle.)
++        # Inductor static-autotuner cache. The locks (_device_caches_lock,
++        # _compile_locks_lock) and the per-device locks stored in
++        # _compile_locks are not picklable, and device_caches holds live
++        # per-process compiled state (binders, compiled kernels) that must not
++        # be serialized. Drop them here; __setstate__ rebuilds them. (The
++        # upstream _hash_lock is stripped separately by torch's
++        # CachingAutotuner.prepare_for_pickle.)
+         state = self.__dict__.copy()
+         state["_device_caches_lock"] = None
+         state["device_caches"] = {}
 +        state["_compile_locks_lock"] = None
 +        state["_compile_locks"] = {}
-+        return state
-+
-+    def __setstate__(self, state):
-+        self.__dict__.update(state)
+         return state
+ 
+     def __setstate__(self, state):
+         self.__dict__.update(state)
+         self._device_caches_lock = threading.Lock()
+         self.device_caches = {}
 +        self._compile_locks_lock = threading.Lock()
 +        self._compile_locks = {}
-+
+ 
      def preload(self, specialization_data):
          import json
-         import triton.language as tl
-@@ -894,7 +929,11 @@ class JITFunction(JITCallable, KernelInterface[T]):
+@@ -927,7 +952,11 @@ class JITFunction(JITCallable, KernelInterface[T]):
                                  options, [attrs], warmup)
  
              kernel = async_mode.submit(cache_key, async_compile, finalize_compile)

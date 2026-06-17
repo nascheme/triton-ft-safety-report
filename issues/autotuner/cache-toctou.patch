@@ -1,4 +1,4 @@
-From 27fbbcfe1390cd30a059449e0ec1d846cb37ece9 Mon Sep 17 00:00:00 2001
+From 20109bd67bffbd833c01283f062a26685c70db2c Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 10:33:37 -0700
 Subject: [PATCH] Serialize autotuner benchmarking per tuning key
@@ -13,13 +13,12 @@ cache lock, and keep per-call scratch local to the call. Matches
 upstream triton-lang/triton#8437.
 
 Assisted-by: claude-opus-4.6
-
 ---
  python/triton/runtime/autotuner.py | 118 +++++++++++++++++++----------
  1 file changed, 76 insertions(+), 42 deletions(-)
 
 diff --git a/python/triton/runtime/autotuner.py b/python/triton/runtime/autotuner.py
-index 0c4d71049..4fe0b7490 100644
+index 61b383042..6d53f8c53 100644
 --- a/python/triton/runtime/autotuner.py
 +++ b/python/triton/runtime/autotuner.py
 @@ -5,6 +5,7 @@ import time
@@ -44,29 +43,29 @@ index 0c4d71049..4fe0b7490 100644
          self.arg_names = arg_names
          self.cache_results = (cache_results or knobs.autotuning.cache) and not knobs.runtime.interpret
  
-@@ -60,7 +68,7 @@ class Autotuner(KernelInterface):
-                 for name in self.reset_to_zero:
-                     kwargs[name].zero_()
+@@ -61,7 +69,7 @@ class Autotuner(KernelInterface):
+                     if kwargs[name] is not None:
+                         kwargs[name].zero_()
                  if not reset_only:
--                    self.restore_copies = {name: kwargs[name].clone() for name in self.restore_value}
-+                    self._tls.restore_copies = {name: kwargs[name].clone() for name in self.restore_value}
- 
-             self.pre_hook = _pre_hook
- 
-@@ -70,9 +78,10 @@ class Autotuner(KernelInterface):
+-                    self.restore_copies = {
++                    self._tls.restore_copies = {
+                         name: kwargs[name].clone()
+                         for name in self.restore_value
+                         if kwargs[name] is not None
+@@ -75,9 +83,10 @@ class Autotuner(KernelInterface):
          elif len(self.restore_value) > 0:
  
              def _post_hook(kwargs, exception):
+-                for name, value in self.restore_copies.items():
 +                restore_copies = getattr(self._tls, "restore_copies", {})
-                 for name in self.restore_value:
--                    kwargs[name].copy_(self.restore_copies[name])
++                for name, value in restore_copies.items():
+                     kwargs[name].copy_(value)
 -                self.restore_copies = {}
-+                    kwargs[name].copy_(restore_copies[name])
 +                self._tls.restore_copies = {}
  
              self.post_hook = _post_hook
  
-@@ -125,7 +134,7 @@ class Autotuner(KernelInterface):
+@@ -130,7 +139,7 @@ class Autotuner(KernelInterface):
              return driver.active.get_benchmarker()
          return self._do_bench
  
@@ -75,7 +74,7 @@ index 0c4d71049..4fe0b7490 100644
          from ..compiler.errors import CompileTimeAssertionFailure
  
          verbose = knobs.autotuning.print
-@@ -140,7 +149,7 @@ class Autotuner(KernelInterface):
+@@ -145,7 +154,7 @@ class Autotuner(KernelInterface):
                               " Make sure that you don't re-define auto-tuned symbols.")
          # augment meta-parameters with tunable ones
          current = dict(meta, **config.all_kwargs())
@@ -84,7 +83,7 @@ index 0c4d71049..4fe0b7490 100644
  
          def kernel_call():
              if config.pre_hook:
-@@ -199,45 +208,72 @@ class Autotuner(KernelInterface):
+@@ -204,45 +213,72 @@ class Autotuner(KernelInterface):
                  self.configs_timings = timings
              return True
  
@@ -183,9 +182,9 @@ index 0c4d71049..4fe0b7490 100644
 +                elif event is not None:
 +                    event.wait()
  
-             config = self.cache[key]
-         else:
-@@ -245,22 +281,21 @@ class Autotuner(KernelInterface):
+                 if knobs.autotuning.listener is not None:
+                     jit_fn = self.fn
+@@ -263,22 +299,21 @@ class Autotuner(KernelInterface):
          self.best_config = config
          if knobs.autotuning.print and not used_cached_result:
              print(f"Triton autotuning for function {self.base_fn.__name__},\nwith key as {key},\n"
@@ -212,7 +211,7 @@ index 0c4d71049..4fe0b7490 100644
              if not pruned_configs:
                  raise AutotunerError(
                      "No valid autotuner configs after pruning. `early_config_prune` should return at least one config.")
-@@ -275,7 +310,7 @@ class Autotuner(KernelInterface):
+@@ -293,7 +328,7 @@ class Autotuner(KernelInterface):
              if len(pruned_configs) > top_k:
                  est_timing = {
                      config: self.perf_model(
@@ -221,7 +220,7 @@ index 0c4d71049..4fe0b7490 100644
                          **kwargs,
                          **config.all_kwargs(),
                      )
-@@ -285,15 +320,14 @@ class Autotuner(KernelInterface):
+@@ -303,15 +338,14 @@ class Autotuner(KernelInterface):
          return pruned_configs
  
      def warmup(self, *args, **kwargs):

@@ -1,4 +1,4 @@
-From ef3b58c3760b070ae9b8a243f963d32406d551b8 Mon Sep 17 00:00:00 2001
+From 85e5bfe5fc81e20a0e5ea535184fb0f6301a8270 Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 26 May 2026 10:10:27 -0700
 Subject: [PATCH] Lock dtype_ptr2str and dtype2str specialization caches
@@ -26,22 +26,14 @@ emplace result.
 
 Assisted-by: claude-opus-4.7
 ---
- python/src/specialize.cc | 49 ++++++++++++++++++++++++++++------------
- 1 file changed, 34 insertions(+), 15 deletions(-)
+ python/src/specialize.cc | 48 +++++++++++++++++++++++++++-------------
+ 1 file changed, 33 insertions(+), 15 deletions(-)
 
 diff --git a/python/src/specialize.cc b/python/src/specialize.cc
-index c4bab9fb2..d6334ce90 100644
+index 97d0e5392..d90ba09c1 100644
 --- a/python/src/specialize.cc
 +++ b/python/src/specialize.cc
-@@ -4,6 +4,7 @@
- #include <cstdlib>
- #include <cstring>
- #include <functional>
-+#include <mutex>
- #include <pybind11/pybind11.h>
- #include <string>
- #include <string_view>
-@@ -71,7 +72,9 @@ static PyObject *get_tensor_spec_attr = nullptr;
+@@ -73,7 +73,9 @@ static PyObject *get_tensor_spec_attr = nullptr;
  static PyObject *align_kwarg = nullptr;
  
  static DtypePtr2Str dtype_ptr2str;
@@ -51,7 +43,7 @@ index c4bab9fb2..d6334ce90 100644
  static TypeHandlerCache type_handler_cache;
  
  // Wrappers to make steal and borrow slightly simpler. We use raw CPython API
-@@ -177,16 +180,25 @@ std::pair<py::object, py::object> specialize_tensordesc(PyObject *arg,
+@@ -188,16 +190,25 @@ std::pair<py::object, py::object> specialize_tensordesc(PyObject *arg,
    if (dtype_hash == -1)
      return {};
    DTypeKey dsk{dtype_hash};
@@ -83,7 +75,7 @@ index c4bab9fb2..d6334ce90 100644
    }
  
    std::string desc_cstr;
-@@ -319,19 +331,26 @@ std::pair<py::object, py::object> handle_tensor(PyObject *backend,
+@@ -330,19 +341,26 @@ std::pair<py::object, py::object> handle_tensor(PyObject *backend,
      return {};
  
    DTypePtrKey dsk{dtype_hash, is_const};

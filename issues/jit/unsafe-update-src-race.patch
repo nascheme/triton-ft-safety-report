@@ -1,7 +1,10 @@
-From 81a0b9c0756455bfb058df2ed297e7359d42a70e Mon Sep 17 00:00:00 2001
+From 4fe8882b9bec0f9f2788bad1fdba0e13740dc85e Mon Sep 17 00:00:00 2001
 From: Neil Schemenauer <nas@arctrix.com>
 Date: Tue, 14 Apr 2026 11:00:26 -0700
 Subject: [PATCH] Take _hash_lock in _unsafe_update_src
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
 X-Rank: Blocker
 X-Issue-Id: FT025
 
@@ -20,16 +23,15 @@ subsequent compiles reuse the old source's cache entry.
 Take `_hash_lock` around the invalidate-and-replace pair.
 
 Assisted-by: claude-opus-4.6
-
 ---
  python/triton/runtime/jit.py | 9 +++++++--
  1 file changed, 7 insertions(+), 2 deletions(-)
 
 diff --git a/python/triton/runtime/jit.py b/python/triton/runtime/jit.py
-index ba21a58e1..84764b414 100644
+index 27bc1174e..f2d5cdae8 100644
 --- a/python/triton/runtime/jit.py
 +++ b/python/triton/runtime/jit.py
-@@ -547,8 +547,13 @@ class JITCallable:
+@@ -564,8 +564,13 @@ class JITCallable:
  
          Note that it is the callers responsibility to make sure any triton functions that call this function have the `.hash` value reset to None.
          """
