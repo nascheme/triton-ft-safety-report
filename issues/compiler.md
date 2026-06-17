@@ -642,14 +642,8 @@ Note on the closure branch: when `fn.__closure__` is not `None`,
 constructs a fresh merged dict — the iteration in
 `CodeGenerator.__init__` is then over a local dict and is safe.
 The no-closure branch bypasses the merge and hands the live dict
-straight to Python-level iteration, so it is the primary hazard.
-
-Fix is one line in `runtime/jit.py`: return `dict(self.__globals__)`
-on the no-closure branch so `CodeGenerator.__init__` iterates a
-call-local snapshot. The analogous iteration in
-`JITFunction.cache_key` → `DependenciesFinder` should get the same
-treatment independently; neither of the existing jit.py writeups
-covers it.
+straight to Python-level iteration, so it is the primary hazard. A patch to fix
+this is yet to be developed.
 
 ### 10. `ASTSource.hash()` — derived from `fn.cache_key`
 
