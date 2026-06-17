@@ -21,3 +21,4 @@
 - **Suggested fix:** Replace the `defaultdict` with a plain dict and explicit
   double-checked locking under a per-instance lock. All call sites use a
   `_get_device_cache(device)` method instead of `self.device_caches[device]`.
+  Update tests to use `_get_device_cache(device)`.
